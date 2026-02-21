@@ -196,12 +196,20 @@ export default function App() {
     setPlayer(next);
   }
 
-  function canEquipItem(itemId: any) {
-    // only tail tools; chomper/curler are passive, not equipable
-    if (itemId === "eq_chomper" || itemId === "eq_tail_curler") return false;
-    const item = ITEMS[itemId];
-    return item?.slot === "tail";
-  }
+function isItemId(x: unknown): x is import("./types").ItemId {
+  return typeof x === "string" && Object.prototype.hasOwnProperty.call(ITEMS, x);
+}
+
+function canEquipItem(itemId: unknown) {
+  // Validate before indexing ITEMS[...]
+  if (!isItemId(itemId)) return false;
+
+  // only tail tools; chomper/curler are passive, not equipable
+  if (itemId === "eq_chomper" || itemId === "eq_tail_curler") return false;
+
+  const item = ITEMS[itemId];
+  return item.slot === "tail";
+}
 
   function availableTailToolIds(): import("./types").ItemId[] {
     // list items in inventory that are tail tools, excluding passive tools

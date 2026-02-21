@@ -34,14 +34,14 @@ function pill(text: string) {
   return <span className="pill">{text}</span>;
 }
 
-function formatConsumed(consumed: { foodId: string; units: number }[]) {
+function formatConsumed(consumed: { foodId: import("./types").FoodId; units: number }[]) {
   if (!consumed.length) return "None";
-  return consumed.map((c) => `${FOODS[c.foodId as any]?.name ?? c.foodId} ×${c.units}`).join(", ");
+  return consumed.map((c) => `${FOODS[c.foodId].name} ×${c.units}`).join(", ");
 }
 
-function formatConsumedRange(consumed: { foodId: string; unitsRange: [number, number] }[]) {
+function formatConsumedRange(consumed: { foodId: import("./types").FoodId; unitsRange: [number, number] }[]) {
   if (!consumed.length) return "None";
-  return consumed.map((c) => `${FOODS[c.foodId as any]?.name ?? c.foodId} ×${c.unitsRange[0]}–${c.unitsRange[1]}`).join(", ");
+  return consumed.map((c) => `${FOODS[c.foodId].name} ×${c.unitsRange[0]}–${c.unitsRange[1]}`).join(", ");
 }
 
 const START_PLAYER: PlayerState = {
@@ -190,7 +190,7 @@ export default function App() {
   }
 
   // --- Inventory actions (equip / unequip tools)
-  function equipTail(slotIdx: 0 | 1, itemId: any) {
+  function equipTail(slotIdx: 0 | 1, itemId: import("./types").ItemId | null) {
     const next = structuredClone(player);
     next.equipment.tailSlots[slotIdx] = itemId;
     setPlayer(next);
@@ -203,14 +203,13 @@ export default function App() {
     return item?.slot === "tail";
   }
 
-  function availableTailToolIds(): any[] {
+  function availableTailToolIds(): import("./types").ItemId[] {
     // list items in inventory that are tail tools, excluding passive tools
     const ids = player.inventory
-      .filter((s) => typeof s.id === "string" && (s.id as string).startsWith("eq_") && s.qty > 0)
-      .map((s) => s.id)
+      .filter((st): st is { id: import("./types").ItemId; qty: number } => typeof st.id === "string" && (st.id as string).startsWith("eq_") && st.qty > 0)
+      .map((st) => st.id)
       .filter((id) => canEquipItem(id));
-    // allow null (empty)
-    return Array.from(new Set(ids as any[]));
+    return Array.from(new Set(ids));
   }
 
   // --- rendering helpers
@@ -327,7 +326,7 @@ export default function App() {
                   const name =
                     (id.startsWith?.("eq_") ? getItemName(id) : id.startsWith?.("food_") ? getFoodName(id) : getResourceName(id));
                   const note =
-                    id.startsWith?.("food_") && FOODS[id]?.storable
+                    id.startsWith?.("food_") && FOODS[id as import("./types").FoodId]?.storable
                       ? `Freshness: ${s.freshness?.join(", ") ?? "?"}`
                       : "";
                   return (

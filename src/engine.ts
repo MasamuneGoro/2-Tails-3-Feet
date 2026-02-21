@@ -396,8 +396,7 @@ export function makeHarvestPreview(player: PlayerState, poiId: PoiId, method: Ha
   const yieldRange: [number, number] = [Math.max(1, Math.floor(base[0] * eff)), Math.max(1, Math.floor(base[1] * eff + 0.5))];
 
   const estFoodConsumed: { foodId: FoodId; unitsRange: [number, number] }[] = [];
-  const hasStorable = player.inventory.some((s) => typeof s.id === "string" && s.id.startsWith("food_") && FOODS[s.id as FoodId]?.storable && s.qty > 0);
-  if (hasStorable) {
+  if (hasEquippedTail(player, "eq_chomper")) {
     const storableIds = Array.from(
       new Set(
         player.inventory
@@ -467,8 +466,8 @@ export function canCraft(player: PlayerState) {
 }
 
 export function listUnlockedRecipes(player: PlayerState): string[] {
-  // Tinker Shaft is a starter item; if present, recipes unlocked.
-  const hasTinker = player.inventory.some((s) => s.id === "eq_tinker_shaft" && s.qty > 0);
+  // Tinker Shaft must be equipped in a tail slot to unlock recipes.
+  const hasTinker = hasEquippedTail(player, "eq_tinker_shaft");
   if (!hasTinker) return [];
   return ITEMS.eq_tinker_shaft.unlocksRecipes ?? [];
 }
@@ -476,8 +475,7 @@ export function listUnlockedRecipes(player: PlayerState): string[] {
 export function makeCraftPreview(player: PlayerState, recipeId: string): CraftPreview {
   const r = RECIPES[recipeId];
   const estFoodConsumed: { foodId: FoodId; unitsRange: [number, number] }[] = [];
-  const hasStorable = player.inventory.some((s) => typeof s.id === "string" && s.id.startsWith("food_") && FOODS[s.id as FoodId]?.storable && s.qty > 0);
-  if (hasStorable) {
+  if (hasEquippedTail(player, "eq_chomper")) {
     const storableIds = Array.from(
       new Set(
         player.inventory
@@ -538,10 +536,9 @@ export function recoverPreview(player: PlayerState) {
   const periods = 8;
   const hungerDelta = periods * 1;
   const fatigueRecovered = hasEquippedTail(player, "eq_tail_curler") ? (ITEMS.eq_tail_curler.effects?.fatigueRecoveryPerPeriod ?? 0) * periods : 0;
-  // estimation for auto consume
+  // estimation for auto consume - only if Chomper is equipped
   const estFoodConsumed: { foodId: FoodId; unitsRange: [number, number] }[] = [];
-  const hasStorable = player.inventory.some((s) => typeof s.id === "string" && s.id.startsWith("food_") && FOODS[s.id as FoodId]?.storable && s.qty > 0);
-  if (hasStorable) {
+  if (hasEquippedTail(player, "eq_chomper")) {
     const storableIds = Array.from(
       new Set(
         player.inventory

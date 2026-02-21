@@ -58,7 +58,9 @@ const START_PLAYER: PlayerState = {
   },
   inventory: [
     { id: "eq_tinker_shaft", qty: 1 },
-    { id: "food_resin_chew", qty: 1, freshness: [3] }, // tiny buffer to show Chomper behavior
+    { id: "eq_tail_curler", qty: 1 },
+    { id: "eq_chomper", qty: 1 },
+    { id: "food_resin_chew", qty: 1, freshness: [3] },
   ],
   xp: { poke: 0, smash: 0, tease: 0, drill: 0, scoop: 0 },
 };
@@ -237,9 +239,8 @@ export default function App() {
     <div className="card">
       <h2>Hub</h2>
       <p className="small">
-        All actions resolve instantly. Your creature’s secret helpers are always present:
-        <span className="mono"> Tail Curler</span> and <span className="mono"> Chomper</span>.
-        (Their numbers are hidden — read flavor and feel it out.)
+        All actions resolve instantly. Equip tools in your tail slots to unlock abilities —
+        use <span className="mono">Chomper</span> to eat food you find, and <span className="mono">Tail Curler</span> to recover fatigue faster.
       </p>
       <div className="row">
         <button className="btn" onClick={() => genJourney("explore")} disabled={dead || exhausted}>Explore</button>
@@ -282,7 +283,7 @@ export default function App() {
       <div className="grid2">
         <div className="card">
           <h3>Equipment</h3>
-          <p className="small">You have 2 tails → 2 equip slots. (Chomper/Tail Curler are always “there” and cannot be equipped.)</p>
+          <p className="small">You have 2 tails → 2 equip slots. Equip items from your inventory to activate their abilities.</p>
           <div className="kv">
             <div>Tail A</div>
             <div>
@@ -305,15 +306,7 @@ export default function App() {
             <div>Shoe (×3 feet)</div>
             <div>{getItemName(player.equipment.shoe)}</div>
           </div>
-          <hr />
-          <h3>Secret Helpers</h3>
-          <table className="table">
-            <thead><tr><th>Name</th><th>Flavor</th></tr></thead>
-            <tbody>
-              <tr><td>{ITEMS.eq_tail_curler.name}</td><td className="small">{ITEMS.eq_tail_curler.flavor}</td></tr>
-              <tr><td>{ITEMS.eq_chomper.name}</td><td className="small">{ITEMS.eq_chomper.flavor}</td></tr>
-            </tbody>
-          </table>
+
         </div>
 
         <div className="card">
@@ -344,7 +337,7 @@ export default function App() {
             </tbody>
           </table>
           <p className="small">
-            Storable food slowly rots as time passes. Chomper may auto-consume it during actions.
+            Storable food slowly rots as time passes. With Chomper equipped, it will auto-consume storable food during actions.
           </p>
         </div>
       </div>
@@ -566,7 +559,7 @@ export default function App() {
     <div className="card">
       <h2>Craft</h2>
       <p className="small">
-        You can craft if you have the <b>{ITEMS.eq_tinker_shaft.name}</b>. Crafting consumes time instantly and can kill you if hunger hits max.
+        You can craft if you have <b>{ITEMS.eq_tinker_shaft.name}</b> equipped in a tail slot. Crafting consumes time instantly and can kill you if hunger hits max.
       </p>
 
       <table className="table">
@@ -658,7 +651,7 @@ export default function App() {
     <div className="card">
       <h2>Recover — Projected Cost Preview</h2>
       <p className="small">
-        Recovery resolves instantly. Numbers for Tail Curler are hidden, but your body will show the truth.
+        Recovery resolves instantly. Equip Tail Curler to recover fatigue — its exact amount is hidden, but your body will show the truth.
       </p>
       {(() => {
         const pv = recoverPreview(player);
@@ -669,7 +662,7 @@ export default function App() {
             <div>Projected Hunger</div>
             <div>+{pv.hungerDeltaRange[0]}</div>
             <div>Projected Fatigue Change</div>
-            <div className="small">Should decrease (exact amount hidden)</div>
+            <div className="small">{player.equipment.tailSlots.includes("eq_tail_curler") ? "Should decrease (exact amount hidden)" : "Tail Curler not equipped — fatigue will not recover"}</div>
             <div>Chomper (auto)</div>
             <div>{formatConsumedRange(pv.estFoodConsumed)}</div>
           </div>
@@ -752,7 +745,7 @@ export default function App() {
             <li>3 resources: Resin, Fiber, Stone.</li>
             <li>5 harvesting methods/tools: Poke, Smash, Tease, Drill, Scoop.</li>
             <li>3 foods: Soft Sap (instant), Resin Chew (storable), Dense Ration (storable).</li>
-            <li>Chomper auto-consumes storable food as time passes; storable food also rots as time passes.</li>
+            <li>Chomper (must be equipped) auto-consumes storable food as time passes, and is required to eat non-storable food found on journeys. Storable food also rots as time passes.</li>
             <li>Events show flavor text (not IDs). PoIs show a “recommended” method hint without numbers.</li>
           </ul>
         </div>

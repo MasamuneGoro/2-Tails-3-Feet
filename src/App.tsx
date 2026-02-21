@@ -121,6 +121,21 @@ export default function App() {
 
   function closeInventory() {
     setInventoryOpen(false);
+    // Regenerate whichever preview is active so equipment changes are reflected
+    if (screen === "PREVIEW_JOURNEY" && journeyPreview) {
+      const pv = makeJourneyPreview(player, journeyPreview.mode);
+      // preserve the same poi/events roll — only recalc costs and food estimates
+      setJourneyPreview({ ...pv, poi: journeyPreview.poi, surfacedEvents: journeyPreview.surfacedEvents });
+    } else if (screen === "PREVIEW_HARVEST" && harvestPreview) {
+      const pv = makeHarvestPreview(player, harvestPreview.poiId, harvestPreview.method);
+      setHarvestPreview(pv);
+    } else if (screen === "PREVIEW_CRAFT" && craftPreview) {
+      const pv = makeCraftPreview(player, craftPreview.recipeId);
+      setCraftPreview(pv);
+    } else if (screen === "PREVIEW_RECOVER") {
+      const pv = recoverPreview(player);
+      setRecoverState({ periods: pv.periods });
+    }
   }
 
   function genJourney(mode: "explore" | "findFood") {

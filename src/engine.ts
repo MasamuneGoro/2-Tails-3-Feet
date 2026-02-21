@@ -238,6 +238,17 @@ export function makeJourneyPreview(player: PlayerState, mode: "explore" | "findF
     ];
   }
 
+  // Subtract Tail Curler recovery from gross fatigue to show net cost
+  const tailCurlerRecoveryPerPeriod = hasEquippedTail(player, "eq_tail_curler")
+    ? (ITEMS.eq_tail_curler.effects?.fatigueRecoveryPerPeriod ?? 0)
+    : 0;
+  const totalPeriodsLower = stepsRange[0] + (foragePeriodsRange ? foragePeriodsRange[0] : 0);
+  const totalPeriodsUpper2 = stepsRange[1] + (foragePeriodsRange ? foragePeriodsRange[1] : 0);
+  fatigueIncreaseRange = [
+    Math.max(0, fatigueIncreaseRange[0] - tailCurlerRecoveryPerPeriod * totalPeriodsLower),
+    Math.max(0, fatigueIncreaseRange[1] - tailCurlerRecoveryPerPeriod * totalPeriodsUpper2),
+  ];
+
   // Estimate storable food consumption via Chomper (auto) only if Chomper is equipped
   const estFoodConsumed: { foodId: FoodId; unitsRange: [number, number] }[] = [];
   const totalPeriodsUpper = stepsRange[1] + (foragePeriodsRange ? foragePeriodsRange[1] : 0);
@@ -413,7 +424,13 @@ export function makeHarvestPreview(player: PlayerState, poiId: PoiId, method: Ha
   const fatiguePerPeriod = tuning.fatiguePerPeriod;
 
   const hungerIncreaseRange: [number, number] = [periodsRange[0] * hungerPerPeriod, periodsRange[1] * hungerPerPeriod];
-  const fatigueIncreaseRange: [number, number] = [periodsRange[0] * fatiguePerPeriod, periodsRange[1] * fatiguePerPeriod];
+  const tailCurlerRec = hasEquippedTail(player, "eq_tail_curler")
+    ? (ITEMS.eq_tail_curler.effects?.fatigueRecoveryPerPeriod ?? 0)
+    : 0;
+  const fatigueIncreaseRange: [number, number] = [
+    Math.max(0, periodsRange[0] * fatiguePerPeriod - tailCurlerRec * periodsRange[0]),
+    Math.max(0, periodsRange[1] * fatiguePerPeriod - tailCurlerRec * periodsRange[1]),
+  ];
 
   const effLabel = poi.methodRank[method];
   const eff = poi.efficiencyMultipliers[effLabel] ?? 1;
@@ -513,11 +530,14 @@ export function makeCraftPreview(player: PlayerState, recipeId: string): CraftPr
     );
     for (const id of storableIds) estFoodConsumed.push({ foodId: id, unitsRange: [0, Math.min(r.craftPeriods, invGet(player.inventory, id)?.qty ?? 0)] });
   }
+  const craftTailCurlerRec = hasEquippedTail(player, "eq_tail_curler")
+    ? (ITEMS.eq_tail_curler.effects?.fatigueRecoveryPerPeriod ?? 0)
+    : 0;
   return {
     recipeId,
     craftPeriods: r.craftPeriods,
     hungerIncrease: r.craftPeriods * r.hungerPerPeriod,
-    fatigueIncrease: r.craftPeriods * r.fatiguePerPeriod,
+    fatigueIncrease: Math.max(0, r.craftPeriods * r.fatiguePerPeriod - craftTailCurlerRec * r.craftPeriods),
     estFoodConsumed,
   };
 }

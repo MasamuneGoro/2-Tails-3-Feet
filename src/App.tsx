@@ -24,6 +24,11 @@ import {
   invGet,
   invRemove,
   clamp,
+  skillLevel,
+  skillXpToNextLevel,
+  skillXpForLevel,
+  SKILL_MAX_LEVEL,
+  SKILL_XP_PER_LEVEL,
 } from "./engine";
 
 function pct(n: number, d: number) {
@@ -60,6 +65,7 @@ const START_PLAYER: PlayerState = {
     { id: "eq_tinker_shaft", qty: 1 },
     { id: "eq_tail_curler", qty: 1 },
     { id: "eq_chomper", qty: 1 },
+    { id: "eq_pointed_twig", qty: 1 },
     { id: "food_resin_chew", qty: 1, freshness: [3] },
   ],
   xp: { poke: 0, smash: 0, tease: 0, drill: 0, scoop: 0 },
@@ -208,13 +214,21 @@ export default function App() {
     return item.slot === "tail";
   }
 
-  function availableTailToolIds(): import("./types").ItemId[] {
-    // list items in inventory that are tail tools, excluding passive tools
-    const ids = player.inventory
-      .filter((st): st is { id: import("./types").ItemId; qty: number } => typeof st.id === "string" && (st.id as string).startsWith("eq_") && st.qty > 0)
-      .map((st) => st.id)
-      .filter((id) => canEquipItem(id));
-    return Array.from(new Set(ids));
+  function availableTailToolIds(slotIdx: 0 | 1): import("./types").ItemId[] {
+    const otherSlot = player.equipment.tailSlots[slotIdx === 0 ? 1 : 0];
+    return player.inventory
+      .filter((st): st is { id: import("./types").ItemId; qty: number } =>
+        typeof st.id === "string" &&
+        (st.id as string).startsWith("eq_") &&
+        st.qty > 0 &&
+        canEquipItem(st.id)
+      )
+      .filter((st) => {
+        // exclude item already equipped in the other slot, unless qty > 1
+        if (st.id === otherSlot) return st.qty > 1;
+        return true;
+      })
+      .map((st) => st.id);
   }
 
   // --- rendering helpers
@@ -239,14 +253,14 @@ export default function App() {
     <div className="card">
       <h2>Hub</h2>
       <p className="small">
-        All actions resolve instantly. Equip tools in your tail slots to unlock abilities —
-        use <span className="mono">Chomper</span> to eat food you find, and <span className="mono">Tail Curler</span> to recover fatigue faster.
+        Equip tools in your tail slots to unlock their tricks — Chomper eats things, Tail Curler uncoils your tired bits.
+        The world is sticky and not entirely on your side. Good luck.
       </p>
       <div className="row">
         <button className="btn" onClick={() => genJourney("explore")} disabled={dead || exhausted}>Explore</button>
         <button className="btn" onClick={() => genJourney("findFood")} disabled={dead || exhausted}>Find Food</button>
         <button className="btn" onClick={openCraft} disabled={dead || exhausted}>Craft</button>
-        <button className="btn" onClick={previewRecover} disabled={dead}>Recover</button>
+        <button className="btn" onClick={previewRecover} disabled={dead}>Lay on your belly</button>
       </div>
       <div className="notice">
         <div className="small">
@@ -258,10 +272,10 @@ export default function App() {
 
   const exhaustedScreen = (
     <div className="card">
-      <h2>Exhausted</h2>
-      <p>You’ve hit max fatigue. No actions except recovery.</p>
+      <h2>Completely Boneless</h2>
+      <p>Your tails have staged a protest. All you can do right now is lie down and hope for the best.</p>
       <div className="row">
-        <button className="btn" onClick={previewRecover} disabled={dead}>Recover</button>
+        <button className="btn" onClick={previewRecover} disabled={dead}>Lay on your belly</button>
         <button className="btn" onClick={openInventory}>Inventory</button>
       </div>
     </div>
@@ -269,8 +283,8 @@ export default function App() {
 
   const deadScreen = (
     <div className="card">
-      <h2>Dead</h2>
-      <p>Your hunger reached the limit. Reset to try again.</p>
+      <h2>Very Dead</h2>
+      <p>Hunger won. It usually does. Dust yourself off and try again.</p>
       <div className="row">
         <button className="btn" onClick={reset}>Reset Run</button>
       </div>
@@ -289,7 +303,7 @@ export default function App() {
             <div>
               <select value={player.equipment.tailSlots[0] ?? ""} onChange={(e) => equipTail(0, (e.target.value || null) as any)}>
                 <option value="">— Empty —</option>
-                {availableTailToolIds().map((id) => (
+                {availableTailToolIds(0).map((id) => (
                   <option key={id} value={id}>{getItemName(id)}</option>
                 ))}
               </select>
@@ -298,7 +312,7 @@ export default function App() {
             <div>
               <select value={player.equipment.tailSlots[1] ?? ""} onChange={(e) => equipTail(1, (e.target.value || null) as any)}>
                 <option value="">— Empty —</option>
-                {availableTailToolIds().map((id) => (
+                {availableTailToolIds(1).map((id) => (
                   <option key={id} value={id}>{getItemName(id)}</option>
                 ))}
               </select>
@@ -340,6 +354,38 @@ export default function App() {
             Storable food slowly rots as time passes. With Chomper equipped, it will auto-consume storable food during actions.
           </p>
         </div>
+      </div>
+
+      <div className="card">
+        <h3>Skills</h3>
+        <p className="small">Each harvesting method levels up independently. Higher levels mean better yields.</p>
+        <table className="table">
+          <thead><tr><th>Method</th><th>Level</th><th>Progress</th><th>XP</th></tr></thead>
+          <tbody>
+            {(["poke", "smash", "tease", "drill", "scoop"] as import("./types").HarvestMethodId[]).map((method) => {
+              const xp = player.xp[method] ?? 0;
+              const level = skillLevel(xp);
+              const xpForThis = skillXpForLevel(level);
+              const xpForNext = level >= SKILL_MAX_LEVEL ? xpForThis + SKILL_XP_PER_LEVEL : skillXpForLevel(level + 1);
+              const progress = level >= SKILL_MAX_LEVEL ? 100 : Math.round(((xp - xpForThis) / (xpForNext - xpForThis)) * 100);
+              const methodNames: Record<import("./types").HarvestMethodId, string> = {
+                poke: "Poke", smash: "Smash", tease: "Tease", drill: "Drill", scoop: "Scoop",
+              };
+              return (
+                <tr key={method}>
+                  <td>{methodNames[method]}</td>
+                  <td>Lv {level}{level >= SKILL_MAX_LEVEL ? " (max)" : ""}</td>
+                  <td>
+                    <div style={{background:"#333",borderRadius:4,height:8,width:120,display:"inline-block",verticalAlign:"middle"}}>
+                      <div style={{background:"#7ecba1",borderRadius:4,height:8,width:`${progress}%`}} />
+                    </div>
+                  </td>
+                  <td className="small">{level >= SKILL_MAX_LEVEL ? "MAX" : `${xp - xpForThis} / ${xpForNext - xpForThis}`}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
       </div>
 
       <div className="row">
@@ -559,7 +605,8 @@ export default function App() {
     <div className="card">
       <h2>Craft</h2>
       <p className="small">
-        You can craft if you have <b>{ITEMS.eq_tinker_shaft.name}</b> equipped in a tail slot. Crafting consumes time instantly and can kill you if hunger hits max.
+        Some recipes just need patience — others need the <b>{ITEMS.eq_tinker_shaft.name}</b> equipped.
+        Either way, crafting eats time and hunger, so don’t get greedy.
       </p>
 
       <table className="table">
@@ -577,7 +624,7 @@ export default function App() {
               </tr>
             );
           })}
-          {!unlockedRecipes.length && <tr><td colSpan={4} className="small">No recipes unlocked.</td></tr>}
+          {!unlockedRecipes.length && <tr><td colSpan={4} className="small">Nothing to make right now. Try equipping the Tinker Shaft.</td></tr>}
         </tbody>
       </table>
 
@@ -649,9 +696,10 @@ export default function App() {
 
   const recoverPreviewScreen = (
     <div className="card">
-      <h2>Recover — Projected Cost Preview</h2>
+      <h2>Belly Down — Projected Cost Preview</h2>
       <p className="small">
-        Recovery resolves instantly. Equip Tail Curler to recover fatigue — its exact amount is hidden, but your body will show the truth.
+        You flop down and let the ground do the work. It makes you hungrier (lying around is surprisingly taxing)
+        but a Tail Curler will slowly unwind the fatigue. The exact amount is a mystery — your body will figure it out.
       </p>
       {(() => {
         const pv = recoverPreview(player);
@@ -662,14 +710,14 @@ export default function App() {
             <div>Projected Hunger</div>
             <div>+{pv.hungerDeltaRange[0]}</div>
             <div>Projected Fatigue Change</div>
-            <div className="small">{player.equipment.tailSlots.includes("eq_tail_curler") ? "Should decrease (exact amount hidden)" : "Tail Curler not equipped — fatigue will not recover"}</div>
+            <div className="small">{player.equipment.tailSlots.includes("eq_tail_curler") ? "Should decrease (the curling is doing something)" : "Tail Curler not equipped — you’ll just get hungrier for nothing"}</div>
             <div>Chomper (auto)</div>
             <div>{formatConsumedRange(pv.estFoodConsumed)}</div>
           </div>
         );
       })()}
       <div className="row">
-        <button className="btn" onClick={proceedRecover} disabled={dead}>Proceed</button>
+        <button className="btn" onClick={proceedRecover} disabled={dead}>Flop down</button>
         <button className="btn" onClick={openInventory}>Inventory</button>
         <button className="btn" onClick={gotoHub}>Back</button>
       </div>
@@ -678,8 +726,8 @@ export default function App() {
 
   const recoverSummaryScreen = recoverSummary && (
     <div className="card">
-      <h2>Recovery Summary</h2>
-      <p className="small">Time: {recoverSummary.periods} periods</p>
+      <h2>Back on your feet (sort of)</h2>
+      <p className="small">You spent {recoverSummary.periods} periods horizontal. Worth it? Probably.</p>
       <div className="card">
         <h3>Chomper Consumption</h3>
         <p className="small">{formatConsumed(recoverSummary.foodConsumed)}</p>
@@ -739,14 +787,15 @@ export default function App() {
         {hud}
         {body}
         <div className="card">
-          <h3>MVP Notes</h3>
+          <h3>How it works</h3>
           <ul className="small">
-            <li>1 biome, level 1: Sticky.</li>
-            <li>3 resources: Resin, Fiber, Stone.</li>
-            <li>5 harvesting methods/tools: Poke, Smash, Tease, Drill, Scoop.</li>
-            <li>3 foods: Soft Sap (instant), Resin Chew (storable), Dense Ration (storable).</li>
-            <li>Chomper (must be equipped) auto-consumes storable food as time passes, and is required to eat non-storable food found on journeys. Storable food also rots as time passes.</li>
-            <li>Events show flavor text (not IDs). PoIs show a “recommended” method hint without numbers.</li>
+            <li>Biome: Sticky (L1). Everything clings. You persist.</li>
+            <li>3 resources: Resin Glob, Fiber Clump, Brittle Stone.</li>
+            <li>5 harvesting methods, each with its own skill level — check the Inventory screen.</li>
+            <li>3 foods: Soft Sap (eat on the spot), Resin Chew + Dense Ration (storable, but they rot).</li>
+            <li>Chomper must be equipped to eat food you find — and it snacks on your stores during actions.</li>
+            <li>Tail Curler must be equipped to recover fatigue when you belly down.</li>
+            <li>Tier 1 recipes need no special tool. Tier 2 + utility recipes need the Tinker Shaft equipped.</li>
           </ul>
         </div>
       </div>

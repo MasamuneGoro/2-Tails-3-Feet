@@ -56,6 +56,23 @@ export function hungerBand(hunger: number, maxHunger: number): "comfort" | "conc
   return "desperation";
 }
 
+export const SKILL_MAX_LEVEL = 10;
+export const SKILL_XP_PER_LEVEL = 100;
+
+export function skillLevel(xp: number): number {
+  return Math.min(SKILL_MAX_LEVEL, Math.floor(xp / SKILL_XP_PER_LEVEL) + 1);
+}
+
+export function skillXpToNextLevel(xp: number): number {
+  const level = skillLevel(xp);
+  if (level >= SKILL_MAX_LEVEL) return 0;
+  return level * SKILL_XP_PER_LEVEL - xp;
+}
+
+export function skillXpForLevel(level: number): number {
+  return (level - 1) * SKILL_XP_PER_LEVEL;
+}
+
 export function getItemName(id: ItemId) {
   return ITEMS[id]?.name ?? id;
 }
@@ -437,7 +454,7 @@ export function resolveHarvest(player: PlayerState, preview: HarvestPreview): Ha
   const eff = poi.efficiencyMultipliers[effLabel] ?? 1;
   const base = poi.baseYieldRange!;
   const raw = randInt(base[0], base[1]);
-  const skill = 1 + (player.xp[preview.method] ?? 0) / 250; // gentle scale
+  const skill = 1 + (skillLevel(player.xp[preview.method] ?? 0) - 1) * 0.08; // +8% yield per level
   const qty = Math.max(1, Math.floor(raw * eff * skill));
 
   invAdd(player.inventory, poi.resourceId, qty);
@@ -466,10 +483,12 @@ export function canCraft(player: PlayerState) {
 }
 
 export function listUnlockedRecipes(player: PlayerState): string[] {
-  // Tinker Shaft must be equipped in a tail slot to unlock recipes.
   const hasTinker = hasEquippedTail(player, "eq_tinker_shaft");
-  if (!hasTinker) return [];
-  return ITEMS.eq_tinker_shaft.unlocksRecipes ?? [];
+  return Object.keys(RECIPES).filter((id) => {
+    const r = RECIPES[id];
+    if (r.requiresTinker && !hasTinker) return false;
+    return true;
+  });
 }
 
 export function makeCraftPreview(player: PlayerState, recipeId: string): CraftPreview {

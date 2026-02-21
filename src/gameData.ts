@@ -83,11 +83,13 @@ export const EVENTS: Record<EventId, { id: EventId; name: string; text: string; 
     id: "ev_need_chomper",
     name: "No Chomper Equipped",
     text: "You spot soft sap, but without a biting tool you can’t take advantage before it oozes away.",
+    tag: "common",
   },
   ev_need_scoop_for_rations: {
     id: "ev_need_scoop_for_rations",
     name: "Rations Slip Away",
     text: "The preserved lumps sit deep in sticky pools. Without a scooping attachment, you can’t extract any to store.",
+    tag: "common",
   },
 };
 

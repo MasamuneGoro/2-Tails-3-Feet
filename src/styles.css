@@ -1,0 +1,85 @@
+:root {
+  font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
+  color: #eaeaea;
+  background: #111;
+}
+
+body { margin: 0; min-height: 100vh; }
+
+.app { display: grid; grid-template-columns: 88px 1fr; min-height: 100vh; }
+
+.sidebar {
+  border-right: 1px solid #2a2a2a;
+  padding: 12px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  background: #0d0d0d;
+}
+
+.hotbtn {
+  width: 100%;
+  padding: 10px 8px;
+  border: 1px solid #2a2a2a;
+  background: #161616;
+  color: #eaeaea;
+  border-radius: 10px;
+  cursor: pointer;
+  text-align: left;
+}
+.hotbtn:hover { background: #1b1b1b; }
+.hotbtn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.main { padding: 18px; max-width: 980px; }
+
+.topbar { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-bottom: 12px; }
+
+.card {
+  border: 1px solid #2a2a2a;
+  border-radius: 14px;
+  background: #141414;
+  padding: 14px;
+  margin: 12px 0;
+}
+
+.row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+
+.pill {
+  border: 1px solid #2a2a2a;
+  background: #101010;
+  padding: 6px 10px;
+  border-radius: 999px;
+  font-size: 13px;
+  opacity: 0.95;
+}
+
+h1, h2, h3 { margin: 0 0 10px 0; }
+p { margin: 6px 0; opacity: 0.95; }
+
+.btn {
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid #2a2a2a;
+  background: #1a1a1a;
+  color: #eaeaea;
+  cursor: pointer;
+}
+.btn:hover { background: #202020; }
+.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+@media (max-width: 860px) { .grid2 { grid-template-columns: 1fr; } }
+
+.small { font-size: 13px; opacity: 0.85; }
+.mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace; font-size: 12px; opacity: 0.9; }
+
+hr { border: 0; border-top: 1px solid #2a2a2a; margin: 12px 0; }
+
+.kv { display: grid; grid-template-columns: 140px 1fr; gap: 6px 10px; }
+.kv div { padding: 2px 0; }
+
+.table { width: 100%; border-collapse: collapse; }
+.table th, .table td { border-bottom: 1px solid #2a2a2a; padding: 8px 6px; text-align: left; font-size: 13px; }
+.table th { opacity: 0.9; font-weight: 600; }
+
+.notice { padding: 10px 12px; border: 1px dashed #3a3a3a; border-radius: 12px; background: #101010; }

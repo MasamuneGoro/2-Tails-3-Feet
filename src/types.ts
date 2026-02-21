@@ -36,7 +36,6 @@ export type Quality = "common" | "uncommon";
 
 export type Screen =
   | "HUB"
-  | "INVENTORY"
   | "PREVIEW_JOURNEY"
   | "SUMMARY_JOURNEY"
   | "POI"
@@ -97,6 +96,8 @@ export interface JourneyResult {
   poi: { id: PoiId; quality: Quality };
   gained: { id: ResourceId | FoodId; qty: number; freshness?: number[] }[];
   foodConsumed: { foodId: FoodId; units: number }[];
+  softSapEaten?: { hungerRestored: number };
+  storableGained?: { foodId: FoodId; qty: number; freshness: number[] };
   outcome: "ok" | "exhausted" | "dead";
 }
 

@@ -306,6 +306,7 @@ export function resolveJourney(player: PlayerState, preview: JourneyPreview): Jo
   const poi = preview.poi;
   const poiData = POIS[poi.id];
   const gained: { id: ResourceId | FoodId; qty: number; freshness?: number[] }[] = [];
+  let softSapEaten: { hungerRestored: number } | undefined;
   if (poiData.kind === "food") {
     const spec = poiData.foodSpec!;
     const periods = randInt(spec.foragePeriodsRange[0], spec.foragePeriodsRange[1]);
@@ -321,34 +322,41 @@ export function resolveJourney(player: PlayerState, preview: JourneyPreview): Jo
       else foodConsumed.push(c);
     }
 
-    // pick food based on mode + hunger band
-    let weights: Record<FoodId, number> = spec.exploreDropWeights;
-    if (preview.mode === "findFood") {
-      const band = hungerBand(player.stats.hunger, player.stats.maxHunger);
-      weights = spec.findFoodDropByBand[band];
-    }
-    const food = pickWeighted(weights);
-
-    // Non-storable food must be harvested/consumed with Chomper equipped
-    if (!FOODS[food].storable) {
-      if (!hasEquippedTail(player, "eq_chomper")) {
-        // You found something edible but couldn't take advantage of it
-        eventsOut.push("ev_need_chomper");
-      } else {
-        const red = FOODS[food].hungerReduction;
-        player.stats.hunger = clamp(player.stats.hunger - red, 0, player.stats.maxHunger);
-        gained.push({ id: food, qty: 1 });
-      }
+    // Soft Sap is always available at a food blot — eat it if Chomper is equipped
+    if (hasEquippedTail(player, "eq_chomper")) {
+      const red = FOODS["food_soft_sap"].hungerReduction;
+      const before = player.stats.hunger;
+      player.stats.hunger = clamp(player.stats.hunger - red, 0, player.stats.maxHunger);
+      softSapEaten = { hungerRestored: before - player.stats.hunger };
+      gained.push({ id: "food_soft_sap", qty: 1 });
     } else {
-      // Storable food requires a different harvesting approach (MVP: Sticky Scoop equipped)
-      if (!hasEquippedTail(player, "eq_sticky_scoop")) {
-        eventsOut.push("ev_need_scoop_for_rations");
-      } else {
+      eventsOut.push("ev_need_chomper");
+    }
+
+    // Storable food is also available if Sticky Scoop is equipped
+    // Roll weighted by hunger band for storable food type
+    let storableGained: { foodId: FoodId; qty: number; freshness: number[] } | undefined;
+    if (hasEquippedTail(player, "eq_sticky_scoop")) {
+      const band = hungerBand(player.stats.hunger, player.stats.maxHunger);
+      const storableWeights: Record<FoodId, number> = preview.mode === "findFood"
+        ? spec.findFoodDropByBand[band]
+        : spec.exploreDropWeights;
+      // only pick storable foods from weights
+      const storableOnly: Partial<Record<FoodId, number>> = {};
+      for (const [k, v] of Object.entries(storableWeights) as [FoodId, number][]) {
+        if (FOODS[k].storable) storableOnly[k] = v;
+      }
+      const total = Object.values(storableOnly).reduce((a, b) => a + b, 0);
+      if (total > 0) {
+        const food = pickWeighted(storableOnly as Record<FoodId, number>);
         const fr = FOODS[food].freshnessRange!;
         const unitFreshness = Array.from({ length: 1 }, () => randInt(fr[0], fr[1]));
         invAdd(player.inventory, food, 1, unitFreshness);
         gained.push({ id: food, qty: 1, freshness: unitFreshness });
+        storableGained = { foodId: food, qty: 1, freshness: unitFreshness };
       }
+    } else {
+      eventsOut.push("ev_need_scoop_for_rations");
     }
   }
 
@@ -363,6 +371,7 @@ export function resolveJourney(player: PlayerState, preview: JourneyPreview): Jo
     poi,
     gained,
     foodConsumed,
+    softSapEaten,
     outcome,
   };
 }

@@ -88,6 +88,7 @@ export default function App() {
 
   const [recoverState, setRecoverState] = useState<{ periods: number } | null>(null);
   const [recoverSummary, setRecoverSummary] = useState<any>(null);
+  const [inventoryOpen, setInventoryOpen] = useState(false);
 
   const exhausted = player.stats.fatigue >= player.stats.maxFatigue;
   const dead = player.stats.hunger >= player.stats.maxHunger;
@@ -115,7 +116,11 @@ export default function App() {
   }
 
   function openInventory() {
-    setScreen("INVENTORY");
+    setInventoryOpen(true);
+  }
+
+  function closeInventory() {
+    setInventoryOpen(false);
   }
 
   function genJourney(mode: "explore" | "findFood") {
@@ -242,16 +247,11 @@ export default function App() {
     </div>
   );
 
-  const sidebar = (
-    <div className="sidebar">
-      <button className="hotbtn" onClick={openInventory}>Inventory</button>
-      <button className="hotbtn" onClick={gotoHub}>Hub</button>
-    </div>
-  );
+
 
   const hub = (
     <div className="card">
-      <h2>Hub</h2>
+      <h2>Here you are.</h2>
       <p className="small">
         Equip tools in your tail slots to unlock their tricks — Chomper eats things, Tail Curler uncoils your tired bits.
         The world is sticky and not entirely on your side. Good luck.
@@ -261,6 +261,7 @@ export default function App() {
         <button className="btn" onClick={() => genJourney("findFood")} disabled={dead || exhausted}>Find Food</button>
         <button className="btn" onClick={openCraft} disabled={dead || exhausted}>Craft</button>
         <button className="btn" onClick={previewRecover} disabled={dead}>Lay on your belly</button>
+        <button className="btn" onClick={openInventory}>Inventory</button>
       </div>
       <div className="notice">
         <div className="small">
@@ -389,22 +390,22 @@ export default function App() {
       </div>
 
       <div className="row">
-        <button className="btn" onClick={gotoHub}>Back</button>
+        <button className="btn" onClick={closeInventory}>Close</button>
       </div>
     </div>
   );
 
   const journeyPreviewScreen = journeyPreview && (
     <div className="card">
-      <h2>{journeyPreview.mode === "explore" ? "Explore" : "Find Food"} — Projected Cost Preview</h2>
+      <h2>{journeyPreview.mode === "explore" ? "Scout Ahead" : "Sniff Around"} — what it might cost</h2>
       <div className="kv">
-        <div>Steps to PoI</div>
+        <div>Steps to Blot</div>
         <div>{journeyPreview.stepsRange[0]}–{journeyPreview.stepsRange[1]}</div>
         <div>Projected Hunger</div>
         <div>+{journeyPreview.hungerIncreaseRange[0]}–{journeyPreview.hungerIncreaseRange[1]}</div>
         <div>Projected Fatigue</div>
         <div>+{journeyPreview.fatigueIncreaseRange[0]}–{journeyPreview.fatigueIncreaseRange[1]}</div>
-        <div>PoI</div>
+        <div>Blot</div>
         <div>{prettyPoi(journeyPreview.poi.id).name} ({journeyPreview.poi.quality})</div>
         <div>Chomper (auto)</div>
         <div>{formatConsumedRange(journeyPreview.estFoodConsumed)}</div>
@@ -426,16 +427,16 @@ export default function App() {
       <div className="row">
         <button className="btn" onClick={proceedJourney} disabled={dead || exhausted}>Proceed</button>
         <button className="btn" onClick={openInventory}>Adjust Equipment</button>
-        <button className="btn" onClick={gotoHub}>Ignore</button>
+        <button className="btn" onClick={gotoHub}>Stay put</button>
       </div>
     </div>
   );
 
   const journeySummaryScreen = journeyResult && (
     <div className="card">
-      <h2>Journey Summary</h2>
+      <h2>What happened out there</h2>
       <p className="small">
-        You travel {journeyResult.steps} steps and reach: <b>{prettyPoi(journeyResult.poi.id).name}</b> ({journeyResult.poi.quality})
+        You travel {journeyResult.steps} steps and blunder into: <b>{prettyPoi(journeyResult.poi.id).name}</b> — a {journeyResult.poi.quality} Blot.
       </p>
 
       {!!journeyResult.surfacedEvents.length && (
@@ -450,16 +451,29 @@ export default function App() {
         </div>
       )}
 
-      <div className="card">
-        <h3>Chomper Consumption</h3>
-        <p className="small">{formatConsumed(journeyResult.foodConsumed)}</p>
-      </div>
-
-      {journeyResult.gained.length > 0 && (
+      {journeyResult.softSapEaten && (
         <div className="card">
-          <h3>Gained</h3>
+          <h3>Ate Something</h3>
+          <p className="small">
+            You inhale the soft sap before it has time to reconsider.{" "}
+            <b>−{journeyResult.softSapEaten.hungerRestored} hunger.</b>{" "}
+            Warm, gloopy, and entirely worth it.
+          </p>
+        </div>
+      )}
+
+      {journeyResult.foodConsumed.length > 0 && (
+        <div className="card">
+          <h3>Chomper Snacked</h3>
+          <p className="small">{formatConsumed(journeyResult.foodConsumed)}</p>
+        </div>
+      )}
+
+      {journeyResult.gained.filter(g => !(g.id as string).startsWith("food_soft_sap")).length > 0 && (
+        <div className="card">
+          <h3>Gathered</h3>
           <ul>
-            {journeyResult.gained.map((g, i) => (
+            {journeyResult.gained.filter(g => (g.id as string) !== "food_soft_sap").map((g, i) => (
               <li key={i} className="small">
                 {(g.id as string).startsWith("food_") ? getFoodName(g.id as any) : (g.id as string).startsWith("eq_") ? getItemName(g.id as any) : getResourceName(g.id as any)} ×{g.qty}
                 {g.freshness?.length ? ` (freshness: ${g.freshness.join(", ")})` : ""}
@@ -470,15 +484,17 @@ export default function App() {
       )}
 
       <div className="row">
-        <button className="btn" onClick={enterPoi} disabled={journeyResult.outcome !== "ok"}>Enter PoI</button>
-        <button className="btn" onClick={gotoHub}>Back to Hub</button>
+        {POIS[journeyResult.poi.id].kind === "harvest" && (
+          <button className="btn" onClick={enterPoi} disabled={journeyResult.outcome !== "ok"}>Check it out</button>
+        )}
+        <button className="btn" onClick={gotoHub}>Head back</button>
       </div>
 
       {journeyResult.outcome !== "ok" && (
         <div className="notice">
           <b>Outcome:</b> {journeyResult.outcome.toUpperCase()}
           <div className="small">
-            {journeyResult.outcome === "exhausted" ? "You can only recover now." : "Reset to try again."}
+            {journeyResult.outcome === "exhausted" ? "Your tails have given up. Time to belly down." : "Hunger won. Reset to try again."}
           </div>
         </div>
       )}
@@ -487,8 +503,8 @@ export default function App() {
 
   const poiScreen = activePoi && (
     <div className="card">
-      <h2>Point of Interest</h2>
-      <h3>{prettyPoi(activePoi.id).name} ({activePoi.quality})</h3>
+      <h2>You found a Blot</h2>
+      <h3>{prettyPoi(activePoi.id).name} — {activePoi.quality}</h3>
       <p className="small">{prettyPoi(activePoi.id).flavor}</p>
 
       {POIS[activePoi.id].kind === "harvest" ? (
@@ -524,23 +540,26 @@ export default function App() {
         </>
       ) : (
         <div className="card">
-          <h3>Food</h3>
-          <p className="small">
-            You already foraged this food source during travel. (In later versions, you can interact again here.)
-          </p>
+          <h3>Food Blot</h3>
+          <p className="small">The ground here smells edible. Suspicious, but promising.</p>
+          {journeyResult && journeyResult.softSapEaten ? (
+            <p className="small">You already scoffed the soft sap on the way here. −{journeyResult.softSapEaten.hungerRestored} hunger. Good call.</p>
+          ) : (
+            <p className="small">No Chomper equipped — nothing to eat here.</p>
+          )}
         </div>
       )}
 
       <div className="row">
         <button className="btn" onClick={openInventory}>Adjust Equipment</button>
-        <button className="btn" onClick={gotoHub}>Back</button>
+        <button className="btn" onClick={gotoHub}>Move on</button>
       </div>
     </div>
   );
 
   const harvestPreviewScreen = harvestPreview && (
     <div className="card">
-      <h2>Harvest — Projected Cost Preview</h2>
+      <h2>Dig in — what it might cost</h2>
       <div className="kv">
         <div>Method</div>
         <div>{harvestPreview.method.toUpperCase()}</div>
@@ -558,14 +577,14 @@ export default function App() {
       <div className="row">
         <button className="btn" onClick={proceedHarvest} disabled={dead || exhausted}>Proceed</button>
         <button className="btn" onClick={openInventory}>Adjust Equipment</button>
-        <button className="btn" onClick={() => setScreen("POI")}>Ignore</button>
+        <button className="btn" onClick={() => setScreen("POI")}>Leave it</button>
       </div>
     </div>
   );
 
   const harvestSummaryScreen = harvestResult && (
     <div className="card">
-      <h2>Harvest Summary</h2>
+      <h2>Haul report</h2>
       <p className="small">Time: {harvestResult.periods} periods · XP gained: +{harvestResult.xpGained} ({harvestResult.method.toUpperCase()})</p>
 
       <div className="card">
@@ -586,15 +605,15 @@ export default function App() {
       </div>
 
       <div className="row">
-        <button className="btn" onClick={gotoHub}>Back to Hub</button>
-        <button className="btn" onClick={() => setScreen("POI")}>Back to PoI</button>
+        <button className="btn" onClick={gotoHub}>Head back</button>
+        <button className="btn" onClick={() => setScreen("POI")}>Back to Blot</button>
       </div>
 
       {harvestResult.outcome !== "ok" && (
         <div className="notice">
           <b>Outcome:</b> {harvestResult.outcome.toUpperCase()}
           <div className="small">
-            {harvestResult.outcome === "exhausted" ? "You can only recover now." : "Reset to try again."}
+            {harvestResult.outcome === "exhausted" ? "Your tails have given up. Time to belly down." : "Hunger won. Reset to try again."}
           </div>
         </div>
       )}
@@ -629,7 +648,7 @@ export default function App() {
       </table>
 
       <div className="row">
-        <button className="btn" onClick={gotoHub}>Back</button>
+        <button className="btn" onClick={gotoHub}>Put it down</button>
       </div>
     </div>
   );
@@ -653,7 +672,7 @@ export default function App() {
       <div className="row">
         <button className="btn" onClick={proceedCraft} disabled={dead || exhausted}>Proceed</button>
         <button className="btn" onClick={openInventory}>Adjust Equipment</button>
-        <button className="btn" onClick={() => setScreen("CRAFT_MENU")}>Ignore</button>
+        <button className="btn" onClick={() => setScreen("CRAFT_MENU")}>Put it down</button>
       </div>
     </div>
   );
@@ -677,13 +696,13 @@ export default function App() {
       </div>
 
       <div className="row">
-        <button className="btn" onClick={() => setScreen("CRAFT_MENU")}>Back to Craft</button>
-        <button className="btn" onClick={gotoHub}>Back to Hub</button>
+        <button className="btn" onClick={() => setScreen("CRAFT_MENU")}>Keep tinkering</button>
+        <button className="btn" onClick={gotoHub}>Head back</button>
       </div>
 
       {!craftResult.success && craftResult.failReason === "missing_resources" && (
         <div className="notice">
-          Missing resources. Go harvest more.
+          Not enough stuff. Go get more.
         </div>
       )}
       {!craftResult.success && (craftResult.failReason === "exhausted" || craftResult.failReason === "dead") && (
@@ -719,7 +738,7 @@ export default function App() {
       <div className="row">
         <button className="btn" onClick={proceedRecover} disabled={dead}>Flop down</button>
         <button className="btn" onClick={openInventory}>Inventory</button>
-        <button className="btn" onClick={gotoHub}>Back</button>
+        <button className="btn" onClick={gotoHub}>Get up</button>
       </div>
     </div>
   );
@@ -733,7 +752,7 @@ export default function App() {
         <p className="small">{formatConsumed(recoverSummary.foodConsumed)}</p>
       </div>
       <div className="row">
-        <button className="btn" onClick={gotoHub}>Back to Hub</button>
+        <button className="btn" onClick={gotoHub}>Get up</button>
       </div>
       {recoverSummary.outcome !== "ok" && (
         <div className="notice">
@@ -748,7 +767,6 @@ export default function App() {
   else if (
     exhausted &&
     ![
-      "INVENTORY",
       "SUMMARY_JOURNEY",
       "SUMMARY_HARVEST",
       "SUMMARY_CRAFT",
@@ -762,7 +780,6 @@ export default function App() {
       case "HUB": body = hub; break;
       case "EXHAUSTED": body = exhaustedScreen; break;
       case "DEAD": body = deadScreen; break;
-      case "INVENTORY": body = inventoryScreen; break;
       case "PREVIEW_JOURNEY": body = journeyPreviewScreen; break;
       case "SUMMARY_JOURNEY": body = journeySummaryScreen; break;
       case "POI": body = poiScreen; break;
@@ -780,7 +797,6 @@ export default function App() {
 
   return (
     <div className="app">
-      {sidebar}
       <div className="main">
         <h1 style={{letterSpacing:"0.08em"}}>2 Tails 3 Feet</h1>
         <div style={{opacity:0.7,fontSize:14,marginBottom:10}}>Sticky Survival Prototype</div>
@@ -798,6 +814,13 @@ export default function App() {
             <li>Tier 1 recipes need no special tool. Tier 2 + utility recipes need the Tinker Shaft equipped.</li>
           </ul>
         </div>
+      {inventoryOpen && (
+        <div className="modal-overlay" onClick={closeInventory}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            {inventoryScreen}
+          </div>
+        </div>
+      )}
       </div>
     </div>
   );

@@ -125,7 +125,16 @@ export function rotStorableFoodOneCharge(stack: InventoryStack[]) {
   }
 }
 
+export function hasEquippedTail(player: PlayerState, itemId: ItemId) {
+  return player.equipment.tailSlots.includes(itemId);
+}
+
 export function autoConsumeStorableFood(player: PlayerState, periods: number) {
+  if (!hasEquippedTail(player, "eq_chomper")) {
+    // still rot storable food over time
+    for (let i = 0; i < periods; i++) rotStorableFoodOneCharge(player.inventory);
+    return [];
+  }
   // Chomper auto-consumes at most 1 unit per period if hunger > 0
   const consumed: { foodId: FoodId; units: number }[] = [];
   for (let i = 0; i < periods; i++) {
@@ -157,7 +166,8 @@ export function autoConsumeStorableFood(player: PlayerState, periods: number) {
 }
 
 export function applyFatigueRecovery(player: PlayerState, periods: number) {
-  // Tail Curler passive recovery: 1 fatigue per period, hidden from UI (numbers not shown)
+  // Tail Curler only works when equipped; numbers remain hidden from UI
+  if (!hasEquippedTail(player, "eq_tail_curler")) return 0;
   const per = ITEMS.eq_tail_curler.effects?.fatigueRecoveryPerPeriod ?? 0;
   if (per <= 0) return 0;
   const before = player.stats.fatigue;
@@ -184,19 +194,38 @@ export function rollEvents(mode: "explore" | "findFood"): EventId[] {
 
 export function makeJourneyPreview(player: PlayerState, mode: "explore" | "findFood"): JourneyPreview {
   const stepsRange = mode === "explore" ? BIOME_LEVEL.exploreStepsRange : BIOME_LEVEL.foodStepsRange;
-  const hungerIncreaseRange: [number, number] = [stepsRange[0] * BIOME_LEVEL.hungerPerStep, stepsRange[1] * BIOME_LEVEL.hungerPerStep];
-  const fatigueIncreaseRange: [number, number] = [stepsRange[0] * BIOME_LEVEL.fatiguePerStep, stepsRange[1] * BIOME_LEVEL.fatiguePerStep];
 
   const poiId = pickWeighted(mode === "explore" ? BIOME_LEVEL.poiWeightsExplore : BIOME_LEVEL.poiWeightsFood);
   const quality = qualityRoll();
-
   const events = rollEvents(mode);
 
-  // estimate storable food consumption via Chomper (auto), only if inventory has storable
-  const hasStorable = player.inventory.some((s) => typeof s.id === "string" && s.id.startsWith("food_") && FOODS[s.id as FoodId]?.storable && s.qty > 0);
+  // Base travel cost
+  const baseHungerIncreaseRange: [number, number] = [stepsRange[0] * BIOME_LEVEL.hungerPerStep, stepsRange[1] * BIOME_LEVEL.hungerPerStep];
+  const baseFatigueIncreaseRange: [number, number] = [stepsRange[0] * BIOME_LEVEL.fatiguePerStep, stepsRange[1] * BIOME_LEVEL.fatiguePerStep];
+
+  // If the rolled POI is a food source, add the foraging cost range too (Bug C)
+  const poiData = POIS[poiId];
+  let hungerIncreaseRange = baseHungerIncreaseRange;
+  let fatigueIncreaseRange = baseFatigueIncreaseRange;
+  let foragePeriodsRange: [number, number] | null = null;
+
+  if (poiData.kind === "food" && poiData.foodSpec) {
+    foragePeriodsRange = poiData.foodSpec.foragePeriodsRange;
+    hungerIncreaseRange = [
+      baseHungerIncreaseRange[0] + foragePeriodsRange[0] * poiData.foodSpec.forageHungerPerPeriod,
+      baseHungerIncreaseRange[1] + foragePeriodsRange[1] * poiData.foodSpec.forageHungerPerPeriod,
+    ];
+    fatigueIncreaseRange = [
+      baseFatigueIncreaseRange[0] + foragePeriodsRange[0] * poiData.foodSpec.forageFatiguePerPeriod,
+      baseFatigueIncreaseRange[1] + foragePeriodsRange[1] * poiData.foodSpec.forageFatiguePerPeriod,
+    ];
+  }
+
+  // Estimate storable food consumption via Chomper (auto) only if Chomper is equipped
   const estFoodConsumed: { foodId: FoodId; unitsRange: [number, number] }[] = [];
-  if (hasStorable) {
-    // upper bound: each step counts as 1 "period" for auto-consume; lower bound: only if hunger > 0
+  const totalPeriodsUpper = stepsRange[1] + (foragePeriodsRange ? foragePeriodsRange[1] : 0);
+
+  if (hasEquippedTail(player, "eq_chomper")) {
     const storableIds = Array.from(
       new Set(
         player.inventory
@@ -204,7 +233,9 @@ export function makeJourneyPreview(player: PlayerState, mode: "explore" | "findF
           .map((s) => s.id as FoodId)
       )
     );
-    for (const id of storableIds) estFoodConsumed.push({ foodId: id, unitsRange: [0, Math.min(stepsRange[1], invGet(player.inventory, id)?.qty ?? 0)] });
+    for (const id of storableIds) {
+      estFoodConsumed.push({ foodId: id, unitsRange: [0, Math.min(totalPeriodsUpper, invGet(player.inventory, id)?.qty ?? 0)] });
+    }
   }
 
   return {
@@ -220,6 +251,7 @@ export function makeJourneyPreview(player: PlayerState, mode: "explore" | "findF
 
 export function resolveJourney(player: PlayerState, preview: JourneyPreview): JourneyResult {
   const steps = randInt(preview.stepsRange[0], preview.stepsRange[1]);
+  const eventsOut: EventId[] = [...preview.surfacedEvents];
 
   // apply time passing: each step is 1 period
   const hungerDelta = steps * BIOME_LEVEL.hungerPerStep;
@@ -235,7 +267,7 @@ export function resolveJourney(player: PlayerState, preview: JourneyPreview): Jo
   const foodConsumed = autoConsumeStorableFood(player, steps);
 
   // apply events: lightweight effects; keep hidden numbers, but still meaningful
-  for (const e of preview.surfacedEvents) {
+  for (const e of eventsOut) {
     switch (e) {
       case "ev_minor_recovery":
       case "ev_second_wind":
@@ -279,16 +311,27 @@ export function resolveJourney(player: PlayerState, preview: JourneyPreview): Jo
       weights = spec.findFoodDropByBand[band];
     }
     const food = pickWeighted(weights);
-    if (FOODS[food].storable) {
-      const fr = FOODS[food].freshnessRange!;
-      const unitFreshness = Array.from({ length: 1 }, () => randInt(fr[0], fr[1]));
-      invAdd(player.inventory, food, 1, unitFreshness);
-      gained.push({ id: food, qty: 1, freshness: unitFreshness });
+
+    // Non-storable food must be harvested/consumed with Chomper equipped
+    if (!FOODS[food].storable) {
+      if (!hasEquippedTail(player, "eq_chomper")) {
+        // You found something edible but couldn't take advantage of it
+        eventsOut.push("ev_need_chomper");
+      } else {
+        const red = FOODS[food].hungerReduction;
+        player.stats.hunger = clamp(player.stats.hunger - red, 0, player.stats.maxHunger);
+        gained.push({ id: food, qty: 1 });
+      }
     } else {
-      // immediate eat via Chomper (always available in MVP)
-      const red = FOODS[food].hungerReduction;
-      player.stats.hunger = clamp(player.stats.hunger - red, 0, player.stats.maxHunger);
-      gained.push({ id: food, qty: 1 });
+      // Storable food requires a different harvesting approach (MVP: Sticky Scoop equipped)
+      if (!hasEquippedTail(player, "eq_sticky_scoop")) {
+        eventsOut.push("ev_need_scoop_for_rations");
+      } else {
+        const fr = FOODS[food].freshnessRange!;
+        const unitFreshness = Array.from({ length: 1 }, () => randInt(fr[0], fr[1]));
+        invAdd(player.inventory, food, 1, unitFreshness);
+        gained.push({ id: food, qty: 1, freshness: unitFreshness });
+      }
     }
   }
 
@@ -297,7 +340,7 @@ export function resolveJourney(player: PlayerState, preview: JourneyPreview): Jo
   return {
     mode: preview.mode,
     steps,
-    surfacedEvents: preview.surfacedEvents,
+    surfacedEvents: eventsOut,
     hungerDelta,
     fatigueDelta: fatigueDelta - recovered,
     poi,
@@ -494,7 +537,7 @@ export function recoverPreview(player: PlayerState) {
   // fixed recover block (immediate), simple MVP: 8 periods
   const periods = 8;
   const hungerDelta = periods * 1;
-  const fatigueRecovered = (ITEMS.eq_tail_curler.effects?.fatigueRecoveryPerPeriod ?? 0) * periods;
+  const fatigueRecovered = hasEquippedTail(player, "eq_tail_curler") ? (ITEMS.eq_tail_curler.effects?.fatigueRecoveryPerPeriod ?? 0) * periods : 0;
   // estimation for auto consume
   const estFoodConsumed: { foodId: FoodId; unitsRange: [number, number] }[] = [];
   const hasStorable = player.inventory.some((s) => typeof s.id === "string" && s.id.startsWith("food_") && FOODS[s.id as FoodId]?.storable && s.qty > 0);

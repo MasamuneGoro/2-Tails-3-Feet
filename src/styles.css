@@ -1,64 +1,119 @@
+/* =========================================================
+   2 Tails 3 Feet — Readability Upgrade (v1)
+   ========================================================= */
+
+/* Global readability upgrade */
+html {
+  font-size: 20px; /* ~2× perceived size vs common defaults */
+}
+
 :root {
   font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
   color: #eaeaea;
   background: #111;
 }
 
-body { margin: 0; min-height: 100vh; }
-
-.app { display: grid; grid-template-columns: 88px 1fr; min-height: 100vh; }
-
-.sidebar {
-  border-right: 1px solid #2a2a2a;
-  padding: 12px 10px;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  background: #0d0d0d;
+body {
+  margin: 0;
+  min-height: 100vh;
+  font-size: 1.1rem;
+  line-height: 1.6;
 }
 
+/* Make form controls readable everywhere */
+button,
+select,
+input,
+textarea {
+  font-size: 1rem;
+  line-height: 1.3;
+}
+
+/* Layout */
+.app {
+  display: grid;
+  grid-template-columns: 160px 1fr; /* was 88px */
+  min-height: 100vh;
+}
+
+/* Sidebar */
+.sidebar {
+  border-right: 1px solid #2a2a2a;
+  padding: 14px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  background: #0d0d0d;
+  font-size: 1rem; /* ensure it doesn't feel tiny */
+}
+
+/* Sidebar buttons */
 .hotbtn {
   width: 100%;
-  padding: 10px 8px;
+  padding: 12px 10px;
   border: 1px solid #2a2a2a;
   background: #161616;
   color: #eaeaea;
-  border-radius: 10px;
+  border-radius: 12px;
   cursor: pointer;
   text-align: left;
 }
 .hotbtn:hover { background: #1b1b1b; }
 .hotbtn:disabled { opacity: 0.5; cursor: not-allowed; }
 
-.main { padding: 18px; max-width: 980px; }
-
-.topbar { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-bottom: 12px; }
-
-.card {
-  border: 1px solid #2a2a2a;
-  border-radius: 14px;
-  background: #141414;
-  padding: 14px;
-  margin: 12px 0;
+/* Main */
+.main {
+  padding: 22px;
+  max-width: 980px;
 }
 
-.row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+.topbar {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
 
+/* Cards */
+.card {
+  border: 1px solid #2a2a2a;
+  border-radius: 16px;
+  background: #141414;
+  padding: 16px;
+  margin: 14px 0;
+}
+
+.row {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+/* Pills */
 .pill {
   border: 1px solid #2a2a2a;
   background: #101010;
-  padding: 6px 10px;
+  padding: 8px 12px;
   border-radius: 999px;
-  font-size: 13px;
+  font-size: 0.95rem; /* readable but still compact */
   opacity: 0.95;
 }
 
-h1, h2, h3 { margin: 0 0 10px 0; }
-p { margin: 6px 0; opacity: 0.95; }
+/* Typography */
+h1, h2, h3 { margin: 0 0 12px 0; }
 
+h1 { font-size: 2rem; letter-spacing: 0.06em; }
+h2 { font-size: 1.5rem; }
+h3 { font-size: 1.2rem; }
+
+p { margin: 8px 0; opacity: 0.95; }
+
+/* Primary buttons */
 .btn {
-  padding: 10px 12px;
-  border-radius: 10px;
+  padding: 12px 14px;
+  border-radius: 12px;
   border: 1px solid #2a2a2a;
   background: #1a1a1a;
   color: #eaeaea;
@@ -67,19 +122,64 @@ p { margin: 6px 0; opacity: 0.95; }
 .btn:hover { background: #202020; }
 .btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
-.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-@media (max-width: 860px) { .grid2 { grid-template-columns: 1fr; } }
+/* Generic button padding safety (in case any plain <button> exists) */
+button {
+  padding: 10px 12px;
+}
 
-.small { font-size: 13px; opacity: 0.85; }
-.mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace; font-size: 12px; opacity: 0.9; }
+/* Grid */
+.grid2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+@media (max-width: 860px) {
+  .grid2 { grid-template-columns: 1fr; }
+  .app { grid-template-columns: 1fr; } /* stack sidebar on small screens */
+  .sidebar { border-right: 0; border-bottom: 1px solid #2a2a2a; }
+}
 
-hr { border: 0; border-top: 1px solid #2a2a2a; margin: 12px 0; }
+/* Small text + mono blocks (kept readable) */
+.small { font-size: 0.95rem; opacity: 0.85; }
 
-.kv { display: grid; grid-template-columns: 140px 1fr; gap: 6px 10px; }
-.kv div { padding: 2px 0; }
+.mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  font-size: 0.9rem;
+  opacity: 0.9;
+}
 
-.table { width: 100%; border-collapse: collapse; }
-.table th, .table td { border-bottom: 1px solid #2a2a2a; padding: 8px 6px; text-align: left; font-size: 13px; }
+hr {
+  border: 0;
+  border-top: 1px solid #2a2a2a;
+  margin: 14px 0;
+}
+
+/* Key-value layout */
+.kv {
+  display: grid;
+  grid-template-columns: 160px 1fr;
+  gap: 8px 12px;
+}
+.kv div { padding: 3px 0; }
+
+/* Tables */
+.table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.table th,
+.table td {
+  border-bottom: 1px solid #2a2a2a;
+  padding: 10px 8px;
+  text-align: left;
+  font-size: 1rem;
+}
 .table th { opacity: 0.9; font-weight: 600; }
 
-.notice { padding: 10px 12px; border: 1px dashed #3a3a3a; border-radius: 12px; background: #101010; }
+/* Notice boxes */
+.notice {
+  padding: 12px 14px;
+  border: 1px dashed #3a3a3a;
+  border-radius: 14px;
+  background: #101010;
+}

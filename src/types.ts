@@ -13,7 +13,9 @@ export type EventId =
   | "ev_tool_strain"
   | "ev_dense_find"
   | "ev_preserved_ration"
-  | "ev_second_wind";
+  | "ev_second_wind"
+  | "ev_need_chomper"
+  | "ev_need_scoop_for_rations";
 
 export type ResourceId = "resin_glob" | "fiber_clump" | "brittle_stone";
 export type FoodId = "food_soft_sap" | "food_resin_chew" | "food_dense_ration";

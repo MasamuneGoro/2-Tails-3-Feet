@@ -196,20 +196,15 @@ export default function App() {
     setPlayer(next);
   }
 
-function isItemId(x: unknown): x is import("./types").ItemId {
-  return typeof x === "string" && Object.prototype.hasOwnProperty.call(ITEMS, x);
-}
+  function isItemId(x: unknown): x is import("./types").ItemId {
+    return typeof x === "string" && Object.prototype.hasOwnProperty.call(ITEMS, x);
+  }
 
-function canEquipItem(itemId: unknown) {
-  // Validate before indexing ITEMS[...]
-  if (!isItemId(itemId)) return false;
-
-  // only tail tools; chomper/curler are passive, not equipable
-  if (itemId === "eq_chomper" || itemId === "eq_tail_curler") return false;
-
-  const item = ITEMS[itemId];
-  return item.slot === "tail";
-}
+  function canEquipItem(itemId: unknown) {
+    if (!isItemId(itemId)) return false;
+    const item = ITEMS[itemId];
+    return item.slot === "tail";
+  }
 
   function availableTailToolIds(): import("./types").ItemId[] {
     // list items in inventory that are tail tools, excluding passive tools
@@ -709,7 +704,17 @@ function canEquipItem(itemId: unknown) {
 
   let body: React.ReactNode = null;
   if (dead) body = deadScreen;
-  else if (exhausted && screen !== "INVENTORY" && !["PREVIEW_RECOVER","SUMMARY_RECOVER"].includes(screen)) body = exhaustedScreen;
+  else if (
+    exhausted &&
+    ![
+      "INVENTORY",
+      "SUMMARY_JOURNEY",
+      "SUMMARY_HARVEST",
+      "SUMMARY_CRAFT",
+      "SUMMARY_RECOVER",
+      "PREVIEW_RECOVER",
+    ].includes(screen)
+  ) body = exhaustedScreen;
 
   if (!body) {
     switch (screen) {
@@ -720,6 +725,7 @@ function canEquipItem(itemId: unknown) {
       case "PREVIEW_JOURNEY": body = journeyPreviewScreen; break;
       case "SUMMARY_JOURNEY": body = journeySummaryScreen; break;
       case "POI": body = poiScreen; break;
+      case "CHOOSE_METHOD": body = poiScreen; break;
       case "PREVIEW_HARVEST": body = harvestPreviewScreen; break;
       case "SUMMARY_HARVEST": body = harvestSummaryScreen; break;
       case "CRAFT_MENU": body = craftMenuScreen; break;

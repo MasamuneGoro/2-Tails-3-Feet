@@ -79,6 +79,16 @@ export const EVENTS: Record<EventId, { id: EventId; name: string; text: string; 
   ev_dense_find: { id: "ev_dense_find", name: "Dense Find", tag: "rare", text: "You stumble into a compact pocket of material—rarely this concentrated." },
   ev_preserved_ration: { id: "ev_preserved_ration", name: "Preserved Ration", tag: "rare", text: "Something wrapped and oddly intact. It feels like food… that shouldn’t exist here." },
   ev_second_wind: { id: "ev_second_wind", name: "Second Wind", tag: "rare", text: "Your nervous system clicks into a higher gear. For a moment, you feel unstoppable." },
+  ev_need_chomper: {
+    id: "ev_need_chomper",
+    name: "No Chomper Equipped",
+    text: "You spot soft sap, but without a biting tool you can’t take advantage before it oozes away.",
+  },
+  ev_need_scoop_for_rations: {
+    id: "ev_need_scoop_for_rations",
+    name: "Rations Slip Away",
+    text: "The preserved lumps sit deep in sticky pools. Without a scooping attachment, you can’t extract any to store.",
+  },
 };
 
 export const POIS: Record<

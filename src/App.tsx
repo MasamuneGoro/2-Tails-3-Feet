@@ -86,6 +86,7 @@ export default function App() {
   const [activeBlot, setActiveBlot] = useState<BlotState | null>(null);
   const [lastEatResult, setLastEatResult] = useState<EatSapResult | null>(null);
   const [lastStorableResult, setLastStorableResult] = useState<HarvestStorableResult | null>(null);
+  const [multiHarvestResults, setMultiHarvestResults] = useState<HarvestResult[]>([]);
 
   const [harvestPreview, setHarvestPreview] = useState<HarvestPreview | null>(null);
   const [harvestResult, setHarvestResult] = useState<HarvestResult | null>(null);
@@ -111,6 +112,7 @@ export default function App() {
     setActiveBlot(null);
     setLastEatResult(null);
     setLastStorableResult(null);
+    setMultiHarvestResults([]);
     setHarvestPreview(null);
     setHarvestResult(null);
     setCraftPreview(null);
@@ -170,6 +172,7 @@ export default function App() {
     setActiveBlot(journeyResult.blot);
     setLastEatResult(null);
     setLastStorableResult(null);
+    setMultiHarvestResults([]);
     setScreen("POI");
   }
 
@@ -199,6 +202,30 @@ export default function App() {
     setPlayer(next);
     setActiveBlot(blotCopy);
     setLastStorableResult(result);
+  }
+
+  function doMultiHarvest() {
+    if (!activePoi || !activeBlot) return;
+    const methods = methodsAvailableFromEquipment(player);
+    if (!methods.length) return;
+    let next = structuredClone(player);
+    let blotCopy = structuredClone(activeBlot);
+    const results: HarvestResult[] = [];
+    for (const method of methods) {
+      if (blotCopy.harvestCharges !== undefined && blotCopy.harvestCharges <= 0) break;
+      if (next.stats.hunger >= next.stats.maxHunger || next.stats.fatigue >= next.stats.maxFatigue) break;
+      const pv = makeHarvestPreview(next, activePoi.id, method);
+      const res = resolveHarvest(next, pv);
+      results.push(res);
+      if (blotCopy.harvestCharges !== undefined) {
+        blotCopy.harvestCharges = Math.max(0, blotCopy.harvestCharges - 1);
+      }
+      if (res.outcome !== "ok") break;
+    }
+    setPlayer(next);
+    setActiveBlot(blotCopy);
+    setMultiHarvestResults(results);
+    setScreen("SUMMARY_HARVEST");
   }
 
   function proceedHarvest() {
@@ -487,9 +514,14 @@ export default function App() {
   const journeySummaryScreen = journeyResult && (
     <div className="card">
       <h2>What happened out there</h2>
-      <p className="small">
-        You travel {journeyResult.steps} steps and blunder into: <b>{prettyPoi(journeyResult.poi.id).name}</b> — a {journeyResult.poi.quality} Blot.
-      </p>
+      <div className="kv" style={{marginBottom:12}}>
+        <div>Blundered into</div>
+        <div><b>{prettyPoi(journeyResult.poi.id).name}</b> — {journeyResult.poi.quality} Blot, {journeyResult.steps} steps away</div>
+        <div>Hunger cost</div>
+        <div>+{journeyResult.hungerDelta}</div>
+        <div>Fatigue cost</div>
+        <div>+{Math.max(0, journeyResult.fatigueDelta)}</div>
+      </div>
 
       {!!journeyResult.surfacedEvents.length && (
         <div className="card">
@@ -562,43 +594,52 @@ export default function App() {
       {POIS[activePoi.id].kind === "harvest" ? (
         <>
           <div className="card">
-            {activeBlot.harvestCharges !== undefined && (
-              <p className="small" style={{marginBottom:8}}>
-                {activeBlot.harvestCharges > 0
-                  ? `Blot charges remaining: ${activeBlot.harvestCharges} / ${activeBlot.maxHarvestCharges}`
-                  : "⚠️ This blot is exhausted. Nothing left to harvest."}
-              </p>
-            )}
-            {activeBlot.harvestCharges !== undefined && activeBlot.harvestCharges > 0 ? (
-              <>
-                <p className="small">
-                  Best tool for this:{" "}
-                  {(() => {
-                    const rec = recommendedMethod(activePoi.id);
-                    if (!rec) return "—";
-                    const tool = Object.values(ITEMS).find((it) => it.harvestingMethod === rec);
-                    return tool ? tool.name : rec;
-                  })()}
-                </p>
-                <p className="small">Your equipped tools:</p>
-                <div className="row">
-                  {methodsAvailableFromEquipment(player).length ? (
-                    methodsAvailableFromEquipment(player).map((m) => {
-                      const tool = Object.values(ITEMS).find((it) => it.harvestingMethod === m);
-                      return (
-                        <button key={m} className="btn" onClick={() => chooseMethod(m)}>
-                          {tool ? tool.name : m}
-                        </button>
-                      );
-                    })
-                  ) : (
-                    <span className="small">No harvesting tools equipped. Open Inventory to equip one.</span>
-                  )}
-                </div>
-              </>
-            ) : activeBlot.harvestCharges === 0 ? (
-              <p className="small">You’ve picked this place clean. Time to move on.</p>
-            ) : null}
+            {(() => {
+              const charges = activeBlot.harvestCharges ?? 0;
+              const max = activeBlot.maxHarvestCharges ?? 1;
+              const ratio = charges / max;
+              const depletionFlavour = charges === 0
+                ? "The ground has given everything it had. There’s nothing left to take."
+                : ratio <= 0.25
+                ? "The blot looks thin. Whatever was here is nearly gone."
+                : ratio <= 0.6
+                ? "You’ve made a dent. Still something left, but it won’t last."
+                : "The blot looks untouched. Rich, heavy, ready to give.";
+              const methods = methodsAvailableFromEquipment(player);
+              const tools = methods.map(m => Object.values(ITEMS).find(it => it.harvestingMethod === m)).filter(Boolean);
+              const recMethod = recommendedMethod(activePoi.id);
+              const recTool = recMethod ? Object.values(ITEMS).find(it => it.harvestingMethod === recMethod) : null;
+              return (
+                <>
+                  <p className="small" style={{marginBottom:8}}><i>{depletionFlavour}</i></p>
+                  {charges > 0 ? (
+                    <>
+                      <p className="small">Best tool here: <b>{recTool ? recTool.name : "—"}</b></p>
+                      {tools.length > 0 ? (
+                        <>
+                          <p className="small" style={{marginBottom:4}}>
+                            You’ve got:{" "}
+                            {tools.map((t, i) => (
+                              <span key={t!.id}><b>{t!.name}</b>{i < tools.length - 1 ? " + " : ""}</span>
+                            ))}
+                          </p>
+                          <p className="small" style={{marginBottom:8, opacity:0.7}}>
+                            {tools.length === 2
+                              ? "Both tools will take a swing. Two harvests, one blot."
+                              : "One tool, one pass."}
+                          </p>
+                          <button className="btn" style={{fontSize:"1.1rem"}} onClick={doMultiHarvest} disabled={dead || exhausted}>
+                            Dig in!
+                          </button>
+                        </>
+                      ) : (
+                        <p className="small">No harvesting tools equipped. Open Inventory to equip one.</p>
+                      )}
+                    </>
+                  ) : null}
+                </>
+              );
+            })()}
           </div>
         </>
       ) : (
@@ -608,7 +649,11 @@ export default function App() {
 
           {/* Soft Sap section */}
           <div style={{marginBottom:12}}>
-            <p className="small"><b>Soft Sap</b> — {activeBlot.sapRemaining ?? 0} remaining</p>
+            <p className="small"><b>Soft Sap</b> — {(() => {
+              const r = activeBlot.sapRemaining ?? 0;
+              const max = journeyResult?.blot.sapRemaining ?? r;
+              return r === 0 ? "all gone" : r <= 1 ? "last drop" : r <= 2 ? "a little left" : "plenty here";
+            })()}</p>
             {activeBlot.sapRemaining !== undefined && activeBlot.sapRemaining > 0 ? (
               hasEquippedTail(player, "eq_chomper") ? (
                 <div>
@@ -634,7 +679,10 @@ export default function App() {
           {/* Storable food section */}
           {activeBlot.storableFood && (
             <div>
-              <p className="small"><b>{FOODS[activeBlot.storableFood].name}</b> — {activeBlot.storableRemaining ?? 0} remaining</p>
+              <p className="small"><b>{FOODS[activeBlot.storableFood].name}</b> — {(() => {
+                const r = activeBlot.storableRemaining ?? 0;
+                return r === 0 ? "all gathered" : r === 1 ? "one unit left" : r <= 2 ? "a few left" : "a good stash";
+              })()}</p>
               {activeBlot.storableRemaining !== undefined && activeBlot.storableRemaining > 0 ? (
                 hasEquippedTail(player, "eq_sticky_scoop") ? (
                   <div>
@@ -711,38 +759,55 @@ export default function App() {
     </div>
   );
 
-  const harvestSummaryScreen = harvestResult && (
+  const harvestSummaryScreen = multiHarvestResults.length > 0 && (
     <div className="card">
       <h2>Haul report</h2>
-      <p className="small">Time: {harvestResult.periods} periods · XP gained: +{harvestResult.xpGained} ({harvestResult.method.toUpperCase()})</p>
+      <p className="small">
+        {multiHarvestResults.length === 2 ? "Both tools took a swing." : "One pass done."}{" "}
+        Total: {multiHarvestResults.reduce((s, r) => s + r.periods, 0)} periods.
+      </p>
 
-      <div className="card">
-        <h3>Gained</h3>
-        <ul>
-          {harvestResult.gained.map((g, i) => (
-            <li key={i} className="small">
-              {(g.id as string).startsWith("food_") ? getFoodName(g.id as any) : getResourceName(g.id as any)} ×{g.qty}
-              {g.freshness?.length ? ` (freshness: ${g.freshness.join(", ")})` : ""}
-            </li>
-          ))}
-        </ul>
-      </div>
-
-      <div className="card">
-        <h3>Chomper Consumption</h3>
-        <p className="small">{formatConsumed(harvestResult.foodConsumed)}</p>
-      </div>
+      {multiHarvestResults.map((res, i) => {
+        const tool = Object.values(ITEMS).find(it => it.harvestingMethod === res.method);
+        const flavour: Record<string, string> = {
+          best: "Clean and efficient.",
+          good: "Solid work.",
+          ok: "Got something out of it.",
+          weak: "Slow going, but you persisted.",
+          veryWeak: "That hurt more than it helped.",
+          wasteful: "Half of it crumbled away.",
+        };
+        return (
+          <div className="card" key={i}>
+            <h3>{tool ? tool.name : res.method} pass</h3>
+            <p className="small">{flavour[harvestPreview?.efficiencyLabel ?? "ok"] ?? ""}</p>
+            <ul>
+              {res.gained.map((g, j) => (
+                <li key={j} className="small">
+                  {(g.id as string).startsWith("food_") ? getFoodName(g.id as any) : getResourceName(g.id as any)} ×{g.qty}
+                </li>
+              ))}
+            </ul>
+            <p className="small">→ +{res.hungerDelta} hunger · +{Math.max(0, res.fatigueDelta)} fatigue · +{res.xpGained} XP</p>
+            {res.foodConsumed.length > 0 && (
+              <p className="small">Chomper snacked: {formatConsumed(res.foodConsumed)}</p>
+            )}
+          </div>
+        );
+      })}
 
       <div className="row">
-        <button className="btn" onClick={() => setScreen("POI")}>Stay at Blot</button>
+        <button className="btn" onClick={() => { setMultiHarvestResults([]); setScreen("POI"); }}>Stay at Blot</button>
         <button className="btn" onClick={gotoHub}>Head back</button>
       </div>
 
-      {harvestResult.outcome !== "ok" && (
+      {multiHarvestResults[multiHarvestResults.length - 1]?.outcome !== "ok" && (
         <div className="notice">
-          <b>Outcome:</b> {harvestResult.outcome.toUpperCase()}
+          <b>Outcome:</b> {multiHarvestResults[multiHarvestResults.length - 1]?.outcome.toUpperCase()}
           <div className="small">
-            {harvestResult.outcome === "exhausted" ? "Your tails have given up. Time to belly down." : "Hunger won. Reset to try again."}
+            {multiHarvestResults[multiHarvestResults.length - 1]?.outcome === "exhausted"
+              ? "Your tails have given up. Time to belly down."
+              : "Hunger won. Reset to try again."}
           </div>
         </div>
       )}

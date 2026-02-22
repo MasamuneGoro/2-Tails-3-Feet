@@ -1,0 +1,1106 @@
+import React, { useMemo, useState } from "react";
+import type { BlotState, CraftPreview, CraftResult, EatSapResult, HarvestMethodId, HarvestPreview, HarvestResult, HarvestStorableResult, JourneyPreview, JourneyResult, PlayerState, PoiId, Screen } from "./types";
+import { BIOME_LEVEL, EVENTS, FOODS, ITEMS, POIS, RECIPES, RESOURCES } from "./gameData";
+import {
+  canCraft, getFoodName, getItemName, getResourceName, listUnlockedRecipes,
+  makeCraftPreview, makeHarvestPreview, makeJourneyPreview, methodsAvailableFromEquipment,
+  prettyEvent, prettyPoi, prettyRecipe, recommendedMethod,
+  resolveCraft, resolveHarvest, resolveJourney, recoverPreview, resolveRecover,
+  invAdd, invGet, invRemove, clamp,
+  skillLevel, skillXpToNextLevel, skillXpForLevel, SKILL_MAX_LEVEL, SKILL_XP_PER_LEVEL,
+  generateBlot, eatSapAtBlot, harvestStorableAtBlot, hasEquippedTail, countEquippedTail,
+} from "./engine";
+
+function pct(n: number, d: number) { return Math.round((n / d) * 100); }
+
+function formatConsumed(consumed: { foodId: import("./types").FoodId; units: number }[]) {
+  if (!consumed.length) return "None";
+  return consumed.map((c) => `${FOODS[c.foodId].name} ×${c.units}`).join(", ");
+}
+
+function formatConsumedRange(consumed: { foodId: import("./types").FoodId; unitsRange: [number, number] }[]) {
+  if (!consumed.length) return "";
+  return consumed.map((c) => `${FOODS[c.foodId].name} ×${c.unitsRange[0]}–${c.unitsRange[1]}`).join(", ");
+}
+
+function StatBar({ value, max, kind }: { value: number; max: number; kind: "hunger" | "fatigue" }) {
+  const ratio = value / max;
+  let color: string;
+  if (kind === "hunger") {
+    color = ratio < 0.5 ? "#4caf50" : ratio < 0.75 ? "#f5c842" : "#e53935";
+  } else {
+    // fatigue: amber -> burnt orange -> deep sienna
+    color = ratio < 0.5 ? "#c8a96e" : ratio < 0.75 ? "#cc6b1a" : "#8b2500";
+  }
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 3, flex: 1, minWidth: 0 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.8rem", opacity: 0.7 }}>
+        <span>{kind === "hunger" ? "Hunger" : "Fatigue"}</span>
+        <span>{value}/{max}</span>
+      </div>
+      <div style={{ width: "100%", background: "#2a2a2a", borderRadius: 6, height: 12 }}>
+        <div style={{ width: `${Math.min(100, ratio * 100)}%`, height: "100%", background: color, borderRadius: 6, transition: "width 0.3s, background 0.3s" }} />
+      </div>
+    </div>
+  );
+}
+
+const START_PLAYER: PlayerState = {
+  biomeLevelId: "sticky_l1",
+  stats: { hunger: 200, fatigue: 0, maxHunger: 1000, maxFatigue: 1000 },
+  equipment: { tailSlots: [null, null], shoe: "eq_standard_shoe" },
+  inventory: [
+    { id: "eq_tinker_shaft", qty: 1 },
+    { id: "eq_tail_curler", qty: 1 },
+    { id: "eq_chomper", qty: 1 },
+    { id: "eq_pointed_twig", qty: 1 },
+    { id: "food_resin_chew", qty: 1, freshness: [3] },
+  ],
+  xp: { poke: 0, smash: 0, tease: 0, drill: 0, scoop: 0 },
+};
+
+export default function App() {
+  const [player, setPlayer] = useState<PlayerState>(() => structuredClone(START_PLAYER));
+  const [screen, setScreen] = useState<Screen>("HUB");
+
+  const [journeyPreview, setJourneyPreview] = useState<JourneyPreview | null>(null);
+  const [journeyResult, setJourneyResult] = useState<JourneyResult | null>(null);
+  const [savedExploreRoll, setSavedExploreRoll] = useState<JourneyPreview | null>(null);
+  const [savedFoodRoll, setSavedFoodRoll] = useState<JourneyPreview | null>(null);
+
+  const [activePoi, setActivePoi] = useState<{ id: PoiId; quality: "common" | "uncommon" } | null>(null);
+  const [activeBlot, setActiveBlot] = useState<BlotState | null>(null);
+  const [lastEatResult, setLastEatResult] = useState<EatSapResult | null>(null);
+  const [lastStorableResult, setLastStorableResult] = useState<HarvestStorableResult | null>(null);
+  const [multiHarvestResults, setMultiHarvestResults] = useState<HarvestResult[]>([]);
+
+  const [harvestPreview, setHarvestPreview] = useState<HarvestPreview | null>(null);
+  const [harvestResult, setHarvestResult] = useState<HarvestResult | null>(null);
+
+  const [craftPreview, setCraftPreview] = useState<CraftPreview | null>(null);
+  const [craftResult, setCraftResult] = useState<CraftResult | null>(null);
+
+  const [recoverState, setRecoverState] = useState<{ periods: number } | null>(null);
+  const [recoverSummary, setRecoverSummary] = useState<any>(null);
+
+  const [inventoryOpen, setInventoryOpen] = useState(false);
+  const [skillsOpen, setSkillsOpen] = useState(false);
+  const [howItWorksOpen, setHowItWorksOpen] = useState(false);
+  const [scoopExpanded, setScoopExpanded] = useState(false);
+  const [chomperAutoEnabled, setChomperAutoEnabled] = useState(true);
+
+  const exhausted = player.stats.fatigue >= player.stats.maxFatigue;
+  const dead = player.stats.hunger >= player.stats.maxHunger;
+
+  const hungerRatio = player.stats.hunger / player.stats.maxHunger;
+  const fatigueRatio = player.stats.fatigue / player.stats.maxFatigue;
+  const chomperEquipped = countEquippedTail(player, "eq_chomper") > 0;
+  const curlerCount = countEquippedTail(player, "eq_tail_curler");
+
+  const unlockedRecipes = useMemo(() => listUnlockedRecipes(player), [player]);
+
+  // ── Equipment helpers ─────────────────────────────────────────────────────
+  function isItemId(x: unknown): x is import("./types").ItemId {
+    return typeof x === "string" && Object.prototype.hasOwnProperty.call(ITEMS, x);
+  }
+  function canEquipItem(itemId: unknown) {
+    if (!isItemId(itemId)) return false;
+    return ITEMS[itemId].slot === "tail";
+  }
+  function availableTailToolIds(slotIdx: 0 | 1): import("./types").ItemId[] {
+    const otherSlot = player.equipment.tailSlots[slotIdx === 0 ? 1 : 0];
+    return player.inventory
+      .filter((st): st is { id: import("./types").ItemId; qty: number } =>
+        typeof st.id === "string" && (st.id as string).startsWith("eq_") && st.qty > 0 && canEquipItem(st.id))
+      .filter((st) => { if (st.id === otherSlot) return st.qty > 1; return true; })
+      .map((st) => st.id);
+  }
+  function equipTail(slotIdx: 0 | 1, itemId: import("./types").ItemId | null) {
+    const next = structuredClone(player);
+    next.equipment.tailSlots[slotIdx] = itemId;
+    setPlayer(next);
+    // Regenerate any active preview with new equipment
+    if (screen === "PREVIEW_JOURNEY" && journeyPreview) {
+      const pv = makeJourneyPreview(next, journeyPreview.mode, chomperAutoEnabled);
+      setJourneyPreview({ ...pv, poi: journeyPreview.poi, surfacedEvents: journeyPreview.surfacedEvents });
+    } else if (screen === "PREVIEW_HARVEST" && harvestPreview) {
+      setHarvestPreview(makeHarvestPreview(next, harvestPreview.poiId, harvestPreview.method, chomperAutoEnabled));
+    } else if (screen === "PREVIEW_CRAFT" && craftPreview) {
+      setCraftPreview(makeCraftPreview(next, craftPreview.recipeId, chomperAutoEnabled));
+    }
+  }
+
+  // ── Reset ─────────────────────────────────────────────────────────────────
+  function reset() {
+    setPlayer(structuredClone(START_PLAYER));
+    setScreen("HUB");
+    setJourneyPreview(null); setJourneyResult(null);
+    setSavedExploreRoll(null); setSavedFoodRoll(null);
+    setActivePoi(null); setActiveBlot(null);
+    setLastEatResult(null); setLastStorableResult(null);
+    setMultiHarvestResults([]);
+    setHarvestPreview(null); setHarvestResult(null);
+    setCraftPreview(null); setCraftResult(null);
+    setRecoverState(null); setRecoverSummary(null);
+    setScoopExpanded(false);
+    setChomperAutoEnabled(true);
+  }
+
+  function gotoHub() {
+    if (dead) setScreen("DEAD");
+    else if (exhausted) setScreen("EXHAUSTED");
+    else setScreen("HUB");
+  }
+
+  // ── Journey ───────────────────────────────────────────────────────────────
+  function genJourney(mode: "explore" | "findFood") {
+    const saved = mode === "explore" ? savedExploreRoll : savedFoodRoll;
+    const pv = saved ?? makeJourneyPreview(player, mode, chomperAutoEnabled);
+    if (!saved) {
+      if (mode === "explore") setSavedExploreRoll(pv);
+      else setSavedFoodRoll(pv);
+    }
+    setJourneyPreview(pv); setJourneyResult(null);
+    setScreen("PREVIEW_JOURNEY");
+  }
+  function proceedJourney() {
+    if (!journeyPreview) return;
+    const next = structuredClone(player);
+    const res = resolveJourney(next, journeyPreview, chomperAutoEnabled);
+    setPlayer(next); setJourneyResult(res);
+    // Clear the saved roll for this mode now that it's been used
+    if (journeyPreview.mode === "explore") setSavedExploreRoll(null);
+    else setSavedFoodRoll(null);
+    setScreen("SUMMARY_JOURNEY");
+  }
+  function sniffAgain() {
+    if (!journeyPreview) return;
+    const next = structuredClone(player);
+    next.stats.hunger = clamp(next.stats.hunger + 20, 0, next.stats.maxHunger);
+    next.stats.fatigue = clamp(next.stats.fatigue + 20, 0, next.stats.maxFatigue);
+    setPlayer(next);
+    const pv = makeJourneyPreview(next, journeyPreview.mode, chomperAutoEnabled);
+    if (journeyPreview.mode === "explore") setSavedExploreRoll(pv);
+    else setSavedFoodRoll(pv);
+    setJourneyPreview(pv);
+  }
+  function enterPoi() {
+    if (!journeyResult) return;
+    setActivePoi(journeyResult.poi);
+    setActiveBlot(journeyResult.blot);
+    setLastEatResult(null); setLastStorableResult(null);
+    setMultiHarvestResults([]);
+    setScreen("POI");
+  }
+
+  // ── Harvest ───────────────────────────────────────────────────────────────
+  function chooseMethod(method: HarvestMethodId) {
+    if (!activePoi) return;
+    setHarvestPreview(makeHarvestPreview(player, activePoi.id, method, chomperAutoEnabled));
+    setHarvestResult(null);
+    setScreen("PREVIEW_HARVEST");
+  }
+  function proceedHarvest() {
+    if (!harvestPreview) return;
+    const next = structuredClone(player);
+    const res = resolveHarvest(next, harvestPreview, chomperAutoEnabled);
+    setPlayer(next); setHarvestResult(res);
+    if (activeBlot && activeBlot.harvestCharges !== undefined)
+      setActiveBlot({ ...activeBlot, harvestCharges: Math.max(0, activeBlot.harvestCharges - 1) });
+    setScreen("SUMMARY_HARVEST");
+  }
+  function doMultiHarvest() {
+    if (!activePoi || !activeBlot) return;
+    const methods = methodsAvailableFromEquipment(player);
+    if (!methods.length) return;
+    let next = structuredClone(player);
+    let blotCopy = structuredClone(activeBlot);
+    const results: HarvestResult[] = [];
+    for (const method of methods) {
+      if (blotCopy.harvestCharges !== undefined && blotCopy.harvestCharges <= 0) break;
+      if (next.stats.hunger >= next.stats.maxHunger || next.stats.fatigue >= next.stats.maxFatigue) break;
+      const pv = makeHarvestPreview(next, activePoi.id, method, chomperAutoEnabled);
+      const res = resolveHarvest(next, pv, chomperAutoEnabled);
+      results.push(res);
+      if (blotCopy.harvestCharges !== undefined) blotCopy.harvestCharges = Math.max(0, blotCopy.harvestCharges - 1);
+      if (res.outcome !== "ok") break;
+    }
+    setPlayer(next); setActiveBlot(blotCopy); setMultiHarvestResults(results);
+    setScreen("SUMMARY_HARVEST");
+  }
+
+  // ── Food blot ─────────────────────────────────────────────────────────────
+  function doEatSap() {
+    if (!activeBlot) return;
+    const next = structuredClone(player);
+    const blotCopy = structuredClone(activeBlot);
+    const result = eatSapAtBlot(next, blotCopy);
+    setPlayer(next); setActiveBlot(blotCopy); setLastEatResult(result);
+  }
+  function doHarvestStorable() {
+    if (!activeBlot) return;
+    const next = structuredClone(player);
+    const blotCopy = structuredClone(activeBlot);
+    const result = harvestStorableAtBlot(next, blotCopy);
+    setPlayer(next); setActiveBlot(blotCopy); setLastStorableResult(result);
+  }
+
+  // ── Craft ─────────────────────────────────────────────────────────────────
+  function openCraft() {
+    if (!canCraft(player)) { setScreen("EXHAUSTED"); return; }
+    setScreen("CRAFT_MENU");
+  }
+  function chooseRecipe(recipeId: string) {
+    setCraftPreview(makeCraftPreview(player, recipeId, chomperAutoEnabled));
+    setCraftResult(null);
+    setScreen("PREVIEW_CRAFT");
+  }
+  function proceedCraft() {
+    if (!craftPreview) return;
+    const next = structuredClone(player);
+    const res = resolveCraft(next, craftPreview, chomperAutoEnabled);
+    setPlayer(next); setCraftResult(res);
+    setScreen("SUMMARY_CRAFT");
+  }
+
+  // ── Recover ───────────────────────────────────────────────────────────────
+  function previewRecover() {
+    const pv = recoverPreview(player, chomperAutoEnabled);
+    setRecoverState({ periods: pv.periods });
+    setRecoverSummary(null);
+    setScreen("PREVIEW_RECOVER");
+  }
+  function proceedRecover() {
+    const periods = recoverState?.periods ?? 8;
+    const next = structuredClone(player);
+    const res = resolveRecover(next, periods, chomperAutoEnabled);
+    setPlayer(next); setRecoverSummary(res);
+    setScreen("SUMMARY_RECOVER");
+  }
+  function keepFlopping() {
+    const periods = recoverState?.periods ?? 8;
+    const next = structuredClone(player);
+    const res = resolveRecover(next, periods, chomperAutoEnabled);
+    setPlayer(next); setRecoverSummary(res);
+    // stay on SUMMARY_RECOVER
+  }
+
+  // ── Chomper toggle ────────────────────────────────────────────────────────
+  function toggleChomper() {
+    const newVal = !chomperAutoEnabled;
+    setChomperAutoEnabled(newVal);
+    // Refresh active preview
+    if (screen === "PREVIEW_JOURNEY" && journeyPreview) {
+      const pv = makeJourneyPreview(player, journeyPreview.mode, newVal);
+      setJourneyPreview({ ...pv, poi: journeyPreview.poi, surfacedEvents: journeyPreview.surfacedEvents });
+    } else if (screen === "PREVIEW_HARVEST" && harvestPreview) {
+      setHarvestPreview(makeHarvestPreview(player, harvestPreview.poiId, harvestPreview.method, newVal));
+    } else if (screen === "PREVIEW_CRAFT" && craftPreview) {
+      setCraftPreview(makeCraftPreview(player, craftPreview.recipeId, newVal));
+    }
+  }
+
+  // ── Chomper display helper ────────────────────────────────────────────────
+  function chomperDisplay(consumed: { foodId: import("./types").FoodId; unitsRange: [number, number] }[]) {
+    if (!chomperEquipped) return "No Chomper";
+    if (!chomperAutoEnabled) return "Off";
+    const s = formatConsumedRange(consumed);
+    return s || "None";
+  }
+
+  // ── Preview title helper ─────────────────────────────────────────────────
+  function PreviewTitle({ main, sub }: { main: string; sub: string }) {
+    return (
+      <div style={{ textAlign: "center", marginBottom: 18 }}>
+        <div style={{ fontSize: "1.6rem", fontWeight: 700, letterSpacing: "0.03em" }}>{main}</div>
+        <div style={{ fontSize: "1.15rem", fontWeight: 500, opacity: 0.7, marginTop: 3 }}>{sub}</div>
+      </div>
+    );
+  }
+
+  // ── Efficiency badge helper ───────────────────────────────────────────────
+  function EffBadge({ label }: { label: string }) {
+    const cfg: Record<string, { color: string; bg: string; text: string }> = {
+      best:    { color: "#4caf50", bg: "#1a2e1a", text: "Best match" },
+      good:    { color: "#26c6da", bg: "#0d2426", text: "Good match" },
+      ok:      { color: "#888",    bg: "#1e1e1e", text: "Workable" },
+      weak:    { color: "#f5c842", bg: "#2a2200", text: "Weak match" },
+      veryWeak:{ color: "#ff8a65", bg: "#2a1500", text: "Very weak" },
+      wasteful:{ color: "#e53935", bg: "#2a0e0e", text: "Wasteful" },
+    };
+    const c = cfg[label] ?? cfg.ok;
+    return (
+      <span style={{
+        fontSize: "0.78rem", padding: "3px 9px", borderRadius: 999,
+        border: `1px solid ${c.color}`, background: c.bg, color: c.color,
+        fontWeight: 600, letterSpacing: "0.04em",
+      }}>{c.text}</span>
+    );
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // PERSISTENT SIDEBAR — tail slots + chomper toggle + inventory/skills btns
+  // ─────────────────────────────────────────────────────────────────────────
+  const tailSelectStyle: React.CSSProperties = {
+    background: "#1e1e1e", border: "1px solid #3a3a3a", borderRadius: 8,
+    color: "#eaeaea", padding: "6px 8px", fontSize: "0.9rem", width: "100%",
+  };
+
+  const sidebar = (
+    <div style={{
+      width: 200, minWidth: 180, flexShrink: 0,
+      display: "flex", flexDirection: "column", gap: 12,
+      padding: "16px 14px",
+      background: "#0e0e0e", borderRight: "1px solid #2a2a2a",
+      minHeight: "100vh",
+    }}>
+      <div style={{ fontSize: "0.75rem", opacity: 0.5, letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: 4 }}>Equipment</div>
+
+      {([0, 1] as (0 | 1)[]).map((slotIdx) => (
+        <div key={slotIdx}>
+          <div style={{ fontSize: "0.78rem", opacity: 0.6, marginBottom: 3 }}>Tail {slotIdx === 0 ? "A" : "B"}</div>
+          <select
+            style={tailSelectStyle}
+            value={player.equipment.tailSlots[slotIdx] ?? ""}
+            onChange={(e) => equipTail(slotIdx, (e.target.value || null) as any)}
+          >
+            <option value="">— empty —</option>
+            {availableTailToolIds(slotIdx).map((id) => (
+              <option key={id} value={id}>{getItemName(id)}</option>
+            ))}
+          </select>
+        </div>
+      ))}
+
+      {chomperEquipped && (
+        <div style={{ borderTop: "1px solid #2a2a2a", paddingTop: 10 }}>
+          <div style={{ fontSize: "0.78rem", opacity: 0.6, marginBottom: 6 }}>Chomper chomp</div>
+          <button
+            style={{
+              width: "100%", padding: "7px 8px", borderRadius: 8, fontSize: "0.82rem",
+              border: `1px solid ${chomperAutoEnabled ? "#4a7a4a" : "#555"}`,
+              background: chomperAutoEnabled ? "#1a2e1a" : "#1e1e1e",
+              color: chomperAutoEnabled ? "#7ecba1" : "#aaa",
+              cursor: "pointer",
+            }}
+            onClick={toggleChomper}
+          >
+            {chomperAutoEnabled ? "ON — going wild" : "OFF — sitting still"}
+          </button>
+        </div>
+      )}
+
+      <div style={{ borderTop: "1px solid #2a2a2a", paddingTop: 10, display: "flex", flexDirection: "column", gap: 8 }}>
+        <button className="btn" style={{ width: "100%", fontSize: "0.88rem" }} onClick={() => setInventoryOpen(true)}>
+          Inventory
+        </button>
+        <button className="btn" style={{ width: "100%", fontSize: "0.88rem" }} onClick={() => setSkillsOpen(true)}>
+          Skills
+        </button>
+      </div>
+
+      <div style={{ borderTop: "1px solid #2a2a2a", paddingTop: 10 }}>
+        <button className="btn" style={{ width: "100%", fontSize: "0.8rem", opacity: 0.6 }} onClick={reset}>
+          Reset Run
+        </button>
+      </div>
+
+      <div style={{ marginTop: "auto", paddingTop: 10 }}>
+        <button
+          style={{
+            width: "100%", padding: "7px 8px", borderRadius: 8, fontSize: "0.8rem",
+            border: "1px solid #2a2a2a", background: "#141414", color: "#666",
+            cursor: "pointer",
+          }}
+          onClick={() => setHowItWorksOpen(true)}
+        >
+          ? How it works
+        </button>
+      </div>
+    </div>
+  );
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // HUD — stat bars only
+  // ─────────────────────────────────────────────────────────────────────────
+  const hud = (
+    <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 14, padding: "10px 0" }}>
+      <StatBar value={player.stats.hunger} max={player.stats.maxHunger} kind="hunger" />
+      <StatBar value={player.stats.fatigue} max={player.stats.maxFatigue} kind="fatigue" />
+      <span style={{ fontSize: "0.8rem", opacity: 0.45 }}>{BIOME_LEVEL.name}</span>
+    </div>
+  );
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // HUB — context-sensitive accented buttons
+  // ─────────────────────────────────────────────────────────────────────────
+  function hubBtnStyle(kind: "explore" | "findFood" | "layDown" | "craft"): React.CSSProperties {
+    const base: React.CSSProperties = { padding: "12px 18px", borderRadius: 12, border: "1px solid #2a2a2a", background: "#1a1a1a", color: "#eaeaea", cursor: "pointer", fontSize: "1rem", fontWeight: 400, transition: "all 0.2s" };
+
+    if (kind === "explore" && hungerRatio < 0.5 && fatigueRatio < 0.5) {
+      return { ...base, padding: "14px 24px", background: "#1a2e1a", border: "2px solid #4caf50", color: "#7ecba1", fontWeight: 700, fontSize: "1.1rem", boxShadow: "0 0 12px #4caf5044" };
+    }
+    if (kind === "findFood" && hungerRatio >= 0.5 && hungerRatio < 0.75) {
+      return { ...base, background: "#2e2600", border: "1px solid #f5c842", color: "#f5e07a", fontWeight: 600 };
+    }
+    if (kind === "findFood" && hungerRatio >= 0.75) {
+      return { ...base, padding: "14px 22px", background: "#2e1010", border: "2px solid #e53935", color: "#ff8a80", fontWeight: 700, fontSize: "1.05rem", boxShadow: "0 0 10px #e5393544" };
+    }
+    if (kind === "layDown" && fatigueRatio >= 0.5 && fatigueRatio < 0.75) {
+      return { ...base, background: "#2a1c0a", border: "1px solid #cc6b1a", color: "#e8a05a", fontWeight: 600 };
+    }
+    if (kind === "layDown" && fatigueRatio >= 0.75) {
+      return { ...base, padding: "14px 22px", background: "#1e1008", border: "2px solid #8b2500", color: "#ff8c60", fontWeight: 700, fontSize: "1.05rem", boxShadow: "0 0 10px #8b250044" };
+    }
+    return base;
+  }
+
+  const hub = (
+    <div className="card">
+      <h2>Here you are.</h2>
+      <p className="small">Equip tools in your tail slots to unlock their tricks. The world is sticky and not entirely on your side.</p>
+      <div className="row" style={{ marginTop: 12 }}>
+        <button style={hubBtnStyle("explore")} onClick={() => genJourney("explore")} disabled={dead || exhausted}>Explore</button>
+        <button style={hubBtnStyle("findFood")} onClick={() => genJourney("findFood")} disabled={dead || exhausted}>Find Food</button>
+        <button style={hubBtnStyle("craft")} onClick={openCraft} disabled={dead || exhausted}>Craft</button>
+        <button style={hubBtnStyle("layDown")} onClick={previewRecover} disabled={dead}>Lay Down</button>
+      </div>
+      <div className="notice" style={{ marginTop: 12 }}>
+        <span className="small">Hunger max → death. Fatigue max → exhausted (recover only).</span>
+      </div>
+    </div>
+  );
+
+  // ── Event display helper ──────────────────────────────────────────────────
+  function EventList({ events, effects }: { events: import("./types").EventId[]; effects?: JourneyResult["eventEffects"] }) {
+    const displayable = events.filter(e => !["ev_need_chomper", "ev_need_scoop_for_rations"].includes(e));
+    const tips = events.filter(e => ["ev_need_chomper", "ev_need_scoop_for_rations"].includes(e));
+    return (
+      <div>
+        {displayable.map((e) => {
+          const ev = prettyEvent(e);
+          const netEffect = effects?.[e];
+          return (
+            <div key={e} style={{ marginBottom: 8, paddingBottom: 8, borderBottom: "1px solid #222" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8 }}>
+                <b style={{ fontSize: "0.95rem" }}>{ev.name}</b>
+                <span style={{
+                  fontSize: "0.78rem", fontFamily: "monospace", padding: "2px 7px",
+                  borderRadius: 6, background: "#1e1e1e", border: "1px solid #333", opacity: 0.9, whiteSpace: "nowrap",
+                }}>{ev.netEffect}</span>
+              </div>
+              <div className="small" style={{ opacity: 0.7, marginTop: 2 }}>{ev.text}</div>
+              {netEffect && netEffect.gained.length > 0 && (
+                <div className="small" style={{ opacity: 0.8, marginTop: 2 }}>
+                  Gained: {netEffect.gained.map(g => {
+                    const name = (g.id as string).startsWith("food_") ? getFoodName(g.id as any) : getResourceName(g.id as any);
+                    return `${name} ×${g.qty}`;
+                  }).join(", ")}
+                </div>
+              )}
+            </div>
+          );
+        })}
+        {tips.map((e) => (
+          <div key={e} className="small" style={{ opacity: 0.6, fontStyle: "italic", marginTop: 4 }}>
+            {prettyEvent(e).text}
+          </div>
+        ))}
+        {displayable.length === 0 && tips.length === 0 && <span className="small">None.</span>}
+      </div>
+    );
+  }
+
+  // ── Journey preview ───────────────────────────────────────────────────────
+  const journeyPreviewScreen = journeyPreview && (
+    <div className="card">
+      <PreviewTitle
+        main={journeyPreview.mode === "explore" ? "Scout Ahead" : "Sniff Around"}
+        sub="What It'll Cost You"
+      />
+
+      {/* Cost block */}
+      <div style={{ background: "#0e0e0e", borderRadius: 12, padding: "12px 16px", marginBottom: 10 }}>
+        <div style={{ fontSize: "0.7rem", opacity: 0.45, letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 8 }}>Cost</div>
+        <div className="kv">
+          <div>Hunger</div><div style={{ color: "#e8a05a" }}>+{journeyPreview.hungerIncreaseRange[0]}–{journeyPreview.hungerIncreaseRange[1]}</div>
+          <div>Fatigue</div><div style={{ color: "#cc6b1a" }}>+{journeyPreview.fatigueIncreaseRange[0]}–{journeyPreview.fatigueIncreaseRange[1]}</div>
+          <div>Steps</div><div style={{ opacity: 0.8 }}>{journeyPreview.stepsRange[0]}–{journeyPreview.stepsRange[1]}</div>
+        </div>
+      </div>
+
+      {/* Outcome block */}
+      <div style={{ background: "#0e0e0e", borderRadius: 12, padding: "12px 16px", marginBottom: 14 }}>
+        <div style={{ fontSize: "0.7rem", opacity: 0.45, letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 8 }}>Outcome</div>
+        <div className="kv">
+          <div>Destination</div><div>{prettyPoi(journeyPreview.poi.id).name} <span style={{ opacity: 0.5, fontSize: "0.85rem" }}>({journeyPreview.poi.quality})</span></div>
+          <div>Chomper chomp</div><div style={{ opacity: 0.8 }}>{chomperDisplay(journeyPreview.estFoodConsumed)}</div>
+          <div>Events</div>
+          <div style={{ opacity: 0.7 }}>
+            {(() => {
+              const n = journeyPreview.surfacedEvents.filter(e => !["ev_need_chomper","ev_need_scoop_for_rations"].includes(e)).length;
+              return n === 0 ? "None expected" : n === 1 ? "1 event may occur" : `${n} events may occur`;
+            })()}
+          </div>
+        </div>
+      </div>
+
+      <div className="row">
+        <button className="btn" style={{ background: "#1a2e1a", border: "1px solid #4caf50", color: "#7ecba1", fontWeight: 600, padding: "12px 22px" }} onClick={proceedJourney} disabled={dead || exhausted}>Set off</button>
+        <button className="btn" onClick={gotoHub}>Head back</button>
+        <button className="btn" style={{ opacity: 0.7 }} onClick={sniffAgain} disabled={dead || exhausted}>Sniff In Another Direction</button>
+      </div>
+      <div style={{ marginTop: 8, fontSize: "0.75rem", opacity: 0.4, textAlign: "center" }}>
+        Sniff Again costs −20 hunger, −20 fatigue
+      </div>
+    </div>
+  );
+
+  // ── Journey summary ───────────────────────────────────────────────────────
+  const journeySummaryScreen = journeyResult && (
+    <div className="card">
+      <h2>What happened out there</h2>
+      <div className="kv" style={{ marginBottom: 12 }}>
+        <div>Found</div><div><b>{prettyPoi(journeyResult.poi.id).name}</b> <span style={{opacity:0.6}}>({journeyResult.poi.quality})</span></div>
+        <div>Steps taken</div><div>{journeyResult.steps}</div>
+        <div>Hunger cost</div><div>+{journeyResult.hungerDelta}</div>
+        <div>Fatigue cost</div><div>+{Math.max(0, journeyResult.fatigueDelta)}</div>
+      </div>
+
+      {journeyResult.surfacedEvents.filter(e => !["ev_need_chomper","ev_need_scoop_for_rations"].includes(e)).length > 0 && (
+        <div className="card">
+          <h3>Events</h3>
+          <EventList events={journeyResult.surfacedEvents} effects={journeyResult.eventEffects} />
+        </div>
+      )}
+
+      {journeyResult.gained.length > 0 && (
+        <div className="card">
+          <h3>Collected along the way</h3>
+          <ul>
+            {journeyResult.gained.map((g, i) => (
+              <li key={i} className="small">
+                {(g.id as string).startsWith("food_") ? getFoodName(g.id as any) : getResourceName(g.id as any)} ×{g.qty}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {journeyResult.foodConsumed.length > 0 && (
+        <div className="card">
+          <h3>Chomper snacked</h3>
+          <p className="small">{formatConsumed(journeyResult.foodConsumed)}</p>
+        </div>
+      )}
+
+      <div className="row">
+        {/* Both harvest and food POIs now use "Check it out" */}
+        <button className="btn" onClick={enterPoi} disabled={journeyResult.outcome !== "ok"}>Check it out</button>
+        <button className="btn" onClick={gotoHub}>Head back</button>
+      </div>
+
+      {journeyResult.outcome !== "ok" && (
+        <div className="notice">
+          <b>Outcome:</b> {journeyResult.outcome.toUpperCase()}
+          <div className="small">{journeyResult.outcome === "exhausted" ? "Your tails have given up. Lay down." : "Hunger won. Reset to try again."}</div>
+        </div>
+      )}
+    </div>
+  );
+
+  // ── POI screen (harvest + food) ───────────────────────────────────────────
+  const poiScreen = activePoi && activeBlot && (
+    <div className="card">
+      <h2>{prettyPoi(activePoi.id).name} <span style={{opacity:0.5, fontSize:"0.9rem"}}>({activePoi.quality})</span></h2>
+      <p className="small" style={{marginBottom:12}}>{prettyPoi(activePoi.id).flavor}</p>
+
+      {POIS[activePoi.id].kind === "harvest" ? (
+        <div className="card">
+          {(() => {
+            const charges = activeBlot.harvestCharges ?? 0;
+            const max = activeBlot.maxHarvestCharges ?? 1;
+            const ratio = charges / max;
+            const depletionFlavour = charges === 0 ? "The ground has given everything it had. Nothing left to take."
+              : ratio <= 0.25 ? "The blot looks thin. Nearly gone."
+              : ratio <= 0.6 ? "You've made a dent. Still something left."
+              : "The blot looks untouched. Rich, heavy, ready to give.";
+            const methods = methodsAvailableFromEquipment(player);
+            const tools = methods.map(m => Object.values(ITEMS).find(it => it.harvestingMethod === m)).filter(Boolean);
+            const recMethod = recommendedMethod(activePoi.id);
+            const recTool = recMethod ? Object.values(ITEMS).find(it => it.harvestingMethod === recMethod) : null;
+            return (
+              <>
+                <p className="small" style={{ marginBottom: 8, fontStyle: "italic" }}>{depletionFlavour}</p>
+                {charges > 0 && (
+                  <>
+                    <p className="small">Best tool here: <b>{recTool ? recTool.name : "—"}</b></p>
+                    {tools.length > 0 ? (
+                      <>
+                        <p className="small" style={{ marginBottom: 4 }}>
+                          You've got:{" "}
+                          {tools.map((t, i) => <span key={t!.id}><b>{t!.name}</b>{i < tools.length - 1 ? " + " : ""}</span>)}
+                        </p>
+                        <p className="small" style={{ marginBottom: 8, opacity: 0.7 }}>
+                          {tools.length === 2 ? "Both tools will take a swing." : "One tool, one pass."}
+                        </p>
+                        <button className="btn" style={{ fontSize: "1.05rem" }} onClick={doMultiHarvest} disabled={dead || exhausted}>Dig in!</button>
+                      </>
+                    ) : (
+                      <p className="small" style={{ opacity: 0.6 }}>No harvesting tools equipped. Change tail equipment in the sidebar.</p>
+                    )}
+                  </>
+                )}
+              </>
+            );
+          })()}
+        </div>
+      ) : (
+        <div className="card">
+          <h3>Food Blot</h3>
+          {/* Inventory counts */}
+          <div style={{ display: "flex", gap: 16, flexWrap: "wrap", marginBottom: 12 }}>
+            {activeBlot.sapRemaining !== undefined && (
+              <div style={{ padding: "8px 14px", background: "#1a1a1a", borderRadius: 10, border: "1px solid #2a2a2a" }}>
+                <div style={{ fontSize: "0.78rem", opacity: 0.55 }}>Soft Sap</div>
+                <div style={{ fontWeight: 700, fontSize: "1.2rem" }}>{activeBlot.sapRemaining ?? 0}</div>
+                <div style={{ fontSize: "0.75rem", opacity: 0.5 }}>units</div>
+              </div>
+            )}
+            {activeBlot.storableFood && (
+              <div style={{ padding: "8px 14px", background: "#1a1a1a", borderRadius: 10, border: "1px solid #2a2a2a" }}>
+                <div style={{ fontSize: "0.78rem", opacity: 0.55 }}>{FOODS[activeBlot.storableFood].name}</div>
+                <div style={{ fontWeight: 700, fontSize: "1.2rem" }}>{activeBlot.storableRemaining ?? 0}</div>
+                <div style={{ fontSize: "0.75rem", opacity: 0.5 }}>units</div>
+              </div>
+            )}
+          </div>
+
+          {/* Soft Sap — Chow Down */}
+          {(activeBlot.sapRemaining ?? 0) > 0 && (
+            <div style={{ marginBottom: 12 }}>
+              {chomperEquipped ? (
+                <>
+                  <button className="btn" style={{ marginBottom: 6 }} onClick={doEatSap} disabled={dead || exhausted}>
+                    Chow Down (Soft Sap)
+                  </button>
+                  {lastEatResult && (
+                    <p className="small">
+                      Ate {lastEatResult.unitsEaten} unit{lastEatResult.unitsEaten !== 1 ? "s" : ""}.{" "}
+                      <b>−{lastEatResult.hungerRestored} hunger</b> • <b>+{lastEatResult.fatigueCost} fatigue</b>.
+                      {lastEatResult.hungerRestored === 0 ? " (Not hungry enough.)" : " Warm. Gloopy. Worth it."}
+                    </p>
+                  )}
+                </>
+              ) : (
+                <p className="small" style={{ opacity: 0.6 }}>Soft Sap is here but you need a Chomper to eat it. Equip one from the sidebar.</p>
+              )}
+            </div>
+          )}
+          {(activeBlot.sapRemaining ?? 0) === 0 && <p className="small" style={{ opacity: 0.5 }}>All sap eaten.</p>}
+
+          {/* Storable — Scoop it Up */}
+          {activeBlot.storableFood && (activeBlot.storableRemaining ?? 0) > 0 && (
+            <div>
+              {hasEquippedTail(player, "eq_sticky_scoop") ? (
+                <>
+                  {!scoopExpanded ? (
+                    <button className="btn" style={{ marginBottom: 6 }} onClick={() => setScoopExpanded(true)} disabled={dead || exhausted}>
+                      Scoop it Up ({FOODS[activeBlot.storableFood].name})
+                    </button>
+                  ) : (
+                    <div style={{ background: "#0e0e0e", borderRadius: 12, padding: "12px 16px", marginBottom: 8 }}>
+                      <div style={{ fontSize: "0.7rem", opacity: 0.45, letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 10 }}>Scoop preview — {FOODS[activeBlot.storableFood].name}</div>
+                      <div className="kv" style={{ marginBottom: 10 }}>
+                        <div>Hunger cost</div><div style={{ color: "#e8a05a" }}>+{POIS[activePoi!.id].foodSpec?.forageHungerPerPeriod ?? 1} per unit</div>
+                        <div>Fatigue cost</div><div style={{ color: "#cc6b1a" }}>+{POIS[activePoi!.id].foodSpec?.forageFatiguePerPeriod ?? 1} per unit</div>
+                        {curlerCount > 0 && (
+                          <>
+                            <div>Net fatigue (Tail Curler)</div>
+                            <div style={{ color: "#7ecba1" }}>+{Math.max(0, (POIS[activePoi!.id].foodSpec?.forageFatiguePerPeriod ?? 1) - curlerCount * (ITEMS.eq_tail_curler.effects?.fatigueRecoveryPerPeriod ?? 0))} per unit</div>
+                          </>
+                        )}
+                        <div>Freshness on harvest</div><div style={{ opacity: 0.8 }}>{FOODS[activeBlot.storableFood].freshnessRange?.[0]}–{FOODS[activeBlot.storableFood].freshnessRange?.[1]} periods</div>
+                        <div>Chomper</div><div style={{ opacity: 0.8 }}>{!chomperEquipped ? "No Chomper" : !chomperAutoEnabled ? "Off" : "May snack"}</div>
+                      </div>
+                      <div className="row">
+                        <button className="btn" style={{ background: "#1a2e1a", border: "1px solid #4caf50", color: "#7ecba1", fontWeight: 600 }} onClick={() => { setScoopExpanded(false); doHarvestStorable(); }} disabled={dead || exhausted}>Confirm scoop</button>
+                        <button className="btn" onClick={() => setScoopExpanded(false)}>Never mind</button>
+                      </div>
+                    </div>
+                  )}
+                  {lastStorableResult && !scoopExpanded && (
+                    <p className="small">
+                      Scooped 1 {FOODS[lastStorableResult.foodId].name}.{" "}
+                      <b>+{lastStorableResult.hungerCost} hunger</b> • <b>+{lastStorableResult.fatigueCost} fatigue</b>.{" "}
+                      {lastStorableResult.outcome !== "ok" ? <b>{lastStorableResult.outcome.toUpperCase()}</b> : "Stashed."}
+                    </p>
+                  )}
+                </>
+              ) : (
+                <p className="small" style={{ opacity: 0.6 }}>
+                  {FOODS[activeBlot.storableFood!].name} is here but you need a Sticky Scoop to gather it. Equip one from the sidebar.
+                </p>
+              )}
+            </div>
+          )}
+          {activeBlot.storableFood && (activeBlot.storableRemaining ?? 0) === 0 && (
+            <p className="small" style={{ opacity: 0.5 }}>All {FOODS[activeBlot.storableFood].name} gathered.</p>
+          )}
+        </div>
+      )}
+
+      <div className="row" style={{ marginTop: 12 }}>
+        <button className="btn" onClick={gotoHub}>Move on</button>
+      </div>
+    </div>
+  );
+
+  // ── Harvest preview ───────────────────────────────────────────────────────
+  const harvestPreviewScreen = harvestPreview && (
+    <div className="card">
+      <PreviewTitle main="Dig In" sub="What It'll Cost You" />
+
+      {/* Tool + efficiency */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 10, marginBottom: 14 }}>
+        <span style={{ fontWeight: 600 }}>
+          {Object.values(ITEMS).find(it => it.harvestingMethod === harvestPreview.method)?.name ?? harvestPreview.method}
+        </span>
+        <EffBadge label={harvestPreview.efficiencyLabel} />
+      </div>
+
+      {/* Cost block */}
+      <div style={{ background: "#0e0e0e", borderRadius: 12, padding: "12px 16px", marginBottom: 10 }}>
+        <div style={{ fontSize: "0.7rem", opacity: 0.45, letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 8 }}>Cost</div>
+        <div className="kv">
+          <div>Hunger</div><div style={{ color: "#e8a05a" }}>+{harvestPreview.hungerIncreaseRange[0]}–{harvestPreview.hungerIncreaseRange[1]}</div>
+          <div>Fatigue</div><div style={{ color: "#cc6b1a" }}>+{harvestPreview.fatigueIncreaseRange[0]}–{harvestPreview.fatigueIncreaseRange[1]}</div>
+          <div>Time</div><div style={{ opacity: 0.8 }}>{harvestPreview.periodsRange[0]}–{harvestPreview.periodsRange[1]} periods</div>
+        </div>
+      </div>
+
+      {/* Outcome block */}
+      <div style={{ background: "#0e0e0e", borderRadius: 12, padding: "12px 16px", marginBottom: 14 }}>
+        <div style={{ fontSize: "0.7rem", opacity: 0.45, letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 8 }}>Outcome</div>
+        <div className="kv">
+          <div>Yield</div><div style={{ opacity: 0.8 }}>{getResourceName(POIS[harvestPreview.poiId].resourceId as any)} ×{harvestPreview.yieldRange[0]}–{harvestPreview.yieldRange[1]}</div>
+          <div>Chomper chomp</div><div style={{ opacity: 0.8 }}>{chomperDisplay(harvestPreview.estFoodConsumed)}</div>
+        </div>
+      </div>
+
+      <div className="row">
+        <button className="btn" style={{ background: "#1a2e1a", border: "1px solid #4caf50", color: "#7ecba1", fontWeight: 600, padding: "12px 22px" }} onClick={proceedHarvest} disabled={dead || exhausted}>Dig in</button>
+        <button className="btn" onClick={() => setScreen("POI")}>Leave it</button>
+      </div>
+    </div>
+  );
+
+  // ── Harvest summary ───────────────────────────────────────────────────────
+  const harvestSummaryScreen = multiHarvestResults.length > 0 && (
+    <div className="card">
+      <h2>Haul report</h2>
+      <p className="small">
+        {multiHarvestResults.length === 2 ? "Both tools took a swing." : "One pass done."}{" "}
+        Total: {multiHarvestResults.reduce((s, r) => s + r.periods, 0)} periods.
+      </p>
+      {multiHarvestResults.map((res, i) => {
+        const tool = Object.values(ITEMS).find(it => it.harvestingMethod === res.method);
+        const flavour: Record<string, string> = { best: "Clean and efficient.", good: "Solid work.", ok: "Got something out of it.", weak: "Slow going, but you persisted.", veryWeak: "That hurt more than it helped.", wasteful: "Half of it crumbled away." };
+        const effLabel = POIS[res.poiId].methodRank?.[res.method] ?? "ok";
+        return (
+          <div className="card" key={i}>
+            <h3>{tool ? tool.name : res.method} pass</h3>
+            <p className="small">{flavour[effLabel] ?? ""}</p>
+            <ul>{res.gained.map((g, j) => <li key={j} className="small">{(g.id as string).startsWith("food_") ? getFoodName(g.id as any) : getResourceName(g.id as any)} ×{g.qty}</li>)}</ul>
+            <p className="small">→ +{res.hungerDelta} hunger · +{Math.max(0, res.fatigueDelta)} fatigue · +{res.xpGained} XP</p>
+            {res.foodConsumed.length > 0 && <p className="small">Chomper snacked: {formatConsumed(res.foodConsumed)}</p>}
+          </div>
+        );
+      })}
+      <div className="row">
+        <button className="btn" onClick={() => { setMultiHarvestResults([]); setScreen("POI"); }}>Stay at Blot</button>
+        <button className="btn" onClick={gotoHub}>Head back</button>
+      </div>
+      {multiHarvestResults[multiHarvestResults.length - 1]?.outcome !== "ok" && (
+        <div className="notice">
+          <b>Outcome:</b> {multiHarvestResults[multiHarvestResults.length - 1]?.outcome.toUpperCase()}
+          <div className="small">{multiHarvestResults[multiHarvestResults.length - 1]?.outcome === "exhausted" ? "Lay down." : "Hunger won."}</div>
+        </div>
+      )}
+    </div>
+  );
+
+  // ── Craft screens ─────────────────────────────────────────────────────────
+  const craftMenuScreen = (
+    <div className="card">
+      <h2>Craft</h2>
+      <p className="small">Some recipes need the <b>{ITEMS.eq_tinker_shaft.name}</b> equipped. Equip it from the sidebar.</p>
+      <table className="table">
+        <thead><tr><th>Recipe</th><th>Inputs</th><th>Output</th><th></th></tr></thead>
+        <tbody>
+          {unlockedRecipes.map((rid) => {
+            const r = prettyRecipe(rid);
+            const can = r.inputs.every((inp) => (player.inventory.find((s) => s.id === inp.id)?.qty ?? 0) >= inp.qty);
+            return (
+              <tr key={rid}>
+                <td><b>{r.name}</b></td>
+                <td className="small">{r.inputs.map((i) => `${getResourceName(i.id)}×${i.qty}`).join(", ")}</td>
+                <td className="small">{getItemName(r.output.itemId)}×{r.output.qty}</td>
+                <td><button className="btn" onClick={() => chooseRecipe(rid)} disabled={!can}>Preview</button></td>
+              </tr>
+            );
+          })}
+          {!unlockedRecipes.length && <tr><td colSpan={4} className="small">Nothing to make. Equip the Tinker Shaft from the sidebar.</td></tr>}
+        </tbody>
+      </table>
+      <div className="row"><button className="btn" onClick={gotoHub}>Put it down</button></div>
+    </div>
+  );
+
+  const craftPreviewScreen = craftPreview && (
+    <div className="card">
+      <PreviewTitle main="Tinker" sub="What It'll Cost You" />
+
+      <div style={{ background: "#0e0e0e", borderRadius: 12, padding: "12px 16px", marginBottom: 10 }}>
+        <div style={{ fontSize: "0.7rem", opacity: 0.45, letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 8 }}>Cost</div>
+        <div className="kv">
+          <div>Hunger</div><div style={{ color: "#e8a05a" }}>+{craftPreview.hungerIncrease}</div>
+          <div>Fatigue</div><div style={{ color: "#cc6b1a" }}>+{craftPreview.fatigueIncrease}</div>
+          <div>Time</div><div style={{ opacity: 0.8 }}>{craftPreview.craftPeriods} periods</div>
+        </div>
+      </div>
+
+      <div style={{ background: "#0e0e0e", borderRadius: 12, padding: "12px 16px", marginBottom: 14 }}>
+        <div style={{ fontSize: "0.7rem", opacity: 0.45, letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 8 }}>Outcome</div>
+        <div className="kv">
+          <div>Making</div><div style={{ opacity: 0.8 }}>{prettyRecipe(craftPreview.recipeId).name}</div>
+          <div>Chomper chomp</div><div style={{ opacity: 0.8 }}>{chomperDisplay(craftPreview.estFoodConsumed)}</div>
+        </div>
+      </div>
+
+      <div className="row">
+        <button className="btn" style={{ background: "#1a2e1a", border: "1px solid #4caf50", color: "#7ecba1", fontWeight: 600, padding: "12px 22px" }} onClick={proceedCraft} disabled={dead || exhausted}>Make it</button>
+        <button className="btn" onClick={() => setScreen("CRAFT_MENU")}>Put it down</button>
+      </div>
+    </div>
+  );
+
+  const craftSummaryScreen = craftResult && (
+    <div className="card">
+      <h2>Craft Summary</h2>
+      <div className="card">
+        <h3>Result</h3>
+        {craftResult.success
+          ? <p className="small">Crafted: <b>{getItemName(craftResult.crafted!.itemId)}</b> ×{craftResult.crafted!.qty}</p>
+          : <p className="small">Failed: <b>{craftResult.failReason}</b></p>}
+      </div>
+      {craftResult.foodConsumed.length > 0 && (
+        <div className="card"><h3>Chomper Consumption</h3><p className="small">{formatConsumed(craftResult.foodConsumed)}</p></div>
+      )}
+      <div className="row">
+        <button className="btn" onClick={() => setScreen("CRAFT_MENU")}>Keep tinkering</button>
+        <button className="btn" onClick={gotoHub}>Head back</button>
+      </div>
+      {!craftResult.success && <div className="notice">Outcome: {craftResult.failReason?.toUpperCase()}</div>}
+    </div>
+  );
+
+  // ── Recover screens ───────────────────────────────────────────────────────
+  const recoverPreviewScreen = (
+    <div className="card">
+      <PreviewTitle main="Belly Down" sub="What It'll Cost You" />
+      <p className="small" style={{ textAlign: "center", marginBottom: 14, opacity: 0.7 }}>
+        {curlerCount > 0
+          ? `The Tail Curler${curlerCount === 2 ? "s work" : " works"} harder when you're horizontal — 1.5× recovery${curlerCount === 2 ? ", doubled for two curlers" : ""}. You'll unwind faster lying still.`
+          : "No Tail Curler equipped — you'll just lie there getting hungrier. Bold strategy."}
+      </p>
+      {(() => {
+        const pv = recoverPreview(player, chomperAutoEnabled);
+        return (
+          <>
+            <div style={{ background: "#0e0e0e", borderRadius: 12, padding: "12px 16px", marginBottom: 10 }}>
+              <div style={{ fontSize: "0.7rem", opacity: 0.45, letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 8 }}>Cost</div>
+              <div className="kv">
+                <div>Hunger</div><div style={{ color: "#e8a05a" }}>+{pv.hungerDeltaRange[0]}</div>
+                <div>Time</div><div style={{ opacity: 0.8 }}>{pv.periods} periods</div>
+              </div>
+            </div>
+            <div style={{ background: "#0e0e0e", borderRadius: 12, padding: "12px 16px", marginBottom: 14 }}>
+              <div style={{ fontSize: "0.7rem", opacity: 0.45, letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 8 }}>Outcome</div>
+              <div className="kv">
+                <div>Fatigue</div><div style={{ color: "#7ecba1" }}>{curlerCount > 0 ? `−${Math.round(pv.fatigueRecoveredRange[1])} (est.)` : "No change"}</div>
+                <div>Chomper chomp</div><div style={{ opacity: 0.8 }}>{chomperDisplay(pv.estFoodConsumed)}</div>
+              </div>
+            </div>
+          </>
+        );
+      })()}
+      <div className="row">
+        <button className="btn" style={{ background: "#1a2e1a", border: "1px solid #4caf50", color: "#7ecba1", fontWeight: 600, padding: "12px 22px" }} onClick={proceedRecover} disabled={dead}>Flop down</button>
+        <button className="btn" onClick={gotoHub}>Stay upright</button>
+      </div>
+    </div>
+  );
+
+  const recoverSummaryScreen = recoverSummary && (
+    <div className="card">
+      <h2>Back on your feet (sort of)</h2>
+      <p className="small">You spent {recoverSummary.periods} periods horizontal. Fatigue recovered: <b>{Math.round(recoverSummary.fatigueRecovered)}</b>.</p>
+      {recoverSummary.foodConsumed.length > 0 && (
+        <div className="card"><h3>Chomper Snacked</h3><p className="small">{formatConsumed(recoverSummary.foodConsumed)}</p></div>
+      )}
+      <div className="row">
+        <button className="btn" onClick={keepFlopping} disabled={dead}>Keep flopping</button>
+        <button className="btn" onClick={gotoHub}>Get up</button>
+      </div>
+      {recoverSummary.outcome !== "ok" && (
+        <div className="notice"><b>Outcome:</b> {recoverSummary.outcome.toUpperCase()}</div>
+      )}
+    </div>
+  );
+
+  // ── Exhausted / Dead ──────────────────────────────────────────────────────
+  const exhaustedScreen = (
+    <div className="card">
+      <h2>Completely Boneless</h2>
+      <p>Your tails have staged a protest. You can only lie down now.</p>
+      <div className="row"><button className="btn" onClick={previewRecover} disabled={dead}>Lay Down</button></div>
+    </div>
+  );
+  const deadScreen = (
+    <div className="card">
+      <h2>Very Dead</h2>
+      <p>Hunger won. Dust yourself off.</p>
+      <div className="row"><button className="btn" onClick={reset}>Reset Run</button></div>
+    </div>
+  );
+
+  // ── Inventory modal ───────────────────────────────────────────────────────
+  const inventoryModal = inventoryOpen && (
+    <div className="modal-overlay" onClick={() => setInventoryOpen(false)}>
+      <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+        <div className="card">
+          <h2>Inventory</h2>
+          <table className="table">
+            <thead><tr><th>Item</th><th>Qty</th><th>Notes</th></tr></thead>
+            <tbody>
+              {player.inventory.length === 0
+                ? <tr><td colSpan={3} className="small">Empty.</td></tr>
+                : player.inventory.map((s) => {
+                  const id = s.id as any;
+                  const name = id.startsWith?.("eq_") ? getItemName(id) : id.startsWith?.("food_") ? getFoodName(id) : getResourceName(id);
+                  const note = id.startsWith?.("food_") && FOODS[id as import("./types").FoodId]?.storable ? `Freshness: ${s.freshness?.join(", ") ?? "?"}` : "";
+                  return <tr key={id}><td>{name}</td><td>{s.qty}</td><td className="small">{note}</td></tr>;
+                })}
+            </tbody>
+          </table>
+          <p className="small" style={{ marginTop: 8, opacity: 0.6 }}>Storable food rots over time. Freshness numbers count down each period.</p>
+          <div className="row" style={{ marginTop: 12 }}>
+            <button className="btn" onClick={() => setInventoryOpen(false)}>Close</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
+  // ── How It Works modal ───────────────────────────────────────────────────
+  const howItWorksModal = howItWorksOpen && (
+    <div className="modal-overlay" onClick={() => setHowItWorksOpen(false)}>
+      <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+        <div className="card">
+          <h2>How it works</h2>
+          <ul className="small" style={{ lineHeight: 1.9 }}>
+            <li>Equip tail tools using the sidebar dropdowns. Changes take effect immediately on any open preview.</li>
+            <li>3 resources: Resin Glob, Fiber Clump, Brittle Stone.</li>
+            <li>5 harvesting methods, each with its own skill — check Skills in the sidebar.</li>
+            <li>3 foods: Soft Sap (eat on spot with Chomper), Resin Chew + Dense Ration (storable, rot over time).</li>
+            <li>Dual Tail Curlers stack recovery. Dual Chompers eat 2 units per period from stores (sap limit unchanged).</li>
+          </ul>
+          <div className="row" style={{ marginTop: 12 }}>
+            <button className="btn" onClick={() => setHowItWorksOpen(false)}>Got it</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
+  // ── Skills modal ──────────────────────────────────────────────────────────
+  const skillsModal = skillsOpen && (
+    <div className="modal-overlay" onClick={() => setSkillsOpen(false)}>
+      <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+        <div className="card">
+          <h2>Skills</h2>
+          <p className="small">Each harvesting method levels up independently. +8% yield per level.</p>
+          <table className="table">
+            <thead><tr><th>Method</th><th>Level</th><th>Progress</th><th>XP</th></tr></thead>
+            <tbody>
+              {(["poke", "smash", "tease", "drill", "scoop"] as import("./types").HarvestMethodId[]).map((method) => {
+                const xp = player.xp[method] ?? 0;
+                const level = skillLevel(xp);
+                const xpForThis = skillXpForLevel(level);
+                const xpForNext = level >= SKILL_MAX_LEVEL ? xpForThis + SKILL_XP_PER_LEVEL : skillXpForLevel(level + 1);
+                const progress = level >= SKILL_MAX_LEVEL ? 100 : Math.round(((xp - xpForThis) / (xpForNext - xpForThis)) * 100);
+                const methodNames: Record<import("./types").HarvestMethodId, string> = { poke: "Poke", smash: "Smash", tease: "Tease", drill: "Drill", scoop: "Scoop" };
+                return (
+                  <tr key={method}>
+                    <td>{methodNames[method]}</td>
+                    <td>Lv {level}{level >= SKILL_MAX_LEVEL ? " (max)" : ""}</td>
+                    <td>
+                      <div style={{ background: "#333", borderRadius: 4, height: 8, width: 120, display: "inline-block", verticalAlign: "middle" }}>
+                        <div style={{ background: "#7ecba1", borderRadius: 4, height: 8, width: `${progress}%` }} />
+                      </div>
+                    </td>
+                    <td className="small">{level >= SKILL_MAX_LEVEL ? "MAX" : `${xp - xpForThis} / ${xpForNext - xpForThis}`}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+          <div className="row" style={{ marginTop: 12 }}>
+            <button className="btn" onClick={() => setSkillsOpen(false)}>Close</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
+  // ── Screen routing ────────────────────────────────────────────────────────
+  let body: React.ReactNode = null;
+  if (dead) body = deadScreen;
+  else if (exhausted && !["SUMMARY_JOURNEY","SUMMARY_HARVEST","SUMMARY_CRAFT","SUMMARY_RECOVER","PREVIEW_RECOVER"].includes(screen))
+    body = exhaustedScreen;
+
+  if (!body) {
+    switch (screen) {
+      case "HUB": body = hub; break;
+      case "EXHAUSTED": body = exhaustedScreen; break;
+      case "DEAD": body = deadScreen; break;
+      case "PREVIEW_JOURNEY": body = journeyPreviewScreen; break;
+      case "SUMMARY_JOURNEY": body = journeySummaryScreen; break;
+      case "POI": case "CHOOSE_METHOD": body = poiScreen; break;
+      case "PREVIEW_HARVEST": body = harvestPreviewScreen; break;
+      case "SUMMARY_HARVEST": body = harvestSummaryScreen; break;
+      case "CRAFT_MENU": body = craftMenuScreen; break;
+      case "PREVIEW_CRAFT": body = craftPreviewScreen; break;
+      case "SUMMARY_CRAFT": body = craftSummaryScreen; break;
+      case "PREVIEW_RECOVER": body = recoverPreviewScreen; break;
+      case "SUMMARY_RECOVER": body = recoverSummaryScreen; break;
+      default: body = hub;
+    }
+  }
+
+  return (
+    <div style={{ display: "flex", minHeight: "100vh" }}>
+      {sidebar}
+      <div style={{ flex: 1, padding: 22, maxWidth: 820, overflowY: "auto" }}>
+        <h1 style={{ letterSpacing: "0.08em", marginBottom: 4 }}>2 Tails 3 Feet</h1>
+        <div style={{ opacity: 0.5, fontSize: 13, marginBottom: 12 }}>Sticky Survival Prototype</div>
+        {hud}
+        {body}
+        {inventoryModal}
+        {skillsModal}
+        {howItWorksModal}
+      </div>
+    </div>
+  );
+}

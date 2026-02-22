@@ -698,7 +698,7 @@ export default function App() {
         <button style={hubBtnStyle("layDown")} onClick={previewRecover} disabled={dead}>Lay Down</button>
       </div>
       <div className="notice" style={{ marginTop: 12 }}>
-        <span className="small">Hunger max → death. Fatigue max → exhausted (recover only).</span>
+        <span className="small">Hunger ends you. Fatigue stops you. The sticky world clings on.</span>
       </div>
     </div>
   );
@@ -1185,13 +1185,18 @@ export default function App() {
       <div className="modal-content" onClick={(e) => e.stopPropagation()}>
         <div className="card">
           <h2>How it works</h2>
-          <ul className="small" style={{ lineHeight: 1.9 }}>
-            <li>Equip tail tools using the sidebar dropdowns. Changes take effect immediately on any open preview.</li>
-            <li>3 resources: Resin Glob, Fiber Clump, Brittle Stone.</li>
-            <li>5 harvesting methods, each with its own skill — check Skills in the sidebar.</li>
-            <li>3 foods: Soft Sap (eat on spot with Chomper), Resin Chew + Dense Ration (storable, rot over time).</li>
-            <li>Dual Tail Curlers stack recovery. Dual Chompers eat 2 units per period from stores (sap limit unchanged).</li>
-          </ul>
+          <p className="small" style={{ lineHeight: 1.8, marginBottom: 10 }}>
+            The world is sticky and doesn't hand things over easily. Equip tools in your tail slots to unlock what you can do — different tools open different tricks.
+          </p>
+          <p className="small" style={{ lineHeight: 1.8, marginBottom: 10 }}>
+            There are three things to gather out there: Resin Glob, Fiber Clump, Brittle Stone. Five ways to get them, each with its own skill that improves the more you use it.
+          </p>
+          <p className="small" style={{ lineHeight: 1.8, marginBottom: 10 }}>
+            Food comes in three forms. Soft Sap you eat on the spot with a Chomper. Resin Chew and Dense Ration can be carried, but they rot — keep an eye on freshness.
+          </p>
+          <p className="small" style={{ lineHeight: 1.8 }}>
+            You can equip two of the same tool. The benefits stack as you'd expect.
+          </p>
           <div className="row" style={{ marginTop: 12 }}>
             <button className="btn" onClick={() => setHowItWorksOpen(false)}>Got it</button>
           </div>

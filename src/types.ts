@@ -48,8 +48,6 @@ export type Screen =
   | "HUB"
   | "PREVIEW_JOURNEY"
   | "SUMMARY_JOURNEY"
-  | "POI"
-  | "CHOOSE_METHOD"
   | "PREVIEW_HARVEST"
   | "SUMMARY_HARVEST"
   | "CRAFT_MENU"

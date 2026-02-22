@@ -1060,7 +1060,7 @@ export default function App() {
   // ── Inventory modal ───────────────────────────────────────────────────────
   // ── Inventory screen ──────────────────────────────────────────────────────
   const inventoryScreen = (
-    <div style={{ background: "#111", minHeight: "100%", borderRadius: 14, border: "1px solid #2a2a2a", overflow: "hidden" }}>
+    <div style={{ background: "#111", borderRadius: 14, border: "1px solid #2a2a2a", overflow: "hidden" }}>
       {/* Panel header */}
       <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "14px 18px", borderBottom: "1px solid #2a2a2a", background: "#0e0e0e" }}>
         <button onClick={backFromMeta} style={{ background: "none", border: "none", color: "#7ecba1", cursor: "pointer", fontSize: "0.9rem", padding: "4px 8px", borderRadius: 6, fontWeight: 600 }}>← Back</button>
@@ -1202,7 +1202,7 @@ export default function App() {
 
   // ── Skills screen ─────────────────────────────────────────────────────────
   const skillsScreen = (
-    <div style={{ background: "#111", minHeight: "100%", borderRadius: 14, border: "1px solid #2a2a2a", overflow: "hidden" }}>
+    <div style={{ background: "#111", borderRadius: 14, border: "1px solid #2a2a2a", overflow: "hidden" }}>
       {/* Panel header */}
       <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "14px 18px", borderBottom: "1px solid #2a2a2a", background: "#0e0e0e" }}>
         <button onClick={backFromMeta} style={{ background: "none", border: "none", color: "#7ecba1", cursor: "pointer", fontSize: "0.9rem", padding: "4px 8px", borderRadius: 6, fontWeight: 600 }}>← Back</button>
@@ -1273,7 +1273,7 @@ export default function App() {
   return (
     <div style={{ display: "flex", minHeight: "100vh" }}>
       {sidebar}
-      <div style={{ flex: 1, padding: 22, maxWidth: 820, overflowY: "auto" }}>
+      <div style={{ flex: 1, padding: 22, maxWidth: 820 }}>
         <h1 style={{ letterSpacing: "0.08em", marginBottom: 4 }}>2 Tails 3 Feet</h1>
         <div style={{ opacity: 0.5, fontSize: 13, marginBottom: 12 }}>Sticky Survival Prototype</div>
         {hud}

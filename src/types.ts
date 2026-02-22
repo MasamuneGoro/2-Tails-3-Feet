@@ -10,7 +10,7 @@ export type EventId =
   | "ev_sticky_snare"
   | "ev_edible_scrap"
   | "ev_efficient_path"
-  | "ev_tool_strain"
+  | "ev_muscle_pull"
   | "ev_dense_find"
   | "ev_preserved_ration"
   | "ev_second_wind"
@@ -34,17 +34,14 @@ export type ItemId =
 
 export type Quality = "common" | "uncommon";
 
-// Blot state — tracks remaining charges for harvest and food blots
 export interface BlotState {
   poiId: PoiId;
   quality: Quality;
-  // harvest blots
-  harvestCharges?: number;       // remaining harvests possible
+  harvestCharges?: number;
   maxHarvestCharges?: number;
-  // food blots
-  sapRemaining?: number;         // soft sap units left
-  storableRemaining?: number;    // storable food units left
-  storableFood?: FoodId;         // which storable food this blot has
+  sapRemaining?: number;
+  storableRemaining?: number;
+  storableFood?: FoodId;
 }
 
 export type Screen =
@@ -104,6 +101,7 @@ export interface JourneyResult {
   mode: "explore" | "findFood";
   steps: number;
   surfacedEvents: EventId[];
+  eventEffects: Record<EventId, { hungerDelta: number; fatigueDelta: number; gained: { id: ResourceId | FoodId; qty: number }[] }>;
   hungerDelta: number;
   fatigueDelta: number;
   poi: { id: PoiId; quality: Quality };
@@ -156,7 +154,6 @@ export interface CraftResult {
   crafted?: { itemId: ItemId; qty: number };
 }
 
-// Action results for food blot interactions
 export interface EatSapResult {
   unitsEaten: number;
   hungerRestored: number;

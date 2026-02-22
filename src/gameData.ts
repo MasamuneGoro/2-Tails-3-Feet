@@ -56,44 +56,50 @@ export const BIOME_LEVEL: {
     surfacedEventsMax: 2,
     explorePools: {
       common: ["ev_sticky_drag", "ev_resin_smear", "ev_slow_going", "ev_loose_fibers", "ev_minor_recovery"],
-      uncommon: ["ev_rich_vein_hint", "ev_sticky_snare", "ev_edible_scrap", "ev_efficient_path", "ev_tool_strain"],
+      uncommon: ["ev_rich_vein_hint", "ev_sticky_snare", "ev_edible_scrap", "ev_efficient_path", "ev_muscle_pull"],
       rare: ["ev_dense_find", "ev_preserved_ration", "ev_second_wind"],
     },
     foodPools: {
       common: ["ev_sticky_drag", "ev_resin_smear", "ev_slow_going", "ev_loose_fibers", "ev_minor_recovery"],
-      uncommon: ["ev_sticky_snare", "ev_edible_scrap", "ev_efficient_path", "ev_tool_strain"],
+      uncommon: ["ev_sticky_snare", "ev_edible_scrap", "ev_efficient_path", "ev_muscle_pull"],
       rare: ["ev_preserved_ration", "ev_second_wind"],
     },
   },
 };
 
-export const EVENTS: Record<EventId, { id: EventId; name: string; text: string; tag: "common" | "uncommon" | "rare" }> = {
-  ev_sticky_drag: { id: "ev_sticky_drag", name: "Sticky Drag", tag: "common", text: "The ground wants to keep you. It’s almost flattering." },
-  ev_resin_smear: { id: "ev_resin_smear", name: "Resin Smear", tag: "common", text: "Something warm and gloopy splashes your tails. It smells suspiciously edible." },
-  ev_slow_going: { id: "ev_slow_going", name: "Slow Going", tag: "common", text: "Every step is a negotiation. The biome is winning." },
-  ev_loose_fibers: { id: "ev_loose_fibers", name: "Loose Fibers", tag: "common", text: "Wispy strands snag on everything. Annoying now, useful later — maybe." },
-  ev_minor_recovery: { id: "ev_minor_recovery", name: "Micro-Second Wind", tag: "common", text: "Your body finds a sneaky little rhythm. Don’t question it." },
-
-  ev_rich_vein_hint: { id: "ev_rich_vein_hint", name: "Rich Vein Hint", tag: "uncommon", text: "Something dense pulses underfoot. It knows you noticed." },
-  ev_sticky_snare: { id: "ev_sticky_snare", name: "Sticky Snare", tag: "uncommon", text: "The ground grabs a tail and yanks. You pull free, but it costs you." },
-  ev_edible_scrap: { id: "ev_edible_scrap", name: "Edible Scrap", tag: "uncommon", text: "A small mystery morsel. Probably fine. Definitely eaten." },
-  ev_efficient_path: { id: "ev_efficient_path", name: "Efficient Path", tag: "uncommon", text: "A ribbon of firm ground. You glide through it like you planned this all along." },
-  ev_tool_strain: { id: "ev_tool_strain", name: "Tool Strain", tag: "uncommon", text: "Something creaks. The biome collects a small toll." },
-
-  ev_dense_find: { id: "ev_dense_find", name: "Dense Find", tag: "rare", text: "A pocket of material so concentrated it feels like a secret." },
-  ev_preserved_ration: { id: "ev_preserved_ration", name: "Preserved Ration", tag: "rare", text: "A wrapped lump that shouldn’t exist here. You don’t ask questions." },
-  ev_second_wind: { id: "ev_second_wind", name: "Second Wind", tag: "rare", text: "Your body clicks into a higher gear entirely. Savour it — it won’t last." },
+export const EVENTS: Record<EventId, {
+  id: EventId;
+  name: string;
+  text: string;
+  tag: "common" | "uncommon" | "rare";
+  netEffect: string;
+}> = {
+  ev_sticky_drag:    { id: "ev_sticky_drag",    name: "Sticky Drag",       tag: "common",   text: "The ground wants to keep you. It's almost flattering.",                                             netEffect: "+2 steps (+4 hunger, +4 fatigue)" },
+  ev_resin_smear:    { id: "ev_resin_smear",    name: "Resin Smear",       tag: "common",   text: "Something warm and gloopy splashes your tails. It smells suspiciously edible.",                    netEffect: "hunger −3" },
+  ev_slow_going:     { id: "ev_slow_going",     name: "Slow Going",        tag: "common",   text: "Every step is a negotiation. The biome is winning.",                                               netEffect: "fatigue +2" },
+  ev_loose_fibers:   { id: "ev_loose_fibers",   name: "Loose Fibers",      tag: "common",   text: "Wispy strands snag on everything. Annoying now, useful later — maybe.",                            netEffect: "+1 Fiber Clump" },
+  ev_minor_recovery: { id: "ev_minor_recovery", name: "Micro-Second Wind", tag: "common",   text: "Your body finds a sneaky little rhythm. Don't question it.",                                       netEffect: "fatigue −2" },
+  ev_rich_vein_hint: { id: "ev_rich_vein_hint", name: "Rich Vein Hint",    tag: "uncommon", text: "Something dense pulses underfoot. It knows you noticed.",                                          netEffect: "+1 Resin Glob" },
+  ev_sticky_snare:   { id: "ev_sticky_snare",   name: "Sticky Snare",      tag: "uncommon", text: "The ground grabs a tail and yanks. You pull free, but it costs you.",                             netEffect: "fatigue +3" },
+  ev_edible_scrap:   { id: "ev_edible_scrap",   name: "Edible Scrap",      tag: "uncommon", text: "A small mystery morsel. Probably fine. Definitely eaten.",                                         netEffect: "hunger −8" },
+  ev_efficient_path: { id: "ev_efficient_path", name: "Efficient Path",    tag: "uncommon", text: "A ribbon of firm ground. You glide through it like you planned this all along.",                   netEffect: "fatigue −3" },
+  ev_muscle_pull:    { id: "ev_muscle_pull",    name: "Muscle Pull",       tag: "uncommon", text: "Something twangs in a tail you didn't know you had. You keep moving, but slower.",                 netEffect: "fatigue +2, hunger +2" },
+  ev_dense_find:     { id: "ev_dense_find",     name: "Dense Find",        tag: "rare",     text: "A pocket of material so concentrated it feels like a secret.",                                     netEffect: "+2 Resin Glob, +1 Brittle Stone" },
+  ev_preserved_ration:{ id: "ev_preserved_ration", name: "Preserved Ration", tag: "rare",  text: "A wrapped lump that shouldn't exist here. You don't ask questions.",                               netEffect: "+1 Dense Ration" },
+  ev_second_wind:    { id: "ev_second_wind",    name: "Second Wind",       tag: "rare",     text: "Your body clicks into a higher gear entirely. Savour it — it won't last.",                        netEffect: "fatigue −6" },
   ev_need_chomper: {
     id: "ev_need_chomper",
     name: "Missed Snack",
     text: "Something soft and edible sits right there. Your tails wave uselessly. You needed a Chomper.",
     tag: "common",
+    netEffect: "no effect",
   },
   ev_need_scoop_for_rations: {
     id: "ev_need_scoop_for_rations",
     name: "Rations Slip Away",
     text: "The good stuff sits deep in a sticky pool, laughing at you. A Sticky Scoop would have helped.",
     tag: "common",
+    netEffect: "no effect",
   },
 };
 
@@ -122,7 +128,7 @@ export const POIS: Record<
   poi_resin_node: {
     id: "poi_resin_node",
     name: "Resin Node",
-    flavor: "A bulging blister of sap, pulsing like it’s got somewhere to be.",
+    flavor: "A bulging blister of sap, pulsing like it's got somewhere to be.",
     qualityTiers: ["common", "uncommon"],
     kind: "harvest",
     resourceId: "resin_glob",
@@ -227,8 +233,8 @@ export const FOODS: Record<
   FoodId,
   { id: FoodId; name: string; hungerReduction: number; storable: boolean; freshnessRange?: [number, number]; flavor: string }
 > = {
-  food_soft_sap: { id: "food_soft_sap", name: "Soft Sap", hungerReduction: 15, storable: false, flavor: "Warm, gloopy, and barely qualifies as food. Your belly doesn’t care." },
-  food_resin_chew: { id: "food_resin_chew", name: "Resin Chew", hungerReduction: 30, storable: true, freshnessRange: [2, 3], flavor: "Chewy in a way that makes you think. Not about what’s in it, though." },
+  food_soft_sap: { id: "food_soft_sap", name: "Soft Sap", hungerReduction: 15, storable: false, flavor: "Warm, gloopy, and barely qualifies as food. Your belly doesn't care." },
+  food_resin_chew: { id: "food_resin_chew", name: "Resin Chew", hungerReduction: 30, storable: true, freshnessRange: [2, 3], flavor: "Chewy in a way that makes you think. Not about what's in it, though." },
   food_dense_ration: { id: "food_dense_ration", name: "Dense Ration", hungerReduction: 55, storable: true, freshnessRange: [3, 3], flavor: "Suspiciously well-preserved. You decide gratitude is the right response." },
 };
 
@@ -259,7 +265,7 @@ export const ITEMS: Record<
     id: "eq_chomper",
     name: "Chomper",
     slot: "tail",
-    flavor: "Snappy, eager, and absolutely not picky. It will eat things before you’ve even decided.",
+    flavor: "Snappy, eager, and absolutely not picky. It will eat things before you've even decided.",
     effects: { chomper: { enableImmediateFoodAtPoi: true, autoConsumeStorableFoodPerPeriod: true, biteSize: 2 } },
   },
   eq_tinker_shaft: {
@@ -278,7 +284,7 @@ export const ITEMS: Record<
     ],
   },
   eq_pointed_twig: { id: "eq_pointed_twig", name: "Pointed Twig", slot: "tail", flavor: "A stick you sharpened with another stick. Humble origins, honest results.", harvestingMethod: "poke" },
-  eq_crude_hammerhead: { id: "eq_crude_hammerhead", name: "Crude Hammerhead", slot: "tail", flavor: "Heavy, blunt, and enthusiastic. It doesn’t ask questions.", harvestingMethod: "smash" },
+  eq_crude_hammerhead: { id: "eq_crude_hammerhead", name: "Crude Hammerhead", slot: "tail", flavor: "Heavy, blunt, and enthusiastic. It doesn't ask questions.", harvestingMethod: "smash" },
   eq_fiber_comb: { id: "eq_fiber_comb", name: "Fiber Comb", slot: "tail", flavor: "Teeth that coax rather than force. The fibers respect it, mostly.", harvestingMethod: "tease" },
   eq_hand_drill: { id: "eq_hand_drill", name: "Hand Drill", slot: "tail", flavor: "Slow, deliberate, and quietly unstoppable. It enjoys the process.", harvestingMethod: "drill" },
   eq_sticky_scoop: { id: "eq_sticky_scoop", name: "Sticky Scoop", slot: "tail", flavor: "A shallow cup that gathers soft things before they escape. Very dedicated.", harvestingMethod: "scoop" },
@@ -298,7 +304,6 @@ export const RECIPES: Record<
     requiresTinker: boolean;
   }
 > = {
-  // Tier 1 — no Tinker Shaft needed, Resin + Fiber only
   rcp_fiber_comb: {
     id: "rcp_fiber_comb",
     name: "Fiber Comb",
@@ -319,7 +324,6 @@ export const RECIPES: Record<
     fatiguePerPeriod: 2,
     requiresTinker: false,
   },
-  // Tier 2 — Tinker Shaft required, Stone needed
   rcp_crude_hammerhead: {
     id: "rcp_crude_hammerhead",
     name: "Crude Hammerhead",
@@ -340,7 +344,6 @@ export const RECIPES: Record<
     fatiguePerPeriod: 2,
     requiresTinker: true,
   },
-  // Utility — Tinker Shaft required, more expensive
   rcp_chomper: {
     id: "rcp_chomper",
     name: "Chomper",

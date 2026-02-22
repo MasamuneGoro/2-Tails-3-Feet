@@ -1,0 +1,628 @@
+import React, { useEffect, useRef } from "react";
+import type { ItemId, PoiId } from "./types";
+
+// ─── ITEM ICONS ──────────────────────────────────────────────────────────────
+// 24×24 viewBox, strokeWidth 2, linecap/linejoin round
+// Equipment:  amber  #c8a96e
+// Resources:  varied per resource
+// Foods:      teal   #26c6da / green #4caf50
+
+const ICON_DEFS: Record<string, { color: string; paths: string }> = {
+  // ── Equipment — amber #c8a96e, strokeWidth 2.5 main / 1.8 detail ─────────
+  eq_tail_curler: {
+    color: "#c8a96e",
+    paths: `
+      <path d="M12 20 C6 20 2.5 16 2.5 11.5 C2.5 7 5.5 4 9 4 C12.5 4 15 6.5 15 10 C15 13 12.5 15 10 15 C8.5 15 7 14 7 12.5" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
+      <circle cx="7" cy="12.5" r="1.5" fill="currentColor"/>
+      <path d="M15 10 L21 10" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
+      <path d="M18.5 7.5 L21 10 L18.5 12.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M9 4 C9 4 8 2.5 10 2 C12 2.5 11 4 11 4" fill="currentColor" opacity="0.5"/>
+    `,
+  },
+  eq_chomper: {
+    color: "#c8a96e",
+    paths: `
+      <path d="M2.5 12 L9.5 7.5 L9.5 16.5 Z" fill="currentColor"/>
+      <path d="M21.5 12 L14.5 7.5 L14.5 16.5 Z" fill="currentColor"/>
+      <line x1="9.5" y1="9.5"  x2="14.5" y2="9.5"  stroke="currentColor" stroke-width="1.8" stroke-linecap="round" opacity="0.45"/>
+      <line x1="9.5" y1="12"   x2="14.5" y2="12"   stroke="currentColor" stroke-width="2"   stroke-linecap="round" opacity="0.9"/>
+      <line x1="9.5" y1="14.5" x2="14.5" y2="14.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" opacity="0.45"/>
+      <ellipse cx="12" cy="12" rx="1.5" ry="5" fill="none" stroke="currentColor" stroke-width="1.2" opacity="0.2"/>
+    `,
+  },
+  eq_tinker_shaft: {
+    color: "#c8a96e",
+    paths: `
+      <path d="M4.5 20 L14.5 10" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
+      <circle cx="17.5" cy="7" r="3.5" fill="none" stroke="currentColor" stroke-width="2.5"/>
+      <circle cx="17.5" cy="7" r="1.2" fill="currentColor"/>
+      <path d="M14.8 4.3 L20.2 9.7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" opacity="0.4"/>
+      <path d="M2.5 20 L4.5 22" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
+      <path d="M7 17 L9 15" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" opacity="0.35"/>
+      <path d="M11 13 L13 11" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" opacity="0.35"/>
+    `,
+  },
+  eq_pointed_twig: {
+    color: "#c8a96e",
+    paths: `
+      <path d="M4.5 20 L16.5 8" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
+      <path d="M16.5 8 L20 4.5 L17.5 9.5 L21.5 7.5 L16.5 12.5" fill="currentColor"/>
+      <path d="M7.5 17 C9.5 13.5 13 12.5 14.5 10" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" fill="none" opacity="0.5"/>
+      <path d="M5.5 19 C7.5 16.5 10 16 11.5 14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" fill="none" opacity="0.3"/>
+      <circle cx="10.5" cy="15" r="1" fill="currentColor" opacity="0.3"/>
+    `,
+  },
+  eq_crude_hammerhead: {
+    color: "#c8a96e",
+    paths: `
+      <path d="M4.5 20 L14 10.5" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
+      <rect x="13.5" y="2.5" width="8" height="10" rx="2" fill="none" stroke="currentColor" stroke-width="2.5"/>
+      <path d="M14 10.5 L16 8.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" opacity="0.5"/>
+      <line x1="15.5" y1="5"   x2="20"   y2="5"   stroke="currentColor" stroke-width="1.5" stroke-linecap="round" opacity="0.45"/>
+      <line x1="15.5" y1="7.5" x2="20"   y2="7.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" opacity="0.45"/>
+      <line x1="15.5" y1="10"  x2="20"   y2="10"  stroke="currentColor" stroke-width="1.5" stroke-linecap="round" opacity="0.45"/>
+      <rect x="14" y="2.5" width="2.5" height="10" rx="0" fill="currentColor" opacity="0.12"/>
+    `,
+  },
+  eq_fiber_comb: {
+    color: "#c8a96e",
+    paths: `
+      <path d="M3.5 20 L14.5 9" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
+      <path d="M14.5 9 L12 5.5"   stroke="currentColor" stroke-width="2"   stroke-linecap="round"/>
+      <path d="M14.5 9 L14.5 4.5" stroke="currentColor" stroke-width="2"   stroke-linecap="round"/>
+      <path d="M14.5 9 L17 5.5"   stroke="currentColor" stroke-width="2"   stroke-linecap="round"/>
+      <path d="M14.5 9 L19.5 6.5" stroke="currentColor" stroke-width="2"   stroke-linecap="round"/>
+      <path d="M14.5 9 L21 10"    stroke="currentColor" stroke-width="2"   stroke-linecap="round"/>
+      <circle cx="12"   cy="5.5"  r="1.2" fill="currentColor" opacity="0.6"/>
+      <circle cx="14.5" cy="4.5"  r="1.2" fill="currentColor" opacity="0.6"/>
+      <circle cx="17"   cy="5.5"  r="1.2" fill="currentColor" opacity="0.6"/>
+      <circle cx="19.5" cy="6.5"  r="1.2" fill="currentColor" opacity="0.6"/>
+      <circle cx="21"   cy="10"   r="1.2" fill="currentColor" opacity="0.6"/>
+    `,
+  },
+  eq_hand_drill: {
+    color: "#c8a96e",
+    paths: `
+      <path d="M12 21 L12 11" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
+      <path d="M8 11 L16 11 L14.5 6.5 L9.5 6.5 Z" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linejoin="round"/>
+      <path d="M12 6.5 L12 3.5" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
+      <path d="M9 3.5 L15 3.5" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
+      <path d="M9.5 21 L14.5 21" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
+      <line x1="10.5" y1="8.5" x2="13.5" y2="8.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" opacity="0.4"/>
+      <path d="M11.5 11 L11 14 M12.5 11 L13 14" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" opacity="0.3"/>
+    `,
+  },
+  eq_sticky_scoop: {
+    color: "#c8a96e",
+    paths: `
+      <path d="M4.5 17 C4.5 11.5 7.5 7.5 12 7.5 C16.5 7.5 19.5 11.5 19.5 17" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
+      <line x1="4.5" y1="17" x2="19.5" y2="17" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
+      <path d="M12 17 L12 22" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
+      <circle cx="8.5"  cy="13" r="1.3" fill="currentColor" opacity="0.6"/>
+      <circle cx="15.5" cy="13" r="1.3" fill="currentColor" opacity="0.6"/>
+      <circle cx="12"   cy="11" r="1.3" fill="currentColor" opacity="0.45"/>
+      <path d="M7 17 C7 14 9 12 12 12 C15 12 17 14 17 17" fill="currentColor" opacity="0.1"/>
+    `,
+  },
+  eq_standard_shoe: {
+    color: "#9a9080",
+    paths: `
+      <path d="M2.5 15.5 C2.5 15.5 5.5 13 10 13 L18.5 13 C20.5 13 21.5 14 21.5 15.5 L21.5 18.5 L2.5 18.5 Z" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linejoin="round"/>
+      <path d="M10 13 L10 7.5 C10 6.5 11 5.5 12.5 5.5 L14.5 5.5" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
+      <path d="M7  18.5 L7  15.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" opacity="0.45"/>
+      <path d="M11 18.5 L11 15.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" opacity="0.45"/>
+      <path d="M15 18.5 L15 15.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" opacity="0.45"/>
+      <path d="M10 9.5 L10 13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" opacity="0.3"/>
+    `,
+  },
+
+  // ── Resources — each a distinct colour ───────────────────────────────────
+  resin_glob: {
+    color: "#d4820a",   // warm amber-orange
+    paths: `
+      <ellipse cx="12" cy="14.5" rx="6.5" ry="7" fill="none" stroke="currentColor" stroke-width="2.5"/>
+      <path d="M12 7.5 C12 7.5 9 4.5 11.5 2.5 C13 2 15 3 12 7.5" fill="currentColor"/>
+      <ellipse cx="9" cy="11.5" rx="1.8" ry="3" fill="currentColor" opacity="0.28" transform="rotate(-20 9 11.5)"/>
+      <path d="M15.5 11.5 C17 12.5 17 15 15.5 16.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" fill="none" opacity="0.45"/>
+      <circle cx="13.5" cy="19" r="1.2" fill="currentColor" opacity="0.5"/>
+    `,
+  },
+  fiber_clump: {
+    color: "#7db840",   // fresh green (distinct from resin amber and stone blue)
+    paths: `
+      <path d="M6 20 C7 11 9.5 7.5 12.5 5.5"   stroke="currentColor" stroke-width="2.2" stroke-linecap="round" fill="none"/>
+      <path d="M10 20 C9.5 12 12 8.5 14 7"     stroke="currentColor" stroke-width="2.2" stroke-linecap="round" fill="none"/>
+      <path d="M14 20 C13 13 15.5 9.5 17 8"    stroke="currentColor" stroke-width="2.2" stroke-linecap="round" fill="none"/>
+      <path d="M4.5 17.5 C7 16 11.5 16 16 16 C18.5 16 20 17 19 18.5" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" fill="none"/>
+      <path d="M7 20 C8.5 18.5 11 18.5 13 18.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" fill="none" opacity="0.5"/>
+      <circle cx="12.5" cy="5.5" r="1.2" fill="currentColor" opacity="0.6"/>
+      <circle cx="14"   cy="7"   r="1"   fill="currentColor" opacity="0.5"/>
+      <circle cx="17"   cy="8"   r="1"   fill="currentColor" opacity="0.5"/>
+    `,
+  },
+  brittle_stone: {
+    color: "#6b8fac",   // slate blue (cool, distinct from the warm amber/green)
+    paths: `
+      <polygon points="12,2.5 20.5,8.5 18.5,19.5 5.5,19.5 3.5,8.5" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linejoin="round"/>
+      <path d="M12 2.5 L16.5 12.5 L8 15.5"  stroke="currentColor" stroke-width="1.8" fill="none" opacity="0.55"/>
+      <path d="M16.5 12.5 L18.5 19.5"       stroke="currentColor" stroke-width="1.5" fill="none" opacity="0.4"/>
+      <path d="M8 15.5 L5.5 19.5"           stroke="currentColor" stroke-width="1.5" fill="none" opacity="0.4"/>
+      <circle cx="14.5" cy="6.5" r="1.3" fill="currentColor" opacity="0.45"/>
+      <circle cx="9"    cy="14"  r="0.9" fill="currentColor" opacity="0.35"/>
+    `,
+  },
+
+  // ── Foods ─────────────────────────────────────────────────────────────────
+  food_soft_sap: {
+    color: "#4cba55",   // green
+    paths: `
+      <path d="M6.5 18 C6.5 12.5 9 8 12 7 C15 8 17.5 12.5 17.5 18" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
+      <path d="M6.5 18 Q12 22 17.5 18" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" fill="none"/>
+      <path d="M9.5 12.5 Q12 15.5 14.5 12.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" fill="none" opacity="0.6"/>
+      <path d="M12 7 L12 3.5" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
+      <path d="M9.5 5 L12 3.5 L14.5 5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+      <circle cx="12" cy="15" r="1.2" fill="currentColor" opacity="0.4"/>
+    `,
+  },
+  food_resin_chew: {
+    color: "#26c6da",   // teal
+    paths: `
+      <rect x="3.5" y="8" width="17" height="10" rx="4" fill="none" stroke="currentColor" stroke-width="2.5"/>
+      <line x1="3.5" y1="13" x2="20.5" y2="13" stroke="currentColor" stroke-width="1.5" opacity="0.45"/>
+      <line x1="8"  y1="8"  x2="8"  y2="18" stroke="currentColor" stroke-width="1.5" opacity="0.35"/>
+      <line x1="16" y1="8"  x2="16" y2="18" stroke="currentColor" stroke-width="1.5" opacity="0.35"/>
+      <circle cx="12" cy="10.5" r="1.2" fill="currentColor" opacity="0.55"/>
+      <circle cx="12" cy="15.5" r="1.2" fill="currentColor" opacity="0.55"/>
+      <circle cx="5.5"  cy="10.5" r="0.8" fill="currentColor" opacity="0.3"/>
+      <circle cx="18.5" cy="15.5" r="0.8" fill="currentColor" opacity="0.3"/>
+    `,
+  },
+  food_dense_ration: {
+    color: "#26c6da",   // teal
+    paths: `
+      <rect x="2.5" y="6.5" width="19" height="13" rx="2.5" fill="none" stroke="currentColor" stroke-width="2.5"/>
+      <line x1="2.5" y1="12" x2="21.5" y2="12" stroke="currentColor" stroke-width="2"   opacity="0.5"/>
+      <line x1="9.5" y1="6.5" x2="9.5" y2="19.5" stroke="currentColor" stroke-width="1.5" opacity="0.4"/>
+      <line x1="16"  y1="6.5" x2="16"  y2="12"   stroke="currentColor" stroke-width="1.5" opacity="0.4"/>
+      <rect x="4"  y="8.5"  width="4"  height="2.5" rx="0.8" fill="currentColor" opacity="0.3"/>
+      <rect x="11" y="8.5"  width="3.5" height="2.5" rx="0.8" fill="currentColor" opacity="0.3"/>
+      <rect x="4"  y="13.5" width="4.5" height="2.5" rx="0.8" fill="currentColor" opacity="0.3"/>
+      <rect x="11" y="13.5" width="8"  height="2.5" rx="0.8" fill="currentColor" opacity="0.3"/>
+      <rect x="17.5" y="8.5" width="2" height="2.5" rx="0.8" fill="currentColor" opacity="0.2"/>
+    `,
+  },
+};
+
+// ─── ItemIcon component ───────────────────────────────────────────────────────
+interface ItemIconProps {
+  id: string;
+  size?: number;
+  style?: React.CSSProperties;
+}
+
+export function ItemIcon({ id, size = 18, style }: ItemIconProps) {
+  const def = ICON_DEFS[id];
+  if (!def) return null;
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      style={{ color: def.color, flexShrink: 0, ...style }}
+      dangerouslySetInnerHTML={{ __html: def.paths }}
+    />
+  );
+}
+
+// ─── POI CANVAS ILLUSTRATIONS ────────────────────────────────────────────────
+// 5 variants per POI: 0,1,2 = common; 3,4 = uncommon (visually distinct — richer, brighter, gold trim)
+
+type DrawFn = (ctx: CanvasRenderingContext2D, w: number, h: number, variant: number) => void;
+
+const POI_DRAW: Record<string, DrawFn> = {
+
+  poi_resin_node(ctx, w, h, v) {
+    const uncommon = v >= 3;
+    // Background
+    const bg = ctx.createLinearGradient(0, 0, 0, h);
+    bg.addColorStop(0, uncommon ? "#221508" : "#1a1208");
+    bg.addColorStop(1, uncommon ? "#120a02" : "#0e0a04");
+    ctx.fillStyle = bg; ctx.fillRect(0, 0, w, h);
+
+    // Ground shadow
+    ctx.fillStyle = uncommon ? "#281a06" : "#1e1508";
+    ctx.beginPath();
+    ctx.ellipse(w * 0.45, h * 0.88, w * 0.5, h * 0.14, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Variant offsets
+    const offsets = [[-5, 0], [5, -3], [0, 4], [-3, -5], [6, 2]];
+    const [ox, oy] = offsets[v] ?? [0, 0];
+
+    // Main blob
+    ctx.fillStyle = uncommon ? "#7a4400" : "#6b3d00";
+    ctx.beginPath();
+    ctx.ellipse(w * 0.42 + ox, h * 0.6 + oy, w * (uncommon ? 0.21 : 0.18), h * (uncommon ? 0.32 : 0.28), -0.15, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Amber blobs — more/brighter for uncommon
+    const baseBlobs: [number,number,number,number,string][] = [
+      [w*0.38+ox, h*0.46+oy, w*0.11, h*0.19, uncommon ? "#e09000" : "#c87800"],
+      [w*0.49+ox, h*0.55+oy, w*0.08, h*0.13, uncommon ? "#f0a820" : "#e8a020"],
+      [w*0.35+ox, h*0.58+oy, w*0.06, h*0.09, uncommon ? "#ffe050" : "#f0b840"],
+    ];
+    if (uncommon) {
+      baseBlobs.push([w*0.52+ox, h*0.48+oy, w*0.05, h*0.08, "#ffd060"]);
+      baseBlobs.push([w*0.4+ox, h*0.38+oy, w*0.04, h*0.06, "#fff0a0"]);
+    }
+    baseBlobs.forEach(([x, y, rx, ry, col]) => {
+      ctx.fillStyle = col;
+      ctx.beginPath(); ctx.ellipse(x, y, rx, ry, 0.2, 0, Math.PI * 2); ctx.fill();
+    });
+
+    // Drip
+    ctx.strokeStyle = uncommon ? "#e09000" : "#c87800";
+    ctx.lineWidth = uncommon ? 3.5 : 2.5;
+    ctx.lineCap = "round";
+    ctx.beginPath();
+    ctx.moveTo(w * 0.5 + ox, h * 0.72 + oy);
+    ctx.bezierCurveTo(w * 0.52 + ox, h * 0.78 + oy, w * 0.5 + ox, h * 0.84 + oy, w * 0.51 + ox, h * 0.89 + oy);
+    ctx.stroke();
+
+    // Extra drip for uncommon
+    if (uncommon) {
+      ctx.strokeStyle = "#ffd060";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(w * 0.44 + ox, h * 0.68 + oy);
+      ctx.bezierCurveTo(w * 0.43, h * 0.76, w * 0.42, h * 0.82, w * 0.41, h * 0.87);
+      ctx.stroke();
+    }
+
+    // Glow
+    const glow = ctx.createRadialGradient(w * 0.42 + ox, h * 0.5 + oy, 0, w * 0.42 + ox, h * 0.5 + oy, w * (uncommon ? 0.38 : 0.3));
+    glow.addColorStop(0, uncommon ? "rgba(255,180,0,0.22)" : "rgba(200,120,0,0.15)");
+    glow.addColorStop(1, "transparent");
+    ctx.fillStyle = glow; ctx.fillRect(0, 0, w, h);
+
+    // Uncommon: golden sparkle dots
+    if (uncommon) {
+      ctx.fillStyle = "rgba(255,240,100,0.7)";
+      [[w*0.3,h*0.3],[w*0.65,h*0.25],[w*0.72,h*0.45],[w*0.22,h*0.5]].forEach(([x,y]) => {
+        ctx.beginPath(); ctx.arc(x, y, 1.5, 0, Math.PI * 2); ctx.fill();
+      });
+    }
+
+    // Background rocks
+    ctx.fillStyle = uncommon ? "#301e08" : "#2a1c08";
+    [[w*0.72, h*0.72, 8, 5],[w*0.2, h*0.76, 6, 4],[w*0.82, h*0.62, 5, 3]].forEach(([x,y,rx,ry]) => {
+      ctx.beginPath(); ctx.ellipse(x, y, rx, ry, 0, 0, Math.PI * 2); ctx.fill();
+    });
+  },
+
+  poi_fiber_patch(ctx, w, h, v) {
+    const uncommon = v >= 3;
+    const bg = ctx.createLinearGradient(0, 0, 0, h);
+    bg.addColorStop(0, uncommon ? "#101508" : "#0e1108");
+    bg.addColorStop(1, uncommon ? "#060a04" : "#080d05");
+    ctx.fillStyle = bg; ctx.fillRect(0, 0, w, h);
+
+    ctx.fillStyle = uncommon ? "#1a2210" : "#141a0e";
+    ctx.fillRect(0, h * 0.72, w, h * 0.28);
+
+    // Variant horizontal offsets for stalks
+    const variantXShift = [0, 12, -10, 5, -8][v] ?? 0;
+
+    const stalks = [
+      [w*0.2+variantXShift, h*0.72, w*0.22+variantXShift, h*0.22, -0.35],
+      [w*0.32+variantXShift, h*0.72, w*0.34+variantXShift, h*0.16, 0.1],
+      [w*0.44+variantXShift, h*0.72, w*0.46+variantXShift, h*0.1, -0.05],
+      [w*0.56+variantXShift, h*0.72, w*0.58+variantXShift, h*0.18, 0.2],
+      [w*0.68+variantXShift, h*0.72, w*0.70+variantXShift, h*0.25, -0.15],
+      [w*0.12+variantXShift, h*0.72, w*0.14+variantXShift, h*0.38, 0.28],
+      [w*0.8+variantXShift,  h*0.72, w*0.82+variantXShift, h*0.38, -0.1],
+    ];
+    // Uncommon adds extra tall stalks
+    if (uncommon) {
+      stalks.push([w*0.38, h*0.72, w*0.36, h*0.06, 0.05]);
+      stalks.push([w*0.62, h*0.72, w*0.64, h*0.08, -0.08]);
+    }
+    stalks.forEach(([x1,y1,x2,y2,lean]) => {
+      const alpha = uncommon ? 0.6 + Math.random() * 0.35 : 0.35 + Math.random() * 0.35;
+      const col = uncommon ? `rgba(180,220,100,${alpha})` : `rgba(140,170,80,${alpha})`;
+      ctx.strokeStyle = col;
+      ctx.lineWidth = uncommon ? 2 : 1.5;
+      ctx.lineCap = "round";
+      ctx.beginPath();
+      ctx.moveTo(x1, y1);
+      ctx.bezierCurveTo(x1+lean*30, y1-(y1-y2)*0.4, x2+lean*20, y1-(y1-y2)*0.7, x2, y2);
+      ctx.stroke();
+      // Tips
+      ctx.lineWidth = 1;
+      ctx.strokeStyle = uncommon ? "rgba(230,255,160,0.8)" : "rgba(200,220,140,0.6)";
+      ctx.beginPath(); ctx.moveTo(x2,y2); ctx.lineTo(x2-8,y2-8); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(x2,y2); ctx.lineTo(x2+6,y2-10); ctx.stroke();
+      if (uncommon) {
+        ctx.beginPath(); ctx.moveTo(x2,y2); ctx.lineTo(x2+2,y2-12); ctx.stroke();
+      }
+    });
+
+    // Uncommon: scattered seed dots
+    if (uncommon) {
+      ctx.fillStyle = "rgba(220,255,150,0.5)";
+      [[w*0.3,h*0.4],[w*0.5,h*0.3],[w*0.65,h*0.38],[w*0.18,h*0.45]].forEach(([x,y]) => {
+        ctx.beginPath(); ctx.arc(x, y, 1.5, 0, Math.PI*2); ctx.fill();
+      });
+    }
+
+    const glow = ctx.createRadialGradient(w/2, h*0.5, 0, w/2, h*0.5, w * (uncommon ? 0.5 : 0.4));
+    glow.addColorStop(0, uncommon ? "rgba(140,220,60,0.12)" : "rgba(100,160,50,0.08)");
+    glow.addColorStop(1, "transparent");
+    ctx.fillStyle = glow; ctx.fillRect(0, 0, w, h);
+  },
+
+  poi_stone_node(ctx, w, h, v) {
+    const uncommon = v >= 3;
+    const bg = ctx.createLinearGradient(0, 0, 0, h);
+    bg.addColorStop(0, uncommon ? "#10101a" : "#0f0f12");
+    bg.addColorStop(1, "#080808");
+    ctx.fillStyle = bg; ctx.fillRect(0, 0, w, h);
+
+    ctx.fillStyle = "#0a0a0c";
+    ctx.beginPath();
+    ctx.ellipse(w * 0.45, h * 0.9, w * 0.28, h * 0.07, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    const variantOffset = [[0,0],[-8,3],[6,-4],[-4,-6],[8,2]][v] ?? [0,0];
+    const [ox, oy] = variantOffset;
+
+    const rocks = uncommon
+      ? [
+          { x: w*0.42+ox, y: h*0.55+oy, rx: w*0.21, ry: h*0.26, rot: 0.1, col: "#32324a", hi: "#4a4a62" },
+          { x: w*0.62+ox, y: h*0.68+oy, rx: w*0.11, ry: h*0.14, rot: 0.4, col: "#28283c", hi: "#3c3c54" },
+          { x: w*0.26+ox, y: h*0.70+oy, rx: w*0.09, ry: h*0.11, rot: -0.3, col: "#242234", hi: "#343248" },
+          { x: w*0.55+ox, y: h*0.42+oy, rx: w*0.07, ry: h*0.09, rot: 0.6, col: "#2a2a40", hi: "#42425a" },
+        ]
+      : [
+          { x: w*0.42+ox, y: h*0.55+oy, rx: w*0.18, ry: h*0.22, rot: 0.1, col: "#2e2e38", hi: "#3e3e4a" },
+          { x: w*0.6+ox,  y: h*0.68+oy, rx: w*0.10, ry: h*0.13, rot: 0.4, col: "#252530", hi: "#343440" },
+          { x: w*0.28+ox, y: h*0.70+oy, rx: w*0.08, ry: h*0.10, rot: -0.3, col: "#222228", hi: "#30303c" },
+        ];
+
+    rocks.forEach(r => {
+      ctx.save(); ctx.translate(r.x, r.y); ctx.rotate(r.rot);
+      ctx.fillStyle = r.col;
+      ctx.beginPath(); ctx.ellipse(0, 0, r.rx, r.ry, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = r.hi;
+      ctx.beginPath(); ctx.ellipse(-r.rx*0.2, -r.ry*0.3, r.rx*0.4, r.ry*0.25, 0.3, 0, Math.PI * 2); ctx.fill();
+      ctx.restore();
+    });
+
+    // Cracks
+    ctx.strokeStyle = uncommon ? "#16162a" : "#1a1a22";
+    ctx.lineWidth = 1; ctx.lineCap = "round";
+    [[w*0.38+ox,h*0.43+oy,w*0.52+ox,h*0.62+oy],[w*0.52+ox,h*0.62+oy,w*0.44+ox,h*0.74+oy],[w*0.52+ox,h*0.62+oy,w*0.6+ox,h*0.67+oy]].forEach(([x1,y1,x2,y2]) => {
+      ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke();
+    });
+
+    // Uncommon: blue-white vein lines
+    if (uncommon) {
+      ctx.strokeStyle = "rgba(140,160,220,0.35)";
+      ctx.lineWidth = 1.2;
+      [[w*0.4+ox,h*0.5+oy,w*0.52+ox,h*0.65+oy],[w*0.44+ox,h*0.48+oy,w*0.38+ox,h*0.6+oy]].forEach(([x1,y1,x2,y2]) => {
+        ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke();
+      });
+      ctx.fillStyle = "rgba(180,200,255,0.6)";
+      [[w*0.46+ox,h*0.46+oy,2],[w*0.5+ox,h*0.58+oy,1.5],[w*0.38+ox,h*0.6+oy,1.5]].forEach(([x,y,r]) => {
+        ctx.beginPath(); ctx.arc(x,y,r,0,Math.PI*2); ctx.fill();
+      });
+    }
+
+    // Dust particles
+    ctx.fillStyle = uncommon ? "rgba(180,190,255,0.18)" : "rgba(180,180,200,0.12)";
+    [[w*0.56,h*0.38,3],[w*0.34,h*0.42,2],[w*0.66,h*0.55,2],[w*0.28,h*0.58,1.5]].forEach(([x,y,r]) => {
+      ctx.beginPath(); ctx.arc(x,y,r,0,Math.PI*2); ctx.fill();
+    });
+  },
+
+  poi_sap_weep(ctx, w, h, v) {
+    const uncommon = v >= 3;
+    const bg = ctx.createLinearGradient(0, 0, 0, h);
+    bg.addColorStop(0, uncommon ? "#0e1508" : "#0e1208");
+    bg.addColorStop(1, "#060a04");
+    ctx.fillStyle = bg; ctx.fillRect(0, 0, w, h);
+
+    const pool = ctx.createRadialGradient(w*0.45, h*0.84, 0, w*0.45, h*0.84, w * (uncommon ? 0.4 : 0.32));
+    pool.addColorStop(0, uncommon ? "rgba(100,180,40,0.4)" : "rgba(80,140,40,0.35)");
+    pool.addColorStop(0.5, "rgba(50,100,20,0.15)");
+    pool.addColorStop(1, "transparent");
+    ctx.fillStyle = pool; ctx.fillRect(0, 0, w, h);
+
+    // Ground cracks vary by variant
+    const crackSets = [
+      [[w*0.3,h*0.65,w*0.6,h*0.7],[w*0.45,h*0.6,w*0.55,h*0.8],[w*0.2,h*0.72,w*0.45,h*0.68]],
+      [[w*0.25,h*0.67,w*0.55,h*0.72],[w*0.5,h*0.62,w*0.58,h*0.78],[w*0.3,h*0.74,w*0.5,h*0.70]],
+      [[w*0.35,h*0.63,w*0.65,h*0.69],[w*0.4,h*0.58,w*0.52,h*0.82],[w*0.18,h*0.70,w*0.42,h*0.66]],
+      [[w*0.2,h*0.60,w*0.7,h*0.67],[w*0.45,h*0.55,w*0.6,h*0.80],[w*0.15,h*0.68,w*0.5,h*0.65],[w*0.55,h*0.62,w*0.8,h*0.70]],
+      [[w*0.28,h*0.62,w*0.72,h*0.70],[w*0.42,h*0.56,w*0.56,h*0.82],[w*0.1,h*0.70,w*0.4,h*0.65],[w*0.6,h*0.60,w*0.85,h*0.68]],
+    ];
+    const cracks = crackSets[v] ?? crackSets[0];
+    ctx.strokeStyle = uncommon ? "#2e5018" : "#2a4018";
+    ctx.lineWidth = uncommon ? 2 : 1.5;
+    cracks.forEach(([x1,y1,x2,y2]) => {
+      ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke();
+    });
+
+    // Drips
+    const dripCounts = [4,5,4,7,8][v] ?? 4;
+    const dripBase = [[w*0.38,h*0.55],[w*0.5,h*0.48],[w*0.6,h*0.58],[w*0.44,h*0.62],[w*0.32,h*0.52],[w*0.68,h*0.50],[w*0.55,h*0.44],[w*0.25,h*0.58]];
+    for (let i = 0; i < dripCounts && i < dripBase.length; i++) {
+      const [x, y] = dripBase[i];
+      ctx.strokeStyle = uncommon ? "rgba(120,240,70,0.6)" : "rgba(100,200,60,0.5)";
+      ctx.lineWidth = uncommon ? 2.5 : 2;
+      ctx.lineCap = "round";
+      ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x+2, y+14); ctx.stroke();
+      ctx.fillStyle = uncommon ? "rgba(150,255,80,0.5)" : "rgba(120,220,70,0.4)";
+      ctx.beginPath(); ctx.ellipse(x+2, y+17, uncommon ? 4 : 3, uncommon ? 5 : 4, 0, 0, Math.PI*2); ctx.fill();
+    }
+
+    const glow = ctx.createRadialGradient(w*0.45, h*0.65, 0, w*0.45, h*0.65, w * (uncommon ? 0.5 : 0.4));
+    glow.addColorStop(0, uncommon ? "rgba(100,240,50,0.16)" : "rgba(80,200,40,0.12)");
+    glow.addColorStop(1, "transparent");
+    ctx.fillStyle = glow; ctx.fillRect(0, 0, w, h);
+  },
+
+  poi_resin_hollow(ctx, w, h, v) {
+    const uncommon = v >= 3;
+    const bg = ctx.createLinearGradient(0, 0, 0, h);
+    bg.addColorStop(0, uncommon ? "#180e06" : "#120d06");
+    bg.addColorStop(1, "#0a0704");
+    ctx.fillStyle = bg; ctx.fillRect(0, 0, w, h);
+
+    const hollowOffsets = [[0,0],[10,-5],[-8,4],[5,-8],[-6,6]][v] ?? [0,0];
+    const [ox, oy] = hollowOffsets;
+
+    // Cavity
+    ctx.fillStyle = "#060402";
+    ctx.beginPath();
+    ctx.ellipse(w*0.45+ox, h*0.62+oy, w*(uncommon?0.28:0.24), h*(uncommon?0.35:0.30), 0.1, 0, Math.PI*2);
+    ctx.fill();
+
+    // Rim
+    ctx.strokeStyle = uncommon ? "#7a4a00" : "#5a3800";
+    ctx.lineWidth = uncommon ? 5 : 4;
+    ctx.beginPath();
+    ctx.ellipse(w*0.45+ox, h*0.62+oy, w*(uncommon?0.28:0.24), h*(uncommon?0.35:0.30), 0.1, 0, Math.PI*2);
+    ctx.stroke();
+
+    // Uncommon: second outer rim glow
+    if (uncommon) {
+      ctx.strokeStyle = "rgba(255,180,0,0.15)";
+      ctx.lineWidth = 10;
+      ctx.beginPath();
+      ctx.ellipse(w*0.45+ox, h*0.62+oy, w*0.32, h*0.38, 0.1, 0, Math.PI*2);
+      ctx.stroke();
+    }
+
+    // Chunks — more and brighter for uncommon
+    const chunkDefs = uncommon
+      ? [[w*0.34+ox,h*0.68+oy,8,"#a05400"],[w*0.46+ox,h*0.72+oy,11,"#e08000"],[w*0.54+ox,h*0.62+oy,8,"#ffb020"],[w*0.38+ox,h*0.58+oy,6,"#c06000"],[w*0.52+ox,h*0.72+oy,5,"#ffd060"],[w*0.40+ox,h*0.75+oy,4,"#ffe090"]]
+      : [[w*0.36+ox,h*0.68+oy,7,"#8b4800"],[w*0.48+ox,h*0.72+oy,9,"#c87000"],[w*0.54+ox,h*0.62+oy,6,"#e09020"],[w*0.38+ox,h*0.58+oy,5,"#a05000"]];
+    chunkDefs.forEach(([x,y,r,col]) => {
+      ctx.fillStyle = col as string;
+      ctx.beginPath(); ctx.arc(x as number, y as number, r as number, 0, Math.PI*2); ctx.fill();
+    });
+
+    // Inner glow
+    const innerGlow = ctx.createRadialGradient(w*0.45+ox, h*0.65+oy, 0, w*0.45+ox, h*0.65+oy, w*(uncommon?0.25:0.2));
+    innerGlow.addColorStop(0, uncommon ? "rgba(255,160,0,0.3)" : "rgba(200,120,0,0.2)");
+    innerGlow.addColorStop(1, "transparent");
+    ctx.fillStyle = innerGlow; ctx.fillRect(0, 0, w, h);
+
+    // Bark lines
+    ctx.strokeStyle = uncommon ? "#38200a" : "#2a1800";
+    ctx.lineWidth = 1;
+    [[w*0.15,h*0.28,w*0.2,h*0.55],[w*0.72,h*0.28,w*0.74,h*0.58],[w*0.1,h*0.54,w*0.16,h*0.80]].forEach(([x1,y1,x2,y2]) => {
+      ctx.beginPath(); ctx.moveTo(x1,y1); ctx.bezierCurveTo(x1+15,y1+15,x2-15,y2-15,x2,y2); ctx.stroke();
+    });
+  },
+
+  poi_dense_pocket(ctx, w, h, v) {
+    const uncommon = v >= 3;
+    const bg = ctx.createLinearGradient(0, 0, 0, h);
+    bg.addColorStop(0, uncommon ? "#0c1218" : "#0c0f14");
+    bg.addColorStop(1, "#060809");
+    ctx.fillStyle = bg; ctx.fillRect(0, 0, w, h);
+
+    const massOffsets = [[0,0],[8,-4],[-6,5],[4,-8],[-5,6]][v] ?? [0,0];
+    const [ox, oy] = massOffsets;
+
+    // Dense mass
+    ctx.fillStyle = uncommon ? "#1e2d3c" : "#1a2530";
+    ctx.beginPath();
+    ctx.ellipse(w*0.44+ox, h*0.6+oy, w*(uncommon?0.27:0.24), h*(uncommon?0.33:0.30), 0, 0, Math.PI*2);
+    ctx.fill();
+
+    // Strata layers
+    const strataCount = uncommon ? 8 : 6;
+    for (let i = 0; i < strataCount; i++) {
+      const y = h*0.36 + i * (h*0.38/strataCount);
+      const xOff = Math.sin(i*0.8) * (uncommon ? 10 : 8);
+      ctx.strokeStyle = `rgba(${uncommon?80:60},${uncommon?120:100},${uncommon?180:140},${0.12+i*0.06})`;
+      ctx.lineWidth = uncommon ? 2.5 : 2;
+      ctx.beginPath();
+      ctx.moveTo(w*0.18+xOff+ox, y+oy);
+      ctx.bezierCurveTo(w*0.3, y-5+i+oy, w*0.62, y+5-i+oy, w*0.70+xOff+ox, y+oy);
+      ctx.stroke();
+    }
+
+    // Packed blocks
+    const blockPositions = uncommon
+      ? [[w*0.30+ox,h*0.60+oy],[w*0.42+ox,h*0.58+oy],[w*0.54+ox,h*0.62+oy],[w*0.34+ox,h*0.68+oy],[w*0.48+ox,h*0.67+oy],[w*0.58+ox,h*0.52+oy]]
+      : [[w*0.34+ox,h*0.60+oy],[w*0.44+ox,h*0.58+oy],[w*0.54+ox,h*0.62+oy],[w*0.38+ox,h*0.68+oy],[w*0.50+ox,h*0.67+oy]];
+    blockPositions.forEach(([x,y]) => {
+      ctx.fillStyle = uncommon ? "rgba(100,160,220,0.28)" : "rgba(80,130,180,0.2)";
+      ctx.strokeStyle = uncommon ? "rgba(100,160,220,0.55)" : "rgba(80,130,180,0.4)";
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.roundRect(x-7,y-5,14,9,2);
+      ctx.fill(); ctx.stroke();
+    });
+
+    // Uncommon: bright teal accents on blocks
+    if (uncommon) {
+      ctx.fillStyle = "rgba(38,198,218,0.25)";
+      blockPositions.slice(0,3).forEach(([x,y]) => {
+        ctx.beginPath(); ctx.roundRect(x-5,y-3,10,6,1); ctx.fill();
+      });
+    }
+
+    const glow = ctx.createRadialGradient(w*0.44+ox, h*0.6+oy, 0, w*0.44+ox, h*0.6+oy, w * (uncommon ? 0.42 : 0.35));
+    glow.addColorStop(0, uncommon ? "rgba(38,198,218,0.16)" : "rgba(38,198,218,0.10)");
+    glow.addColorStop(1, "transparent");
+    ctx.fillStyle = glow; ctx.fillRect(0, 0, w, h);
+  },
+};
+
+// ─── PoiImage component ───────────────────────────────────────────────────────
+interface PoiImageProps {
+  poiId: PoiId;
+  variant: number;
+  width?: number;
+  height?: number;
+}
+
+export function PoiImage({ poiId, variant, width = 440, height = 140 }: PoiImageProps) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    const drawFn = POI_DRAW[poiId];
+    if (!drawFn) return;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    drawFn(ctx, canvas.width, canvas.height, variant);
+  }, [poiId, variant]);
+
+  return (
+    <div style={{ position: "relative", width: "100%", lineHeight: 0 }}>
+      <canvas
+        ref={canvasRef}
+        width={width}
+        height={height}
+        style={{ width: "100%", height: height / 2, display: "block", borderRadius: "10px 10px 0 0" }}
+      />
+      {/* Gradient fade into card background */}
+      <div style={{
+        position: "absolute", bottom: 0, left: 0, right: 0, height: "50%",
+        background: "linear-gradient(to bottom, transparent, #111)",
+        pointerEvents: "none",
+        borderRadius: "0 0 0 0",
+      }} />
+    </div>
+  );
+}

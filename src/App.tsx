@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from "react";
 import type { BlotState, CraftPreview, CraftResult, EatSapResult, HarvestMethodId, HarvestPreview, HarvestResult, HarvestStorableResult, JourneyPreview, JourneyResult, PlayerState, PoiId, Screen } from "./types";
+import { ItemIcon, PoiImage } from "./visuals";
 import { BIOME_LEVEL, EVENTS, FOODS, ITEMS, POIS, RECIPES, RESOURCES } from "./gameData";
 import {
   canCraft, getFoodName, getItemName, getResourceName, listUnlockedRecipes,
@@ -400,21 +401,30 @@ export default function App() {
     }}>
       <div style={{ fontSize: "0.75rem", opacity: 0.5, letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: 4 }}>Equipment</div>
 
-      {([0, 1] as (0 | 1)[]).map((slotIdx) => (
-        <div key={slotIdx}>
-          <div style={{ fontSize: "0.78rem", opacity: 0.6, marginBottom: 3 }}>Tail {slotIdx === 0 ? "A" : "B"}</div>
-          <select
-            style={tailSelectStyle}
-            value={player.equipment.tailSlots[slotIdx] ?? ""}
-            onChange={(e) => equipTail(slotIdx, (e.target.value || null) as any)}
-          >
-            <option value="">— empty —</option>
-            {availableTailToolIds(slotIdx).map((id) => (
-              <option key={id} value={id}>{getItemName(id)}</option>
-            ))}
-          </select>
-        </div>
-      ))}
+      {([0, 1] as (0 | 1)[]).map((slotIdx) => {
+        const equipped = player.equipment.tailSlots[slotIdx];
+        return (
+          <div key={slotIdx}>
+            <div style={{ fontSize: "0.78rem", opacity: 0.6, marginBottom: 3 }}>Tail {slotIdx === 0 ? "A" : "B"}</div>
+            {equipped && (
+              <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4, opacity: 0.85 }}>
+                <ItemIcon id={equipped} size={16} />
+                <span style={{ fontSize: "0.78rem" }}>{getItemName(equipped)}</span>
+              </div>
+            )}
+            <select
+              style={tailSelectStyle}
+              value={equipped ?? ""}
+              onChange={(e) => equipTail(slotIdx, (e.target.value || null) as any)}
+            >
+              <option value="">— empty —</option>
+              {availableTailToolIds(slotIdx).map((id) => (
+                <option key={id} value={id}>{getItemName(id)}</option>
+              ))}
+            </select>
+          </div>
+        );
+      })}
 
       {chomperEquipped && (
         <div style={{ borderTop: "1px solid #2a2a2a", paddingTop: 10 }}>
@@ -504,7 +514,8 @@ export default function App() {
       {/* Location header */}
       {activePoi && activeBlot ? (
         <>
-          <h2>{prettyPoi(activePoi.id).name} <span style={{opacity:0.5, fontSize:"0.9rem"}}>({activePoi.quality})</span></h2>
+          <PoiImage poiId={activePoi.id} variant={activeBlot.variant} />
+          <h2 style={{ marginTop: 10 }}>{prettyPoi(activePoi.id).name} <span style={{opacity:0.5, fontSize:"0.9rem"}}>({activePoi.quality})</span></h2>
           <p className="small" style={{marginBottom:12, opacity:0.7}}>{prettyPoi(activePoi.id).flavor}</p>
 
           {/* POI content — harvest */}
@@ -969,13 +980,18 @@ export default function App() {
                   return (
                     <div key={rid} style={{ background: "#161616", borderRadius: 10, border: `1px solid ${can ? "#2a2a2a" : "#1e1e1e"}`, borderLeft: `3px solid ${can ? "#c8a96e" : "#333"}`, overflow: "hidden", opacity: can ? 1 : 0.55 }}>
                       <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "11px 14px", cursor: "pointer" }} onClick={() => setExpandedItem(isExpanded ? null : rid)}>
+                        <ItemIcon id={recipe.output.itemId} size={20} />
                         <div style={{ flex: 1 }}>
                           <div style={{ fontWeight: 600, fontSize: "0.95rem" }}>{r.name}</div>
-                          <div style={{ fontSize: "0.75rem", opacity: 0.5, marginTop: 2 }}>
-                            {r.inputs.map((i) => `${getResourceName(i.id)} ×${i.qty}`).join("  ·  ")}
+                          <div style={{ fontSize: "0.75rem", opacity: 0.5, marginTop: 2, display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                            {r.inputs.map((inp) => (
+                              <span key={inp.id} style={{ display: "inline-flex", alignItems: "center", gap: 3 }}>
+                                <ItemIcon id={inp.id} size={12} />
+                                {getResourceName(inp.id)} ×{inp.qty}
+                              </span>
+                            ))}
                           </div>
                         </div>
-                        <div style={{ fontSize: "0.75rem", opacity: 0.45, whiteSpace: "nowrap" }}>→ {getItemName(recipe.output.itemId)}</div>
                         <div style={{ fontSize: "0.7rem", opacity: 0.35 }}>{isExpanded ? "▲" : "▼"}</div>
                       </div>
                       {isExpanded && (
@@ -1162,6 +1178,7 @@ export default function App() {
                 return (
                   <div key={id} style={{ background: "#161616", borderRadius: 10, border: "1px solid #2a2a2a", borderLeft: "3px solid #c8a96e", marginBottom: 6, overflow: "hidden" }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", cursor: "pointer" }} onClick={() => setExpandedItem(isExpanded ? null : id)}>
+                      <ItemIcon id={id} size={20} />
                       <div style={{ flex: 1 }}>
                         <div style={{ fontWeight: 600, fontSize: "0.95rem" }}>{item.name}</div>
                         <div style={{ fontSize: "0.75rem", opacity: 0.5, marginTop: 2 }}>{slot}{equipped ? " · equipped" : ""}</div>
@@ -1197,6 +1214,7 @@ export default function App() {
                 return (
                   <div key={id} style={{ background: "#161616", borderRadius: 10, border: "1px solid #2a2a2a", borderLeft: "3px solid #26c6da", marginBottom: 6, overflow: "hidden" }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", cursor: "pointer" }} onClick={() => setExpandedItem(isExpanded ? null : id)}>
+                      <ItemIcon id={id} size={20} />
                       <div style={{ flex: 1 }}>
                         <div style={{ fontWeight: 600, fontSize: "0.95rem" }}>{food.name}</div>
                         <div style={{ display: "flex", gap: 4, marginTop: 5, flexWrap: "wrap" }}>
@@ -1239,6 +1257,7 @@ export default function App() {
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                 {resources.map(s => (
                   <div key={s.id as string} style={{ background: "#161616", borderRadius: 10, border: "1px solid #2a2a2a", padding: "10px 16px", minWidth: 90, textAlign: "center" }}>
+                    <ItemIcon id={s.id as string} size={22} style={{ margin: "0 auto 4px" }} />
                     <div style={{ fontWeight: 600, fontSize: "0.9rem" }}>{getResourceName(s.id as any)}</div>
                     <div style={{ fontSize: "1.4rem", fontWeight: 700, margin: "4px 0", opacity: 0.9 }}>{s.qty}</div>
                     <div style={{ fontSize: "0.72rem", opacity: 0.4 }}>units</div>
@@ -1300,11 +1319,13 @@ export default function App() {
           const xpForNext = level >= SKILL_MAX_LEVEL ? xpForThis + SKILL_XP_PER_LEVEL : skillXpForLevel(level + 1);
           const progress = level >= SKILL_MAX_LEVEL ? 100 : Math.round(((xp - xpForThis) / (xpForNext - xpForThis)) * 100);
           const methodNames: Record<import("./types").HarvestMethodId, string> = { poke: "Poke", smash: "Smash", tease: "Tease", drill: "Drill", scoop: "Scoop" };
+          const toolIds: Record<import("./types").HarvestMethodId, string> = { poke: "eq_pointed_twig", smash: "eq_crude_hammerhead", tease: "eq_fiber_comb", drill: "eq_hand_drill", scoop: "eq_sticky_scoop" };
           const toolName: Record<import("./types").HarvestMethodId, string> = { poke: "Pointed Twig", smash: "Crude Hammerhead", tease: "Fiber Comb", drill: "Hand Drill", scoop: "Sticky Scoop" };
           const isMax = level >= SKILL_MAX_LEVEL;
           return (
             <div key={method} style={{ background: "#161616", borderRadius: 10, border: "1px solid #2a2a2a", borderLeft: "3px solid #c8a96e", padding: "12px 16px" }}>
-              <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 6 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+                <ItemIcon id={toolIds[method]} size={18} />
                 <div style={{ fontWeight: 700, fontSize: "0.95rem" }}>{methodNames[method]}</div>
                 <div style={{ fontSize: "0.75rem", opacity: 0.45 }}>{toolName[method]}</div>
                 <div style={{ marginLeft: "auto", fontSize: "0.82rem", fontWeight: 600, color: isMax ? "#c8a96e" : "#7ecba1" }}>

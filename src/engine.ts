@@ -255,15 +255,16 @@ export function makeJourneyPreview(player: PlayerState, mode: "explore" | "findF
 
 export function generateBlot(poiId: PoiId, quality: Quality): BlotState {
   const poiData = POIS[poiId];
+  const variant = quality === "uncommon" ? 3 + randInt(0, 1) : randInt(0, 2);
   if (poiData.kind === "harvest") {
     const base = quality === "uncommon" ? 4 : 3;
     const harvestCharges = randInt(base, base + 2);
-    return { poiId, quality, harvestCharges, maxHarvestCharges: harvestCharges };
+    return { poiId, quality, variant, harvestCharges, maxHarvestCharges: harvestCharges };
   } else {
     const spec = poiData.foodSpec!;
     const sapRemaining = randInt(spec.sapQtyRange[0], spec.sapQtyRange[1]);
     const storableRemaining = randInt(spec.storableQtyRange[0], spec.storableQtyRange[1]);
-    return { poiId, quality, sapRemaining, storableRemaining, storableFood: spec.storableFood };
+    return { poiId, quality, variant, sapRemaining, storableRemaining, storableFood: spec.storableFood };
   }
 }
 

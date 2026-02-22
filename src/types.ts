@@ -37,6 +37,7 @@ export type Quality = "common" | "uncommon";
 export interface BlotState {
   poiId: PoiId;
   quality: Quality;
+  variant: number;
   harvestCharges?: number;
   maxHarvestCharges?: number;
   sapRemaining?: number;

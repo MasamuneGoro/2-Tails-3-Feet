@@ -489,20 +489,54 @@ export default function App() {
                     {charges > 0 && (
                       <>
                         <p className="small">Best tool here: <b>{recTool ? recTool.name : "—"}</b></p>
-                        {tools.length > 0 ? (
-                          <>
-                            <p className="small" style={{ marginBottom: 4 }}>
-                              You've got:{" "}
-                              {tools.map((t, i) => <span key={t!.id}><b>{t!.name}</b>{i < tools.length - 1 ? " + " : ""}</span>)}
-                            </p>
-                            <p className="small" style={{ marginBottom: 8, opacity: 0.7 }}>
-                              {tools.length === 2 ? "Both tools will take a swing." : "One tool, one pass."}
-                            </p>
-                            <button className="btn" style={{ fontSize: "1.05rem" }} onClick={doMultiHarvest} disabled={dead || exhausted}>Dig in!</button>
-                          </>
-                        ) : (
-                          <p className="small" style={{ opacity: 0.6 }}>No harvesting tools equipped. Change tail equipment in the sidebar.</p>
-                        )}
+                        {(() => {
+                          const methodVerbs: Record<string, string> = {
+                            poke:  "Poke at it",
+                            smash: "Smash it open",
+                            tease: "Tease it out",
+                            drill: "Drill in",
+                            scoop: "Scoop it up",
+                          };
+                          const hasTools = tools.length > 0;
+                          const label = hasTools
+                            ? tools.length === 2
+                              ? `${methodVerbs[methods[0]] ?? "Harvest"} + ${methodVerbs[methods[1]] ?? "Harvest"}`
+                              : (methodVerbs[methods[0]] ?? "Harvest")
+                            : "Harvest";
+                          return (
+                            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8, marginTop: 4 }}>
+                              {hasTools && (
+                                <p className="small" style={{ opacity: 0.6, margin: 0 }}>
+                                  {tools.map((t, i) => <span key={t!.id}><b>{t!.name}</b>{i < tools.length - 1 ? " + " : ""}</span>)}
+                                  {tools.length === 2 ? " — both swing" : ""}
+                                </p>
+                              )}
+                              <button
+                                onClick={doMultiHarvest}
+                                disabled={!hasTools || dead || exhausted}
+                                style={{
+                                  padding: "16px 36px",
+                                  fontSize: "1.15rem",
+                                  fontWeight: 700,
+                                  borderRadius: 14,
+                                  cursor: hasTools && !dead && !exhausted ? "pointer" : "not-allowed",
+                                  border: hasTools ? "2px solid #c8a96e" : "2px dashed #3a3a3a",
+                                  background: hasTools ? "linear-gradient(160deg, #2a1e0a 0%, #1a1200 100%)" : "#141414",
+                                  color: hasTools ? "#e8c97a" : "#444",
+                                  boxShadow: hasTools ? "0 0 18px #c8a96e33, inset 0 1px 0 #c8a96e22" : "none",
+                                  letterSpacing: "0.04em",
+                                  transition: "all 0.2s",
+                                  opacity: (dead || exhausted) && hasTools ? 0.5 : 1,
+                                }}
+                              >
+                                {label}
+                              </button>
+                              {!hasTools && (
+                                <p className="small" style={{ opacity: 0.45, margin: 0 }}>Equip a harvesting tool in the sidebar</p>
+                              )}
+                            </div>
+                          );
+                        })()}
                       </>
                     )}
                   </>

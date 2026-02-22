@@ -35,15 +35,15 @@ function HungerChomperLine({ raw, restored }: { raw: number; restored: number })
 function HungerChomperRangeLine({ raw, restoredRange }: { raw: [number, number]; restoredRange: [number, number] }) {
   if (restoredRange[1] === 0) return <span>+{raw[0]}–{raw[1]}</span>;
   const netLo = Math.max(0, raw[0] - restoredRange[1]);
-  const netHi = Math.max(0, raw[1] - restoredRange[0]);
-  return <span>+{raw[0]}–{raw[1]} <span style={{ opacity: 0.6, fontSize: "0.85em" }}>(up to −{restoredRange[1]} Chomper)</span> = {netLo}–{netHi}</span>;
+  const netHi = Math.max(0, raw[1] - restoredRange[1]);
+  return <span>+{raw[0]}–{raw[1]} <span style={{ opacity: 0.6, fontSize: "0.85em" }}>(−up to {restoredRange[1]} Chomper)</span> = {netLo}–{netHi}</span>;
 }
 
 function FatigueRangeLine({ raw, recoveryRange }: { raw: [number, number]; recoveryRange: [number, number] }) {
   if (recoveryRange[1] === 0) return <span>+{raw[0]}–{raw[1]}</span>;
   const netLo = Math.max(0, raw[0] - recoveryRange[1]);
-  const netHi = Math.max(0, raw[1] - recoveryRange[0]);
-  return <span>+{raw[0]}–{raw[1]} <span style={{ opacity: 0.6, fontSize: "0.85em" }}>(up to −{recoveryRange[1]} Tail Curler)</span> = {netLo}–{netHi}</span>;
+  const netHi = Math.max(0, raw[1] - recoveryRange[1]);
+  return <span>+{raw[0]}–{raw[1]} <span style={{ opacity: 0.6, fontSize: "0.85em" }}>(−up to {recoveryRange[1]} Tail Curler)</span> = {netLo}–{netHi}</span>;
 }
 
 function formatConsumedRange(consumed: { foodId: import("./types").FoodId; unitsRange: [number, number] }[]) {
@@ -794,6 +794,9 @@ export default function App() {
         <div style={{ fontSize: "0.7rem", opacity: 0.45, letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 8 }}>Outcome</div>
         <div className="kv">
           <div>Destination</div><div>{prettyPoi(journeyPreview.poi.id).name} <span style={{ opacity: 0.5, fontSize: "0.85rem" }}>({journeyPreview.poi.quality})</span></div>
+          {journeyPreview.estFoodConsumed.length > 0 && <>
+            <div>Food chomped</div><div style={{ opacity: 0.8 }}>{chomperDisplay(journeyPreview.estFoodConsumed)}</div>
+          </>}
           <div>Events</div>
           <div style={{ opacity: 0.7 }}>
             {(() => {
@@ -894,6 +897,9 @@ export default function App() {
         <div style={{ fontSize: "0.7rem", opacity: 0.45, letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 8 }}>Outcome</div>
         <div className="kv">
           <div>Yield</div><div style={{ opacity: 0.8 }}>{getResourceName(POIS[harvestPreview.poiId].resourceId as any)} ×{harvestPreview.yieldRange[0]}–{harvestPreview.yieldRange[1]}</div>
+          {harvestPreview.estFoodConsumed.length > 0 && <>
+            <div>Food chomped</div><div style={{ opacity: 0.8 }}>{chomperDisplay(harvestPreview.estFoodConsumed)}</div>
+          </>}
         </div>
       </div>
 
@@ -1031,6 +1037,9 @@ export default function App() {
         <div style={{ fontSize: "0.7rem", opacity: 0.45, letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 8 }}>Outcome</div>
         <div className="kv">
           <div>Making</div><div style={{ opacity: 0.8 }}>{prettyRecipe(craftPreview.recipeId).name}</div>
+          {craftPreview.estFoodConsumed.length > 0 && <>
+            <div>Food chomped</div><div style={{ opacity: 0.8 }}>{chomperDisplay(craftPreview.estFoodConsumed)}</div>
+          </>}
         </div>
       </div>
 

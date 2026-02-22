@@ -657,14 +657,14 @@ export function harvestStorableAtBlot(player: PlayerState, blot: BlotState): Har
   const fatigueCost = spec.forageFatiguePerPeriod;
   player.stats.hunger = clamp(player.stats.hunger + hungerCost, 0, player.stats.maxHunger);
   player.stats.fatigue = clamp(player.stats.fatigue + fatigueCost, 0, player.stats.maxFatigue);
-  applyFatigueRecovery(player, 1, "working");
+  const fatigueRecovery = applyFatigueRecovery(player, 1, "working");
   const { consumed: foodConsumed } = autoConsumeStorableFood(player, 1);
   const fr = FOODS[food].freshnessRange!;
   const freshness = [randInt(fr[0], fr[1])];
   invAdd(player.inventory, food, 1, freshness);
   blot.storableRemaining = (blot.storableRemaining ?? 1) - 1;
   const outcome = player.stats.hunger >= player.stats.maxHunger ? "dead" : player.stats.fatigue >= player.stats.maxFatigue ? "exhausted" : "ok";
-  return { foodId: food, qty: 1, freshness, hungerCost, fatigueCost, foodConsumed, outcome };
+  return { foodId: food, qty: 1, freshness, hungerCost, fatigueCost, fatigueRecovery, foodConsumed, outcome };
 }
 
 export function prettyEvent(e: EventId) { return EVENTS[e]; }

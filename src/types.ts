@@ -185,6 +185,7 @@ export interface HarvestStorableResult {
   freshness: number[];
   hungerCost: number;
   fatigueCost: number;
+  fatigueRecovery: FatigueRecoveryEntry[];
   foodConsumed: { foodId: FoodId; units: number }[];
   outcome: "ok" | "exhausted" | "dead";
 }

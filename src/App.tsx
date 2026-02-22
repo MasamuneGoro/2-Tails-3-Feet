@@ -439,7 +439,7 @@ export default function App() {
           Inventory
         </button>
         <button className="btn" style={{ width: "100%", fontSize: "0.88rem", background: screen === "SKILLS" ? "#1a2e1a" : undefined, border: screen === "SKILLS" ? "1px solid #4caf50" : undefined, color: screen === "SKILLS" ? "#7ecba1" : undefined }} onClick={() => openMetaScreen("SKILLS")}>
-          Skills
+          Proficiency
         </button>
       </div>
 
@@ -677,8 +677,9 @@ export default function App() {
                       )}
                       {lastStorableResult && hasEquippedTail(player, "eq_sticky_scoop") && (
                         <p className="small" style={{ opacity: 0.8, margin: 0 }}>
-                          Scooped 1 {FOODS[lastStorableResult.foodId].name}.{" "}
-                          <b>+{lastStorableResult.hungerCost} hunger</b> • <b>+{lastStorableResult.fatigueCost} fatigue</b>.{" "}
+                          Gathered 1 {FOODS[lastStorableResult.foodId].name}.{" "}
+                          <HungerChomperLine raw={lastStorableResult.hungerCost} restored={lastStorableResult.foodConsumed.reduce((s, c) => s + FOODS[c.foodId].hungerReduction * c.units, 0)} /> hunger •{" "}
+                          <FatigueRecoveryLine raw={lastStorableResult.fatigueCost} recovery={lastStorableResult.fatigueRecovery ?? []} /> fatigue.{" "}
                           {lastStorableResult.outcome !== "ok" ? <b>{lastStorableResult.outcome.toUpperCase()}</b> : "Stashed."}
                         </p>
                       )}
@@ -687,16 +688,9 @@ export default function App() {
                     <div style={{ background: "#141414", borderRadius: 10, padding: "12px 14px", width: "100%" }}>
                       <div style={{ fontSize: "0.7rem", opacity: 0.45, letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 10 }}>Scoop preview — {FOODS[activeBlot.storableFood].name}</div>
                       <div className="kv" style={{ marginBottom: 10 }}>
-                        <div>Hunger cost</div><div style={{ color: "#e8a05a" }}>+{POIS[activePoi.id].foodSpec?.forageHungerPerPeriod ?? 1} per unit</div>
-                        <div>Fatigue cost</div><div style={{ color: "#cc6b1a" }}>+{POIS[activePoi.id].foodSpec?.forageFatiguePerPeriod ?? 1} per unit</div>
-                        {curlerCount > 0 && (
-                          <>
-                            <div>Net fatigue (Tail Curler)</div>
-                            <div style={{ color: "#7ecba1" }}>+{Math.max(0, (POIS[activePoi.id].foodSpec?.forageFatiguePerPeriod ?? 1) - curlerCount * (ITEMS.eq_tail_curler.effects?.fatigueRecoveryPerPeriod ?? 0))} per unit</div>
-                          </>
-                        )}
-                        <div>Freshness on harvest</div><div style={{ opacity: 0.8 }}>{FOODS[activeBlot.storableFood].freshnessRange?.[0]}–{FOODS[activeBlot.storableFood].freshnessRange?.[1]} periods</div>
-                        <div>Chomper</div><div style={{ opacity: 0.8 }}>{!chomperEquipped ? "No Chomper" : !chomperAutoEnabled ? "Off" : "May snack"}</div>
+                        <div>Hunger</div><div style={{ color: "#e8a05a" }}>+{POIS[activePoi.id].foodSpec?.forageHungerPerPeriod ?? 1} per unit</div>
+                        <div>Fatigue</div><div style={{ color: "#cc6b1a" }}><FatigueRangeLine raw={[POIS[activePoi.id].foodSpec?.forageFatiguePerPeriod ?? 1, POIS[activePoi.id].foodSpec?.forageFatiguePerPeriod ?? 1]} recoveryRange={[curlerCount * (ITEMS.eq_tail_curler.effects?.fatigueRecoveryPerPeriodWorking ?? 0), curlerCount * (ITEMS.eq_tail_curler.effects?.fatigueRecoveryPerPeriodWorking ?? 0)]} /></div>
+                        <div>Freshness on gather</div><div style={{ opacity: 0.8 }}>{FOODS[activeBlot.storableFood].freshnessRange?.[0]}–{FOODS[activeBlot.storableFood].freshnessRange?.[1]} periods</div>
                       </div>
                       <div className="row">
                         <button className="btn" style={{ background: "#082428", border: "1px solid #26c6da", color: "#5dd8e8", fontWeight: 600 }} onClick={() => { setScoopExpanded(false); doHarvestStorable(); }} disabled={dead || exhausted}>Confirm scoop</button>
@@ -1272,10 +1266,10 @@ export default function App() {
             The world is sticky and doesn't hand things over easily. Equip tools in your tail slots to unlock what you can do — different tools open different tricks.
           </p>
           <p className="small" style={{ lineHeight: 1.8, marginBottom: 10 }}>
-            There are three things to gather out there: Resin Glob, Fiber Clump, Brittle Stone. Five ways to get them, each with its own skill that improves the more you use it.
+            There are three things to gather out there: Resin Glob, Fiber Clump, Brittle Stone. Five ways to get them, each with its own proficiency that improves the more you use it.
           </p>
           <p className="small" style={{ lineHeight: 1.8, marginBottom: 10 }}>
-            Food comes in three forms. Soft Sap you eat on the spot with a Chomper. Resin Chew and Dense Ration can be carried, but they rot — keep an eye on freshness.
+            Food comes in three forms. Soft Sap gets eaten on the spot — you need a Chomper equipped, and it costs fatigue to bite. Resin Chew and Dense Ration can be carried, but they rot whether you eat them or not. The Chomper handles those too: it'll chew through your stock automatically while you work or walk, one bite per period. Without it, what you carry just sits there getting older.
           </p>
           <p className="small" style={{ lineHeight: 1.8 }}>
             You can equip two of the same tool. The benefits stack as you'd expect.
@@ -1288,13 +1282,13 @@ export default function App() {
     </div>
   );
 
-  // ── Skills screen ─────────────────────────────────────────────────────────
+  // ── Proficiency screen ────────────────────────────────────────────────────
   const skillsScreen = (
     <div style={{ background: "#111", borderRadius: 14, border: "1px solid #2a2a2a", overflow: "hidden" }}>
       {/* Panel header */}
       <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "14px 18px", borderBottom: "1px solid #2a2a2a", background: "#0e0e0e" }}>
         <button onClick={backFromMeta} style={{ background: "none", border: "none", color: "#7ecba1", cursor: "pointer", fontSize: "0.9rem", padding: "4px 8px", borderRadius: 6, fontWeight: 600 }}>← Back</button>
-        <div style={{ fontSize: "1.1rem", fontWeight: 700, letterSpacing: "0.05em" }}>Skills</div>
+        <div style={{ fontSize: "1.1rem", fontWeight: 700, letterSpacing: "0.05em" }}>Proficiency</div>
       </div>
 
       <div style={{ padding: "16px 18px", display: "flex", flexDirection: "column", gap: 10 }}>

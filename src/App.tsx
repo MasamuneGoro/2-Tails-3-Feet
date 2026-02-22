@@ -46,7 +46,7 @@ function StatBar({ value, max, kind }: { value: number; max: number; kind: "hung
 
 const START_PLAYER: PlayerState = {
   biomeLevelId: "sticky_l1",
-  stats: { hunger: 20, fatigue: 0, maxHunger: 100, maxFatigue: 100 },
+  stats: { hunger: 200, fatigue: 0, maxHunger: 1000, maxFatigue: 1000 },
   equipment: { tailSlots: [null, null], shoe: "eq_standard_shoe" },
   inventory: [
     { id: "eq_tinker_shaft", qty: 1 },

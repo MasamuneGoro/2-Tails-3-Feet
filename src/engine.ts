@@ -270,9 +270,9 @@ function applyEvents(
     switch (e) {
       case "ev_sticky_drag":
         // +2 extra steps — hunger and fatigue applied as normal steps
-        extraSteps += 2;
-        player.stats.hunger = clamp(player.stats.hunger + 2 * BIOME_LEVEL.hungerPerStep, 0, player.stats.maxHunger);
-        player.stats.fatigue = clamp(player.stats.fatigue + 2 * BIOME_LEVEL.fatiguePerStep, 0, player.stats.maxFatigue);
+        extraSteps += 20;
+        player.stats.hunger = clamp(player.stats.hunger + 20 * BIOME_LEVEL.hungerPerStep, 0, player.stats.maxHunger);
+        player.stats.fatigue = clamp(player.stats.fatigue + 20 * BIOME_LEVEL.fatiguePerStep, 0, player.stats.maxFatigue);
         applyFatigueRecovery(player, 2);
         // chomper also gets 2 more periods to work
         if (countEquippedTail(player, "eq_chomper") > 0 && chomperAutoEnabled) {
@@ -284,34 +284,34 @@ function applyEvents(
         }
         break;
       case "ev_resin_smear":
-        player.stats.hunger = clamp(player.stats.hunger - 3, 0, player.stats.maxHunger);
+        player.stats.hunger = clamp(player.stats.hunger - 30, 0, player.stats.maxHunger);
         break;
       case "ev_slow_going":
-        player.stats.fatigue = clamp(player.stats.fatigue + 2, 0, player.stats.maxFatigue);
+        player.stats.fatigue = clamp(player.stats.fatigue + 20, 0, player.stats.maxFatigue);
         break;
       case "ev_loose_fibers":
         invAdd(player.inventory, "fiber_clump", 1);
         gained.push({ id: "fiber_clump", qty: 1 });
         break;
       case "ev_minor_recovery":
-        player.stats.fatigue = clamp(player.stats.fatigue - 2, 0, player.stats.maxFatigue);
+        player.stats.fatigue = clamp(player.stats.fatigue - 20, 0, player.stats.maxFatigue);
         break;
       case "ev_rich_vein_hint":
         invAdd(player.inventory, "resin_glob", 1);
         gained.push({ id: "resin_glob", qty: 1 });
         break;
       case "ev_sticky_snare":
-        player.stats.fatigue = clamp(player.stats.fatigue + 3, 0, player.stats.maxFatigue);
+        player.stats.fatigue = clamp(player.stats.fatigue + 30, 0, player.stats.maxFatigue);
         break;
       case "ev_edible_scrap":
-        player.stats.hunger = clamp(player.stats.hunger - 8, 0, player.stats.maxHunger);
+        player.stats.hunger = clamp(player.stats.hunger - 80, 0, player.stats.maxHunger);
         break;
       case "ev_efficient_path":
-        player.stats.fatigue = clamp(player.stats.fatigue - 3, 0, player.stats.maxFatigue);
+        player.stats.fatigue = clamp(player.stats.fatigue - 30, 0, player.stats.maxFatigue);
         break;
       case "ev_muscle_pull":
-        player.stats.fatigue = clamp(player.stats.fatigue + 2, 0, player.stats.maxFatigue);
-        player.stats.hunger = clamp(player.stats.hunger + 2, 0, player.stats.maxHunger);
+        player.stats.fatigue = clamp(player.stats.fatigue + 20, 0, player.stats.maxFatigue);
+        player.stats.hunger = clamp(player.stats.hunger + 20, 0, player.stats.maxHunger);
         break;
       case "ev_dense_find":
         invAdd(player.inventory, "resin_glob", 2);
@@ -323,7 +323,7 @@ function applyEvents(
         gained.push({ id: "food_dense_ration", qty: 1 });
         break;
       case "ev_second_wind":
-        player.stats.fatigue = clamp(player.stats.fatigue - 6, 0, player.stats.maxFatigue);
+        player.stats.fatigue = clamp(player.stats.fatigue - 60, 0, player.stats.maxFatigue);
         break;
       // system events — no mechanical effect
       case "ev_need_chomper":
@@ -432,7 +432,7 @@ export function makeHarvestPreview(player: PlayerState, poiId: PoiId, method: Ha
   }
 
   const periodsRange = tuning.periodsRange;
-  const hungerPerPeriod = 1;
+  const hungerPerPeriod = 10;
   const fatiguePerPeriod = tuning.fatiguePerPeriod;
 
   const hungerIncreaseRange: [number, number] = [periodsRange[0] * hungerPerPeriod, periodsRange[1] * hungerPerPeriod];
@@ -474,7 +474,7 @@ export function resolveHarvest(player: PlayerState, preview: HarvestPreview, cho
   const tuning = poi.methodTuning[preview.method];
   const periods = randInt(tuning.periodsRange[0], tuning.periodsRange[1]);
 
-  const hungerPerPeriod = 1;
+  const hungerPerPeriod = 10;
   const fatiguePerPeriod = tuning.fatiguePerPeriod;
   const hungerDelta = periods * hungerPerPeriod;
   const fatigueDelta = periods * fatiguePerPeriod;
@@ -567,7 +567,7 @@ export function resolveCraft(player: PlayerState, preview: CraftPreview, chomper
 
 export function recoverPreview(player: PlayerState, chomperAutoEnabled = true) {
   const periods = 8;
-  const hungerDelta = periods * 1;
+  const hungerDelta = periods * 10;
   const curlerCount = countEquippedTail(player, "eq_tail_curler");
   const baseRecovery = ITEMS.eq_tail_curler.effects?.fatigueRecoveryPerPeriod ?? 0;
   // 1.5x per curler when resting, stacked
@@ -589,7 +589,7 @@ export function recoverPreview(player: PlayerState, chomperAutoEnabled = true) {
 }
 
 export function resolveRecover(player: PlayerState, periods: number, chomperAutoEnabled = true) {
-  const hungerDelta = periods * 1;
+  const hungerDelta = periods * 10;
   player.stats.hunger = clamp(player.stats.hunger + hungerDelta, 0, player.stats.maxHunger);
   const before = player.stats.fatigue;
   applyFatigueRecovery(player, periods, true);
@@ -604,7 +604,7 @@ export function eatSapAtBlot(player: PlayerState, blot: BlotState): EatSapResult
   const biteSize = ITEMS.eq_chomper.effects?.chomper?.biteSize ?? 1;
   const available = blot.sapRemaining ?? 0;
   const toEat = Math.min(biteSize, available);
-  const fatigueCostPerUnit = 2;
+  const fatigueCostPerUnit = 20;
   let hungerRestored = 0;
   let unitsEaten = 0;
   for (let i = 0; i < toEat; i++) {

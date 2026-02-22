@@ -565,58 +565,79 @@ export default function App() {
               </div>
 
               {/* Soft Sap */}
-              {(activeBlot.sapRemaining ?? 0) > 0 && (
-                <div style={{ marginBottom: 12 }}>
-                  {chomperEquipped ? (
-                    <>
-                      <button className="btn" style={{ marginBottom: 6 }} onClick={doEatSap} disabled={dead || exhausted}>Chow Down (Soft Sap)</button>
-                      {lastEatResult && (
-                        <p className="small">
-                          Ate {lastEatResult.unitsEaten} unit{lastEatResult.unitsEaten !== 1 ? "s" : ""}.{" "}
-                          <b>−{lastEatResult.hungerRestored} hunger</b> • <b>+{lastEatResult.fatigueCost} fatigue</b>.
-                          {lastEatResult.hungerRestored === 0 ? " (Not hungry enough.)" : " Warm. Gloopy. Worth it."}
-                        </p>
-                      )}
-                    </>
-                  ) : (
-                    <p className="small" style={{ opacity: 0.6 }}>Soft Sap is here but you need a Chomper to eat it. Equip one from the sidebar.</p>
+              {(activeBlot.sapRemaining ?? 0) > 0 ? (
+                <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8, marginBottom: 12 }}>
+                  {chomperEquipped && (
+                    <p className="small" style={{ opacity: 0.6, margin: 0 }}><b>Chomper</b> — eats sap on contact</p>
+                  )}
+                  <button
+                    onClick={doEatSap}
+                    disabled={!chomperEquipped || dead || exhausted}
+                    style={{
+                      padding: "16px 36px",
+                      fontSize: "1.15rem",
+                      fontWeight: 700,
+                      borderRadius: 14,
+                      cursor: chomperEquipped && !dead && !exhausted ? "pointer" : "not-allowed",
+                      border: chomperEquipped ? "2px solid #4caf50" : "2px dashed #3a3a3a",
+                      background: chomperEquipped ? "linear-gradient(160deg, #0e2e14 0%, #071a09 100%)" : "#141414",
+                      color: chomperEquipped ? "#7ecba1" : "#444",
+                      boxShadow: chomperEquipped ? "0 0 18px #4caf5033, inset 0 1px 0 #4caf5022" : "none",
+                      letterSpacing: "0.04em",
+                      transition: "all 0.2s",
+                      opacity: (dead || exhausted) && chomperEquipped ? 0.5 : 1,
+                    }}
+                  >
+                    Chow Down
+                  </button>
+                  {!chomperEquipped && (
+                    <p className="small" style={{ opacity: 0.45, margin: 0 }}>Equip a Chomper to eat soft sap</p>
+                  )}
+                  {lastEatResult && chomperEquipped && (
+                    <p className="small" style={{ opacity: 0.8, margin: 0 }}>
+                      Ate {lastEatResult.unitsEaten} unit{lastEatResult.unitsEaten !== 1 ? "s" : ""}.{" "}
+                      <b>−{lastEatResult.hungerRestored} hunger</b> • <b>+{lastEatResult.fatigueCost} fatigue</b>.
+                      {lastEatResult.hungerRestored === 0 ? " (Not hungry enough.)" : " Warm. Gloopy. Worth it."}
+                    </p>
                   )}
                 </div>
+              ) : (
+                <p className="small" style={{ opacity: 0.5, marginBottom: 8 }}>All sap eaten.</p>
               )}
-              {(activeBlot.sapRemaining ?? 0) === 0 && <p className="small" style={{ opacity: 0.5, marginBottom: 8 }}>All sap eaten.</p>}
 
               {/* Storable */}
-              {activeBlot.storableFood && (activeBlot.storableRemaining ?? 0) > 0 && (
-                <div>
-                  {hasEquippedTail(player, "eq_sticky_scoop") ? (
+              {activeBlot.storableFood && (activeBlot.storableRemaining ?? 0) > 0 ? (
+                <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
+                  {hasEquippedTail(player, "eq_sticky_scoop") && !scoopExpanded && (
+                    <p className="small" style={{ opacity: 0.6, margin: 0 }}><b>Sticky Scoop</b> — {FOODS[activeBlot.storableFood].name}</p>
+                  )}
+                  {!scoopExpanded ? (
                     <>
-                      {!scoopExpanded ? (
-                        <button className="btn" style={{ marginBottom: 6 }} onClick={() => setScoopExpanded(true)} disabled={dead || exhausted}>
-                          Scoop it Up ({FOODS[activeBlot.storableFood].name})
-                        </button>
-                      ) : (
-                        <div style={{ background: "#141414", borderRadius: 10, padding: "12px 14px", marginBottom: 8 }}>
-                          <div style={{ fontSize: "0.7rem", opacity: 0.45, letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 10 }}>Scoop preview — {FOODS[activeBlot.storableFood].name}</div>
-                          <div className="kv" style={{ marginBottom: 10 }}>
-                            <div>Hunger cost</div><div style={{ color: "#e8a05a" }}>+{POIS[activePoi.id].foodSpec?.forageHungerPerPeriod ?? 1} per unit</div>
-                            <div>Fatigue cost</div><div style={{ color: "#cc6b1a" }}>+{POIS[activePoi.id].foodSpec?.forageFatiguePerPeriod ?? 1} per unit</div>
-                            {curlerCount > 0 && (
-                              <>
-                                <div>Net fatigue (Tail Curler)</div>
-                                <div style={{ color: "#7ecba1" }}>+{Math.max(0, (POIS[activePoi.id].foodSpec?.forageFatiguePerPeriod ?? 1) - curlerCount * (ITEMS.eq_tail_curler.effects?.fatigueRecoveryPerPeriod ?? 0))} per unit</div>
-                              </>
-                            )}
-                            <div>Freshness on harvest</div><div style={{ opacity: 0.8 }}>{FOODS[activeBlot.storableFood].freshnessRange?.[0]}–{FOODS[activeBlot.storableFood].freshnessRange?.[1]} periods</div>
-                            <div>Chomper</div><div style={{ opacity: 0.8 }}>{!chomperEquipped ? "No Chomper" : !chomperAutoEnabled ? "Off" : "May snack"}</div>
-                          </div>
-                          <div className="row">
-                            <button className="btn" style={{ background: "#1a2e1a", border: "1px solid #4caf50", color: "#7ecba1", fontWeight: 600 }} onClick={() => { setScoopExpanded(false); doHarvestStorable(); }} disabled={dead || exhausted}>Confirm scoop</button>
-                            <button className="btn" onClick={() => setScoopExpanded(false)}>Never mind</button>
-                          </div>
-                        </div>
+                      <button
+                        onClick={() => setScoopExpanded(true)}
+                        disabled={!hasEquippedTail(player, "eq_sticky_scoop") || dead || exhausted}
+                        style={{
+                          padding: "16px 36px",
+                          fontSize: "1.15rem",
+                          fontWeight: 700,
+                          borderRadius: 14,
+                          cursor: hasEquippedTail(player, "eq_sticky_scoop") && !dead && !exhausted ? "pointer" : "not-allowed",
+                          border: hasEquippedTail(player, "eq_sticky_scoop") ? "2px solid #26c6da" : "2px dashed #3a3a3a",
+                          background: hasEquippedTail(player, "eq_sticky_scoop") ? "linear-gradient(160deg, #082428 0%, #051518 100%)" : "#141414",
+                          color: hasEquippedTail(player, "eq_sticky_scoop") ? "#5dd8e8" : "#444",
+                          boxShadow: hasEquippedTail(player, "eq_sticky_scoop") ? "0 0 18px #26c6da33, inset 0 1px 0 #26c6da22" : "none",
+                          letterSpacing: "0.04em",
+                          transition: "all 0.2s",
+                          opacity: (dead || exhausted) && hasEquippedTail(player, "eq_sticky_scoop") ? 0.5 : 1,
+                        }}
+                      >
+                        Gather {FOODS[activeBlot.storableFood].name}
+                      </button>
+                      {!hasEquippedTail(player, "eq_sticky_scoop") && (
+                        <p className="small" style={{ opacity: 0.45, margin: 0 }}>Equip a Sticky Scoop to gather this</p>
                       )}
-                      {lastStorableResult && !scoopExpanded && (
-                        <p className="small">
+                      {lastStorableResult && hasEquippedTail(player, "eq_sticky_scoop") && (
+                        <p className="small" style={{ opacity: 0.8, margin: 0 }}>
                           Scooped 1 {FOODS[lastStorableResult.foodId].name}.{" "}
                           <b>+{lastStorableResult.hungerCost} hunger</b> • <b>+{lastStorableResult.fatigueCost} fatigue</b>.{" "}
                           {lastStorableResult.outcome !== "ok" ? <b>{lastStorableResult.outcome.toUpperCase()}</b> : "Stashed."}
@@ -624,15 +645,30 @@ export default function App() {
                       )}
                     </>
                   ) : (
-                    <p className="small" style={{ opacity: 0.6 }}>
-                      {FOODS[activeBlot.storableFood].name} is here but you need a Sticky Scoop to gather it. Equip one from the sidebar.
-                    </p>
+                    <div style={{ background: "#141414", borderRadius: 10, padding: "12px 14px", width: "100%" }}>
+                      <div style={{ fontSize: "0.7rem", opacity: 0.45, letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 10 }}>Scoop preview — {FOODS[activeBlot.storableFood].name}</div>
+                      <div className="kv" style={{ marginBottom: 10 }}>
+                        <div>Hunger cost</div><div style={{ color: "#e8a05a" }}>+{POIS[activePoi.id].foodSpec?.forageHungerPerPeriod ?? 1} per unit</div>
+                        <div>Fatigue cost</div><div style={{ color: "#cc6b1a" }}>+{POIS[activePoi.id].foodSpec?.forageFatiguePerPeriod ?? 1} per unit</div>
+                        {curlerCount > 0 && (
+                          <>
+                            <div>Net fatigue (Tail Curler)</div>
+                            <div style={{ color: "#7ecba1" }}>+{Math.max(0, (POIS[activePoi.id].foodSpec?.forageFatiguePerPeriod ?? 1) - curlerCount * (ITEMS.eq_tail_curler.effects?.fatigueRecoveryPerPeriod ?? 0))} per unit</div>
+                          </>
+                        )}
+                        <div>Freshness on harvest</div><div style={{ opacity: 0.8 }}>{FOODS[activeBlot.storableFood].freshnessRange?.[0]}–{FOODS[activeBlot.storableFood].freshnessRange?.[1]} periods</div>
+                        <div>Chomper</div><div style={{ opacity: 0.8 }}>{!chomperEquipped ? "No Chomper" : !chomperAutoEnabled ? "Off" : "May snack"}</div>
+                      </div>
+                      <div className="row">
+                        <button className="btn" style={{ background: "#082428", border: "1px solid #26c6da", color: "#5dd8e8", fontWeight: 600 }} onClick={() => { setScoopExpanded(false); doHarvestStorable(); }} disabled={dead || exhausted}>Confirm scoop</button>
+                        <button className="btn" onClick={() => setScoopExpanded(false)}>Never mind</button>
+                      </div>
+                    </div>
                   )}
                 </div>
-              )}
-              {activeBlot.storableFood && (activeBlot.storableRemaining ?? 0) === 0 && (
+              ) : activeBlot.storableFood ? (
                 <p className="small" style={{ opacity: 0.5 }}>All {FOODS[activeBlot.storableFood].name} gathered.</p>
-              )}
+              ) : null}
             </div>
           )}
         </>

@@ -167,18 +167,22 @@ export function autoConsumeStorableFood(player: PlayerState, periods: number, ch
   return consumed;
 }
 
-export function applyFatigueRecovery(player: PlayerState, periods: number, isResting = false) {
-  // Stack Tail Curlers: each one contributes its recovery per period
-  const count = countEquippedTail(player, "eq_tail_curler");
-  if (count === 0) return 0;
-  const base = ITEMS.eq_tail_curler.effects?.fatigueRecoveryPerPeriod ?? 0;
-  if (base <= 0) return 0;
-  // 1.5x per curler when resting (belly down)
-  const perCurler = isResting ? base * 1.5 : base;
-  const per = perCurler * count;
-  const before = player.stats.fatigue;
-  player.stats.fatigue = clamp(player.stats.fatigue - per * periods, 0, player.stats.maxFatigue);
-  return before - player.stats.fatigue;
+export function applyFatigueRecovery(player: PlayerState, periods: number, isResting = false): import("./types").FatigueRecoveryEntry[] {
+  const breakdown: import("./types").FatigueRecoveryEntry[] = [];
+  const slots = player.equipment.tailSlots;
+  for (const itemId of slots) {
+    if (!itemId) continue;
+    const item = ITEMS[itemId];
+    const base = item.effects?.fatigueRecoveryPerPeriod ?? 0;
+    if (base <= 0) continue;
+    const perPeriod = isResting ? base * 1.5 : base;
+    const total = perPeriod * periods;
+    const before = player.stats.fatigue;
+    player.stats.fatigue = clamp(player.stats.fatigue - total, 0, player.stats.maxFatigue);
+    const actual = before - player.stats.fatigue;
+    if (actual > 0) breakdown.push({ itemId, name: item.name, recovered: actual });
+  }
+  return breakdown;
 }
 
 export function rollEvents(mode: "explore" | "findFood"): EventId[] {
@@ -353,7 +357,7 @@ export function resolveJourney(player: PlayerState, preview: JourneyPreview, cho
   player.stats.hunger = clamp(player.stats.hunger + hungerDelta, 0, player.stats.maxHunger);
   player.stats.fatigue = clamp(player.stats.fatigue + fatigueDelta, 0, player.stats.maxFatigue);
 
-  const recovered = applyFatigueRecovery(player, Math.floor(steps / 20));
+  const fatigueRecovery = applyFatigueRecovery(player, Math.floor(steps / 20));
 
   const foodConsumed = autoConsumeStorableFood(player, steps, chomperAutoEnabled);
 
@@ -381,7 +385,7 @@ export function resolveJourney(player: PlayerState, preview: JourneyPreview, cho
   if (player.stats.hunger >= player.stats.maxHunger) {
     return {
       mode: preview.mode, steps: steps + extraSteps, surfacedEvents: eventsOut, eventEffects,
-      hungerDelta, fatigueDelta: fatigueDelta - recovered, poi, gained, foodConsumed, blot: preview.blot, outcome: "dead",
+      hungerDelta, fatigueDelta, fatigueRecovery, poi, gained, foodConsumed, blot: preview.blot, outcome: "dead",
     };
   }
 
@@ -402,7 +406,8 @@ export function resolveJourney(player: PlayerState, preview: JourneyPreview, cho
     surfacedEvents: eventsOut,
     eventEffects,
     hungerDelta,
-    fatigueDelta: fatigueDelta - recovered,
+    fatigueDelta,
+    fatigueRecovery,
     poi,
     gained,
     foodConsumed,
@@ -470,7 +475,7 @@ export function makeHarvestPreview(player: PlayerState, poiId: PoiId, method: Ha
 export function resolveHarvest(player: PlayerState, preview: HarvestPreview, chomperAutoEnabled = true): HarvestResult {
   const poi = POIS[preview.poiId];
   if (poi.kind !== "harvest" || !poi.resourceId || !poi.methodTuning || !poi.methodRank || !poi.efficiencyMultipliers) {
-    return { poiId: preview.poiId, method: preview.method, periods: 0, hungerDelta: 0, fatigueDelta: 0, gained: [], xpGained: 0, foodConsumed: [], outcome: "ok", message: "Nothing to harvest here." };
+    return { poiId: preview.poiId, method: preview.method, periods: 0, hungerDelta: 0, fatigueDelta: 0, fatigueRecovery: [], gained: [], xpGained: 0, foodConsumed: [], outcome: "ok", message: "Nothing to harvest here." };
   }
 
   const tuning = poi.methodTuning[preview.method];
@@ -484,7 +489,7 @@ export function resolveHarvest(player: PlayerState, preview: HarvestPreview, cho
   player.stats.hunger = clamp(player.stats.hunger + hungerDelta, 0, player.stats.maxHunger);
   player.stats.fatigue = clamp(player.stats.fatigue + fatigueDelta, 0, player.stats.maxFatigue);
 
-  applyFatigueRecovery(player, periods);
+  const fatigueRecovery = applyFatigueRecovery(player, periods);
   const foodConsumed = autoConsumeStorableFood(player, periods, chomperAutoEnabled);
 
   const effLabel = poi.methodRank[preview.method];
@@ -501,7 +506,7 @@ export function resolveHarvest(player: PlayerState, preview: HarvestPreview, cho
   player.xp[preview.method] = (player.xp[preview.method] ?? 0) + xpGained;
 
   const outcome = player.stats.hunger >= player.stats.maxHunger ? "dead" : player.stats.fatigue >= player.stats.maxFatigue ? "exhausted" : "ok";
-  return { poiId: preview.poiId, method: preview.method, periods, hungerDelta, fatigueDelta, gained, xpGained, foodConsumed, outcome };
+  return { poiId: preview.poiId, method: preview.method, periods, hungerDelta, fatigueDelta, fatigueRecovery, gained, xpGained, foodConsumed, outcome };
 }
 
 export function canCraft(player: PlayerState) {
@@ -510,11 +515,8 @@ export function canCraft(player: PlayerState) {
 
 export function listUnlockedRecipes(player: PlayerState): string[] {
   const hasTinker = hasEquippedTail(player, "eq_tinker_shaft");
-  return Object.keys(RECIPES).filter((id) => {
-    const r = RECIPES[id];
-    if (r.requiresTinker && !hasTinker) return false;
-    return true;
-  });
+  if (!hasTinker) return [];
+  return Object.keys(RECIPES);
 }
 
 export function makeCraftPreview(player: PlayerState, recipeId: string, chomperAutoEnabled = true): CraftPreview {
@@ -547,7 +549,7 @@ export function resolveCraft(player: PlayerState, preview: CraftPreview, chomper
   const r = RECIPES[preview.recipeId];
   for (const need of r.inputs) {
     const have = invGet(player.inventory, need.id)?.qty ?? 0;
-    if (have < need.qty) return { recipeId: preview.recipeId, success: false, failReason: "missing_resources", hungerDelta: 0, fatigueDelta: 0, foodConsumed: [] };
+    if (have < need.qty) return { recipeId: preview.recipeId, success: false, failReason: "missing_resources", hungerDelta: 0, fatigueDelta: 0, fatigueRecovery: [], foodConsumed: [] };
   }
   for (const need of r.inputs) invRemove(player.inventory, need.id, need.qty);
 
@@ -557,14 +559,14 @@ export function resolveCraft(player: PlayerState, preview: CraftPreview, chomper
   player.stats.hunger = clamp(player.stats.hunger + hungerDelta, 0, player.stats.maxHunger);
   player.stats.fatigue = clamp(player.stats.fatigue + fatigueDelta, 0, player.stats.maxFatigue);
 
-  applyFatigueRecovery(player, r.craftPeriods);
+  const fatigueRecovery = applyFatigueRecovery(player, r.craftPeriods);
   const foodConsumed = autoConsumeStorableFood(player, r.craftPeriods, chomperAutoEnabled);
 
-  if (player.stats.hunger >= player.stats.maxHunger) return { recipeId: preview.recipeId, success: false, failReason: "dead", hungerDelta, fatigueDelta, foodConsumed };
-  if (player.stats.fatigue >= player.stats.maxFatigue) return { recipeId: preview.recipeId, success: false, failReason: "exhausted", hungerDelta, fatigueDelta, foodConsumed };
+  if (player.stats.hunger >= player.stats.maxHunger) return { recipeId: preview.recipeId, success: false, failReason: "dead", hungerDelta, fatigueDelta, fatigueRecovery, foodConsumed };
+  if (player.stats.fatigue >= player.stats.maxFatigue) return { recipeId: preview.recipeId, success: false, failReason: "exhausted", hungerDelta, fatigueDelta, fatigueRecovery, foodConsumed };
 
   invAdd(player.inventory, r.output.itemId, r.output.qty);
-  return { recipeId: preview.recipeId, success: true, hungerDelta, fatigueDelta, foodConsumed, crafted: { itemId: r.output.itemId, qty: r.output.qty } };
+  return { recipeId: preview.recipeId, success: true, hungerDelta, fatigueDelta, fatigueRecovery, foodConsumed, crafted: { itemId: r.output.itemId, qty: r.output.qty } };
 }
 
 export function recoverPreview(player: PlayerState, chomperAutoEnabled = true) {

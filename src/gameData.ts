@@ -234,8 +234,8 @@ export const FOODS: Record<
   { id: FoodId; name: string; hungerReduction: number; storable: boolean; freshnessRange?: [number, number]; flavor: string }
 > = {
   food_soft_sap: { id: "food_soft_sap", name: "Soft Sap", hungerReduction: 150, storable: false, flavor: "Warm, gloopy, and barely qualifies as food. Your belly doesn't care." },
-  food_resin_chew: { id: "food_resin_chew", name: "Resin Chew", hungerReduction: 300, storable: true, freshnessRange: [2, 3], flavor: "Chewy in a way that makes you think. Not about what's in it, though." },
-  food_dense_ration: { id: "food_dense_ration", name: "Dense Ration", hungerReduction: 550, storable: true, freshnessRange: [3, 3], flavor: "Suspiciously well-preserved. You decide gratitude is the right response." },
+  food_resin_chew: { id: "food_resin_chew", name: "Resin Chew", hungerReduction: 40, storable: true, freshnessRange: [5, 7], flavor: "Chewy in a way that makes you think. Not about what's in it, though." },
+  food_dense_ration: { id: "food_dense_ration", name: "Dense Ration", hungerReduction: 120, storable: true, freshnessRange: [8, 12], flavor: "Suspiciously well-preserved. You decide gratitude is the right response." },
 };
 
 export const ITEMS: Record<

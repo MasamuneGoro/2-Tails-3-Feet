@@ -44,6 +44,12 @@ export interface BlotState {
   storableFood?: FoodId;
 }
 
+export interface FatigueRecoveryEntry {
+  itemId: ItemId;
+  name: string;
+  recovered: number;
+}
+
 export type Screen =
   | "HUB"
   | "PREVIEW_JOURNEY"
@@ -104,6 +110,7 @@ export interface JourneyResult {
   eventEffects: Record<EventId, { hungerDelta: number; fatigueDelta: number; gained: { id: ResourceId | FoodId; qty: number }[] }>;
   hungerDelta: number;
   fatigueDelta: number;
+  fatigueRecovery: FatigueRecoveryEntry[];
   poi: { id: PoiId; quality: Quality };
   gained: { id: ResourceId | FoodId; qty: number; freshness?: number[] }[];
   foodConsumed: { foodId: FoodId; units: number }[];
@@ -129,6 +136,7 @@ export interface HarvestResult {
   periods: number;
   hungerDelta: number;
   fatigueDelta: number;
+  fatigueRecovery: FatigueRecoveryEntry[];
   gained: { id: ResourceId | FoodId; qty: number; freshness?: number[] }[];
   xpGained: number;
   foodConsumed: { foodId: FoodId; units: number }[];
@@ -150,6 +158,7 @@ export interface CraftResult {
   failReason?: "missing_resources" | "exhausted" | "dead";
   hungerDelta: number;
   fatigueDelta: number;
+  fatigueRecovery: FatigueRecoveryEntry[];
   foodConsumed: { foodId: FoodId; units: number }[];
   crafted?: { itemId: ItemId; qty: number };
 }

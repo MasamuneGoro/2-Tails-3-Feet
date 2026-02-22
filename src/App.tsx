@@ -18,6 +18,14 @@ function formatConsumed(consumed: { foodId: import("./types").FoodId; units: num
   return consumed.map((c) => `${FOODS[c.foodId].name} ×${c.units}`).join(", ");
 }
 
+function FatigueRecoveryLine({ raw, recovery }: { raw: number; recovery: import("./types").FatigueRecoveryEntry[] }) {
+  if (recovery.length === 0) return <>{+raw}</>;
+  const totalRecovered = recovery.reduce((s, e) => s + e.recovered, 0);
+  const net = Math.max(0, raw - totalRecovered);
+  const parts = recovery.map(e => `−${e.recovered} ${e.name}`).join(", ");
+  return <span>+{raw} <span style={{ opacity: 0.6, fontSize: "0.85em" }}>({parts})</span> = {net}</span>;
+}
+
 function formatConsumedRange(consumed: { foodId: import("./types").FoodId; unitsRange: [number, number] }[]) {
   if (!consumed.length) return "";
   return consumed.map((c) => `${FOODS[c.foodId].name} ×${c.unitsRange[0]}–${c.unitsRange[1]}`).join(", ");
@@ -796,7 +804,7 @@ export default function App() {
         <div>Found</div><div><b>{prettyPoi(journeyResult.poi.id).name}</b> <span style={{opacity:0.6}}>({journeyResult.poi.quality})</span></div>
         <div>Steps taken</div><div>{journeyResult.steps}</div>
         <div>Hunger cost</div><div>+{journeyResult.hungerDelta}</div>
-        <div>Fatigue cost</div><div>+{Math.max(0, journeyResult.fatigueDelta)}</div>
+        <div>Fatigue cost</div><div><FatigueRecoveryLine raw={journeyResult.fatigueDelta} recovery={journeyResult.fatigueRecovery} /></div>
       </div>
 
       {journeyResult.surfacedEvents.filter(e => !["ev_need_chomper","ev_need_scoop_for_rations"].includes(e)).length > 0 && (
@@ -895,7 +903,7 @@ export default function App() {
             <h3>{tool ? tool.name : res.method} pass</h3>
             <p className="small">{flavour[effLabel] ?? ""}</p>
             <ul>{res.gained.map((g, j) => <li key={j} className="small">{(g.id as string).startsWith("food_") ? getFoodName(g.id as any) : getResourceName(g.id as any)} ×{g.qty}</li>)}</ul>
-            <p className="small">→ +{res.hungerDelta} hunger · +{Math.max(0, res.fatigueDelta)} fatigue · +{res.xpGained} XP</p>
+            <p className="small">→ +{res.hungerDelta} hunger · <FatigueRecoveryLine raw={res.fatigueDelta} recovery={res.fatigueRecovery} /> fatigue · +{res.xpGained} XP</p>
             {res.foodConsumed.length > 0 && <p className="small">Chomper snacked: {formatConsumed(res.foodConsumed)}</p>}
           </div>
         );
@@ -913,57 +921,73 @@ export default function App() {
   );
 
   // ── Craft screens ─────────────────────────────────────────────────────────
+  const CRAFT_TIERS: { label: string; ids: string[] }[] = [
+    { label: "Bare Minimum", ids: ["rcp_fiber_comb", "rcp_sticky_scoop"] },
+    { label: "Getting Somewhere", ids: ["rcp_crude_hammerhead", "rcp_hand_drill"] },
+    { label: "Now We're Talking", ids: ["rcp_chomper", "rcp_tail_curler"] },
+  ];
+
   const craftMenuScreen = (
     <div className="card">
       <h2>Craft</h2>
-      <p className="small" style={{ opacity: 0.6, marginBottom: 14 }}>Some recipes need the <b>{ITEMS.eq_tinker_shaft.name}</b> equipped.</p>
-      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+      <p className="small" style={{ opacity: 0.6, marginBottom: 14 }}>Requires the <b>{ITEMS.eq_tinker_shaft.name}</b> equipped.</p>
+      <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
         {unlockedRecipes.length === 0 && (
           <p className="small" style={{ opacity: 0.45 }}>Nothing to make. Equip the Tinker Shaft from the sidebar.</p>
         )}
-        {unlockedRecipes.map((rid) => {
-          const r = prettyRecipe(rid);
-          const recipe = RECIPES[rid];
-          const outputItem = ITEMS[recipe.output.itemId];
-          const can = r.inputs.every((inp) => (player.inventory.find((s) => s.id === inp.id)?.qty ?? 0) >= inp.qty);
-          const isExpanded = expandedItem === rid;
+        {CRAFT_TIERS.map(tier => {
+          const tierRecipes = tier.ids.filter(id => unlockedRecipes.includes(id));
+          if (!tierRecipes.length) return null;
           return (
-            <div key={rid} style={{ background: "#161616", borderRadius: 10, border: `1px solid ${can ? "#2a2a2a" : "#1e1e1e"}`, borderLeft: `3px solid ${can ? "#c8a96e" : "#333"}`, overflow: "hidden", opacity: can ? 1 : 0.55 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "11px 14px", cursor: "pointer" }} onClick={() => setExpandedItem(isExpanded ? null : rid)}>
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontWeight: 600, fontSize: "0.95rem" }}>{r.name}</div>
-                  <div style={{ fontSize: "0.75rem", opacity: 0.5, marginTop: 2 }}>
-                    {r.inputs.map((i) => `${getResourceName(i.id)} ×${i.qty}`).join("  ·  ")}
-                    {recipe.requiresTinker && <span style={{ marginLeft: 8, color: "#c8a96e", opacity: 0.7 }}>· Tinker Shaft</span>}
-                  </div>
-                </div>
-                <div style={{ fontSize: "0.75rem", opacity: 0.45, whiteSpace: "nowrap" }}>→ {getItemName(recipe.output.itemId)}</div>
-                <div style={{ fontSize: "0.7rem", opacity: 0.35 }}>{isExpanded ? "▲" : "▼"}</div>
+            <div key={tier.label}>
+              <div style={{ fontSize: "0.7rem", opacity: 0.4, letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: 8 }}>{tier.label}</div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {tierRecipes.map((rid) => {
+                  const r = prettyRecipe(rid);
+                  const recipe = RECIPES[rid];
+                  const outputItem = ITEMS[recipe.output.itemId];
+                  const can = r.inputs.every((inp) => (player.inventory.find((s) => s.id === inp.id)?.qty ?? 0) >= inp.qty);
+                  const isExpanded = expandedItem === rid;
+                  return (
+                    <div key={rid} style={{ background: "#161616", borderRadius: 10, border: `1px solid ${can ? "#2a2a2a" : "#1e1e1e"}`, borderLeft: `3px solid ${can ? "#c8a96e" : "#333"}`, overflow: "hidden", opacity: can ? 1 : 0.55 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "11px 14px", cursor: "pointer" }} onClick={() => setExpandedItem(isExpanded ? null : rid)}>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontWeight: 600, fontSize: "0.95rem" }}>{r.name}</div>
+                          <div style={{ fontSize: "0.75rem", opacity: 0.5, marginTop: 2 }}>
+                            {r.inputs.map((i) => `${getResourceName(i.id)} ×${i.qty}`).join("  ·  ")}
+                          </div>
+                        </div>
+                        <div style={{ fontSize: "0.75rem", opacity: 0.45, whiteSpace: "nowrap" }}>→ {getItemName(recipe.output.itemId)}</div>
+                        <div style={{ fontSize: "0.7rem", opacity: 0.35 }}>{isExpanded ? "▲" : "▼"}</div>
+                      </div>
+                      {isExpanded && (
+                        <div style={{ borderTop: "1px solid #1e1e1e", padding: "12px 14px", background: "#121212" }}>
+                          <p className="small" style={{ fontStyle: "italic", opacity: 0.6, marginBottom: 12 }}>{outputItem.flavor}</p>
+                          <button
+                            onClick={() => { chooseRecipe(rid); setExpandedItem(null); }}
+                            disabled={!can}
+                            style={{
+                              padding: "12px 28px",
+                              fontSize: "1rem",
+                              fontWeight: 700,
+                              borderRadius: 10,
+                              cursor: can ? "pointer" : "not-allowed",
+                              border: can ? "2px solid #c8a96e" : "2px dashed #333",
+                              background: can ? "linear-gradient(160deg, #2a1e0a 0%, #1a1200 100%)" : "#141414",
+                              color: can ? "#e8c97a" : "#444",
+                              boxShadow: can ? "0 0 14px #c8a96e22, inset 0 1px 0 #c8a96e22" : "none",
+                              letterSpacing: "0.04em",
+                              transition: "all 0.2s",
+                            }}
+                          >
+                            {can ? "Make it!" : "Not enough materials"}
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
-              {isExpanded && (
-                <div style={{ borderTop: "1px solid #1e1e1e", padding: "12px 14px", background: "#121212" }}>
-                  <p className="small" style={{ fontStyle: "italic", opacity: 0.6, marginBottom: 12 }}>{outputItem.flavor}</p>
-                  <button
-                    onClick={() => { chooseRecipe(rid); setExpandedItem(null); }}
-                    disabled={!can}
-                    style={{
-                      padding: "12px 28px",
-                      fontSize: "1rem",
-                      fontWeight: 700,
-                      borderRadius: 10,
-                      cursor: can ? "pointer" : "not-allowed",
-                      border: can ? "2px solid #c8a96e" : "2px dashed #333",
-                      background: can ? "linear-gradient(160deg, #2a1e0a 0%, #1a1200 100%)" : "#141414",
-                      color: can ? "#e8c97a" : "#444",
-                      boxShadow: can ? "0 0 14px #c8a96e22, inset 0 1px 0 #c8a96e22" : "none",
-                      letterSpacing: "0.04em",
-                      transition: "all 0.2s",
-                    }}
-                  >
-                    {can ? "Make it!" : "Not enough materials"}
-                  </button>
-                </div>
-              )}
             </div>
           );
         })}
@@ -1008,13 +1032,14 @@ export default function App() {
         {craftResult.success
           ? <p className="small">Crafted: <b>{getItemName(craftResult.crafted!.itemId)}</b> ×{craftResult.crafted!.qty}</p>
           : <p className="small">Failed: <b>{craftResult.failReason}</b></p>}
+        <p className="small" style={{ marginTop: 6 }}>+{craftResult.hungerDelta} hunger · <FatigueRecoveryLine raw={craftResult.fatigueDelta} recovery={craftResult.fatigueRecovery} /> fatigue</p>
       </div>
       {craftResult.foodConsumed.length > 0 && (
         <div className="card"><h3>Chomper Consumption</h3><p className="small">{formatConsumed(craftResult.foodConsumed)}</p></div>
       )}
       <div className="row">
         <button className="btn" onClick={() => setScreen("CRAFT_MENU")}>Keep tinkering</button>
-        <button className="btn" onClick={gotoHub}>Head back</button>
+        <button className="btn" onClick={gotoHub}>Done</button>
       </div>
       {!craftResult.success && <div className="notice">Outcome: {craftResult.failReason?.toUpperCase()}</div>}
     </div>

@@ -205,14 +205,9 @@ export function makeJourneyPreview(player: PlayerState, mode: "explore" | "findF
   const baseHungerIncreaseRange: [number, number] = [stepsRange[0] * BIOME_LEVEL.hungerPerStep, stepsRange[1] * BIOME_LEVEL.hungerPerStep];
   const baseFatigueIncreaseRange: [number, number] = [stepsRange[0] * BIOME_LEVEL.fatiguePerStep, stepsRange[1] * BIOME_LEVEL.fatiguePerStep];
 
-  const curlerCount = countEquippedTail(player, "eq_tail_curler");
-  const tailCurlerRecoveryPerPeriod = curlerCount * (ITEMS.eq_tail_curler.effects?.fatigueRecoveryPerPeriod ?? 0);
-
+  // Tail Curler does not apply during walking — only harvesting/resting
   const hungerIncreaseRange = baseHungerIncreaseRange;
-  const fatigueIncreaseRange: [number, number] = [
-    Math.max(0, baseFatigueIncreaseRange[0] - tailCurlerRecoveryPerPeriod * stepsRange[0]),
-    Math.max(0, baseFatigueIncreaseRange[1] - tailCurlerRecoveryPerPeriod * stepsRange[1]),
-  ];
+  const fatigueIncreaseRange: [number, number] = baseFatigueIncreaseRange;
 
   const chomperCount = countEquippedTail(player, "eq_chomper");
   const estFoodConsumed: { foodId: FoodId; unitsRange: [number, number] }[] = [];
@@ -273,7 +268,6 @@ function applyEvents(
         extraSteps += 20;
         player.stats.hunger = clamp(player.stats.hunger + 20 * BIOME_LEVEL.hungerPerStep, 0, player.stats.maxHunger);
         player.stats.fatigue = clamp(player.stats.fatigue + 20 * BIOME_LEVEL.fatiguePerStep, 0, player.stats.maxFatigue);
-        applyFatigueRecovery(player, 2);
         // chomper also gets 2 more periods to work
         if (countEquippedTail(player, "eq_chomper") > 0 && chomperAutoEnabled) {
           const fc = autoConsumeStorableFood(player, 2, chomperAutoEnabled);
@@ -351,7 +345,7 @@ export function resolveJourney(player: PlayerState, preview: JourneyPreview, cho
   player.stats.hunger = clamp(player.stats.hunger + hungerDelta, 0, player.stats.maxHunger);
   player.stats.fatigue = clamp(player.stats.fatigue + fatigueDelta, 0, player.stats.maxFatigue);
 
-  const recovered = applyFatigueRecovery(player, steps);
+  const recovered = 0; // Tail Curler does not apply during walking
 
   const foodConsumed = autoConsumeStorableFood(player, steps, chomperAutoEnabled);
 

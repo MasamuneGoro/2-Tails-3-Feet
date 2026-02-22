@@ -916,26 +916,59 @@ export default function App() {
   const craftMenuScreen = (
     <div className="card">
       <h2>Craft</h2>
-      <p className="small">Some recipes need the <b>{ITEMS.eq_tinker_shaft.name}</b> equipped. Equip it from the sidebar.</p>
-      <table className="table">
-        <thead><tr><th>Recipe</th><th>Inputs</th><th>Output</th><th></th></tr></thead>
-        <tbody>
-          {unlockedRecipes.map((rid) => {
-            const r = prettyRecipe(rid);
-            const can = r.inputs.every((inp) => (player.inventory.find((s) => s.id === inp.id)?.qty ?? 0) >= inp.qty);
-            return (
-              <tr key={rid}>
-                <td><b>{r.name}</b></td>
-                <td className="small">{r.inputs.map((i) => `${getResourceName(i.id)}×${i.qty}`).join(", ")}</td>
-                <td className="small">{getItemName(r.output.itemId)}×{r.output.qty}</td>
-                <td><button className="btn" onClick={() => chooseRecipe(rid)} disabled={!can}>Preview</button></td>
-              </tr>
-            );
-          })}
-          {!unlockedRecipes.length && <tr><td colSpan={4} className="small">Nothing to make. Equip the Tinker Shaft from the sidebar.</td></tr>}
-        </tbody>
-      </table>
-      <div className="row"><button className="btn" onClick={gotoHub}>Put it down</button></div>
+      <p className="small" style={{ opacity: 0.6, marginBottom: 14 }}>Some recipes need the <b>{ITEMS.eq_tinker_shaft.name}</b> equipped.</p>
+      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        {unlockedRecipes.length === 0 && (
+          <p className="small" style={{ opacity: 0.45 }}>Nothing to make. Equip the Tinker Shaft from the sidebar.</p>
+        )}
+        {unlockedRecipes.map((rid) => {
+          const r = prettyRecipe(rid);
+          const recipe = RECIPES[rid];
+          const outputItem = ITEMS[recipe.output.itemId];
+          const can = r.inputs.every((inp) => (player.inventory.find((s) => s.id === inp.id)?.qty ?? 0) >= inp.qty);
+          const isExpanded = expandedItem === rid;
+          return (
+            <div key={rid} style={{ background: "#161616", borderRadius: 10, border: `1px solid ${can ? "#2a2a2a" : "#1e1e1e"}`, borderLeft: `3px solid ${can ? "#c8a96e" : "#333"}`, overflow: "hidden", opacity: can ? 1 : 0.55 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "11px 14px", cursor: "pointer" }} onClick={() => setExpandedItem(isExpanded ? null : rid)}>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontWeight: 600, fontSize: "0.95rem" }}>{r.name}</div>
+                  <div style={{ fontSize: "0.75rem", opacity: 0.5, marginTop: 2 }}>
+                    {r.inputs.map((i) => `${getResourceName(i.id)} ×${i.qty}`).join("  ·  ")}
+                    {recipe.requiresTinker && <span style={{ marginLeft: 8, color: "#c8a96e", opacity: 0.7 }}>· Tinker Shaft</span>}
+                  </div>
+                </div>
+                <div style={{ fontSize: "0.75rem", opacity: 0.45, whiteSpace: "nowrap" }}>→ {getItemName(recipe.output.itemId)}</div>
+                <div style={{ fontSize: "0.7rem", opacity: 0.35 }}>{isExpanded ? "▲" : "▼"}</div>
+              </div>
+              {isExpanded && (
+                <div style={{ borderTop: "1px solid #1e1e1e", padding: "12px 14px", background: "#121212" }}>
+                  <p className="small" style={{ fontStyle: "italic", opacity: 0.6, marginBottom: 12 }}>{outputItem.flavor}</p>
+                  <button
+                    onClick={() => { chooseRecipe(rid); setExpandedItem(null); }}
+                    disabled={!can}
+                    style={{
+                      padding: "12px 28px",
+                      fontSize: "1rem",
+                      fontWeight: 700,
+                      borderRadius: 10,
+                      cursor: can ? "pointer" : "not-allowed",
+                      border: can ? "2px solid #c8a96e" : "2px dashed #333",
+                      background: can ? "linear-gradient(160deg, #2a1e0a 0%, #1a1200 100%)" : "#141414",
+                      color: can ? "#e8c97a" : "#444",
+                      boxShadow: can ? "0 0 14px #c8a96e22, inset 0 1px 0 #c8a96e22" : "none",
+                      letterSpacing: "0.04em",
+                      transition: "all 0.2s",
+                    }}
+                  >
+                    {can ? "Make it!" : "Not enough materials"}
+                  </button>
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+      <div className="row" style={{ marginTop: 14 }}><button className="btn" onClick={gotoHub}>Put it down</button></div>
     </div>
   );
 

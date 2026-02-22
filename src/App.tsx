@@ -82,6 +82,7 @@ export default function App() {
 
   const [inventoryOpen, setInventoryOpen] = useState(false);
   const [skillsOpen, setSkillsOpen] = useState(false);
+  const [howItWorksOpen, setHowItWorksOpen] = useState(false);
   const [storablePreviewOpen, setStorablePreviewOpen] = useState(false);
   const [chomperAutoEnabled, setChomperAutoEnabled] = useState(true);
 
@@ -283,6 +284,36 @@ export default function App() {
     return s || "None";
   }
 
+  // ── Preview title helper ─────────────────────────────────────────────────
+  function PreviewTitle({ main, sub }: { main: string; sub: string }) {
+    return (
+      <div style={{ textAlign: "center", marginBottom: 18 }}>
+        <div style={{ fontSize: "1.6rem", fontWeight: 700, letterSpacing: "0.03em" }}>{main}</div>
+        <div style={{ fontSize: "1.15rem", fontWeight: 500, opacity: 0.7, marginTop: 3 }}>{sub}</div>
+      </div>
+    );
+  }
+
+  // ── Efficiency badge helper ───────────────────────────────────────────────
+  function EffBadge({ label }: { label: string }) {
+    const cfg: Record<string, { color: string; bg: string; text: string }> = {
+      best:    { color: "#4caf50", bg: "#1a2e1a", text: "Best match" },
+      good:    { color: "#26c6da", bg: "#0d2426", text: "Good match" },
+      ok:      { color: "#888",    bg: "#1e1e1e", text: "Workable" },
+      weak:    { color: "#f5c842", bg: "#2a2200", text: "Weak match" },
+      veryWeak:{ color: "#ff8a65", bg: "#2a1500", text: "Very weak" },
+      wasteful:{ color: "#e53935", bg: "#2a0e0e", text: "Wasteful" },
+    };
+    const c = cfg[label] ?? cfg.ok;
+    return (
+      <span style={{
+        fontSize: "0.78rem", padding: "3px 9px", borderRadius: 999,
+        border: `1px solid ${c.color}`, background: c.bg, color: c.color,
+        fontWeight: 600, letterSpacing: "0.04em",
+      }}>{c.text}</span>
+    );
+  }
+
   // ─────────────────────────────────────────────────────────────────────────
   // PERSISTENT SIDEBAR — tail slots + chomper toggle + inventory/skills btns
   // ─────────────────────────────────────────────────────────────────────────
@@ -347,6 +378,19 @@ export default function App() {
       <div style={{ borderTop: "1px solid #2a2a2a", paddingTop: 10 }}>
         <button className="btn" style={{ width: "100%", fontSize: "0.8rem", opacity: 0.6 }} onClick={reset}>
           Reset Run
+        </button>
+      </div>
+
+      <div style={{ marginTop: "auto", paddingTop: 10 }}>
+        <button
+          style={{
+            width: "100%", padding: "7px 8px", borderRadius: 8, fontSize: "0.8rem",
+            border: "1px solid #2a2a2a", background: "#141414", color: "#666",
+            cursor: "pointer",
+          }}
+          onClick={() => setHowItWorksOpen(true)}
+        >
+          ? How it works
         </button>
       </div>
     </div>
@@ -452,18 +496,39 @@ export default function App() {
   // ── Journey preview ───────────────────────────────────────────────────────
   const journeyPreviewScreen = journeyPreview && (
     <div className="card">
-      <h2>{journeyPreview.mode === "explore" ? "Scout Ahead" : "Sniff Around"} — projected cost</h2>
-      <div className="kv">
-        <div>Steps to Blot</div><div>{journeyPreview.stepsRange[0]}–{journeyPreview.stepsRange[1]}</div>
-        <div>Projected Hunger</div><div>+{journeyPreview.hungerIncreaseRange[0]}–{journeyPreview.hungerIncreaseRange[1]}</div>
-        <div>Projected Fatigue</div><div>+{journeyPreview.fatigueIncreaseRange[0]}–{journeyPreview.fatigueIncreaseRange[1]}</div>
-        <div>Blot</div><div>{prettyPoi(journeyPreview.poi.id).name} <span style={{opacity:0.6}}>({journeyPreview.poi.quality})</span></div>
-        <div>Chomper chomp</div><div>{chomperDisplay(journeyPreview.estFoodConsumed)}</div>
-        <div style={{alignSelf:"start"}}>Events</div>
-        <div><EventList events={journeyPreview.surfacedEvents} /></div>
+      <PreviewTitle
+        main={journeyPreview.mode === "explore" ? "Scout Ahead" : "Sniff Around"}
+        sub="What It'll Cost You"
+      />
+
+      {/* Cost block */}
+      <div style={{ background: "#0e0e0e", borderRadius: 12, padding: "12px 16px", marginBottom: 10 }}>
+        <div style={{ fontSize: "0.7rem", opacity: 0.45, letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 8 }}>Cost</div>
+        <div className="kv">
+          <div>Hunger</div><div style={{ color: "#e8a05a" }}>+{journeyPreview.hungerIncreaseRange[0]}–{journeyPreview.hungerIncreaseRange[1]}</div>
+          <div>Fatigue</div><div style={{ color: "#cc6b1a" }}>+{journeyPreview.fatigueIncreaseRange[0]}–{journeyPreview.fatigueIncreaseRange[1]}</div>
+          <div>Steps</div><div style={{ opacity: 0.8 }}>{journeyPreview.stepsRange[0]}–{journeyPreview.stepsRange[1]}</div>
+        </div>
       </div>
-      <div className="row" style={{ marginTop: 12 }}>
-        <button className="btn" onClick={proceedJourney} disabled={dead || exhausted}>Proceed</button>
+
+      {/* Outcome block */}
+      <div style={{ background: "#0e0e0e", borderRadius: 12, padding: "12px 16px", marginBottom: 14 }}>
+        <div style={{ fontSize: "0.7rem", opacity: 0.45, letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 8 }}>Outcome</div>
+        <div className="kv">
+          <div>Destination</div><div>{prettyPoi(journeyPreview.poi.id).name} <span style={{ opacity: 0.5, fontSize: "0.85rem" }}>({journeyPreview.poi.quality})</span></div>
+          <div>Chomper chomp</div><div style={{ opacity: 0.8 }}>{chomperDisplay(journeyPreview.estFoodConsumed)}</div>
+          <div>Events</div>
+          <div style={{ opacity: 0.7 }}>
+            {(() => {
+              const n = journeyPreview.surfacedEvents.filter(e => !["ev_need_chomper","ev_need_scoop_for_rations"].includes(e)).length;
+              return n === 0 ? "None expected" : n === 1 ? "1 event may occur" : `${n} events may occur`;
+            })()}
+          </div>
+        </div>
+      </div>
+
+      <div className="row">
+        <button className="btn" style={{ background: "#1a2e1a", border: "1px solid #4caf50", color: "#7ecba1", fontWeight: 600, padding: "12px 22px" }} onClick={proceedJourney} disabled={dead || exhausted}>Set off</button>
         <button className="btn" onClick={gotoHub}>Stay put</button>
       </div>
     </div>
@@ -650,31 +715,37 @@ export default function App() {
   // ── Harvest preview ───────────────────────────────────────────────────────
   const harvestPreviewScreen = harvestPreview && (
     <div className="card">
-      <h2>Dig in — projected cost</h2>
-      <div className="kv">
-        <div>Method</div>
-        <div>
-          {(() => {
-            const tool = Object.values(ITEMS).find((it) => it.harvestingMethod === harvestPreview.method);
-            const flavour: Record<string, string> = {
-              best: "This tool was made for this. Clean, fast, satisfying.",
-              good: "A solid approach. Not perfect, but it gets the job done.",
-              ok: "Workable. You'll get something out of it.",
-              weak: "This tool isn't really suited here. Progress will be slow.",
-              veryWeak: "A bad match. You'll be here a while for very little.",
-              wasteful: "Wrong tool entirely. Half of what you gather just falls away.",
-            };
-            return <span>{tool ? tool.name : harvestPreview.method}{" "}<span className="small" style={{ opacity: 0.7 }}>— {flavour[harvestPreview.efficiencyLabel] ?? ""}</span></span>;
-          })()}
-        </div>
-        <div>Projected Time</div><div>{harvestPreview.periodsRange[0]}–{harvestPreview.periodsRange[1]} periods</div>
-        <div>Projected Hunger</div><div>+{harvestPreview.hungerIncreaseRange[0]}–{harvestPreview.hungerIncreaseRange[1]}</div>
-        <div>Projected Fatigue</div><div>+{harvestPreview.fatigueIncreaseRange[0]}–{harvestPreview.fatigueIncreaseRange[1]}</div>
-        <div>Projected Yield</div><div>{getResourceName(POIS[harvestPreview.poiId].resourceId as any)} ×{harvestPreview.yieldRange[0]}–{harvestPreview.yieldRange[1]}</div>
-        <div>Chomper chomp</div><div>{chomperDisplay(harvestPreview.estFoodConsumed)}</div>
+      <PreviewTitle main="Dig In" sub="What It'll Cost You" />
+
+      {/* Tool + efficiency */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 10, marginBottom: 14 }}>
+        <span style={{ fontWeight: 600 }}>
+          {Object.values(ITEMS).find(it => it.harvestingMethod === harvestPreview.method)?.name ?? harvestPreview.method}
+        </span>
+        <EffBadge label={harvestPreview.efficiencyLabel} />
       </div>
-      <div className="row" style={{ marginTop: 12 }}>
-        <button className="btn" onClick={proceedHarvest} disabled={dead || exhausted}>Proceed</button>
+
+      {/* Cost block */}
+      <div style={{ background: "#0e0e0e", borderRadius: 12, padding: "12px 16px", marginBottom: 10 }}>
+        <div style={{ fontSize: "0.7rem", opacity: 0.45, letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 8 }}>Cost</div>
+        <div className="kv">
+          <div>Hunger</div><div style={{ color: "#e8a05a" }}>+{harvestPreview.hungerIncreaseRange[0]}–{harvestPreview.hungerIncreaseRange[1]}</div>
+          <div>Fatigue</div><div style={{ color: "#cc6b1a" }}>+{harvestPreview.fatigueIncreaseRange[0]}–{harvestPreview.fatigueIncreaseRange[1]}</div>
+          <div>Time</div><div style={{ opacity: 0.8 }}>{harvestPreview.periodsRange[0]}–{harvestPreview.periodsRange[1]} periods</div>
+        </div>
+      </div>
+
+      {/* Outcome block */}
+      <div style={{ background: "#0e0e0e", borderRadius: 12, padding: "12px 16px", marginBottom: 14 }}>
+        <div style={{ fontSize: "0.7rem", opacity: 0.45, letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 8 }}>Outcome</div>
+        <div className="kv">
+          <div>Yield</div><div style={{ opacity: 0.8 }}>{getResourceName(POIS[harvestPreview.poiId].resourceId as any)} ×{harvestPreview.yieldRange[0]}–{harvestPreview.yieldRange[1]}</div>
+          <div>Chomper chomp</div><div style={{ opacity: 0.8 }}>{chomperDisplay(harvestPreview.estFoodConsumed)}</div>
+        </div>
+      </div>
+
+      <div className="row">
+        <button className="btn" style={{ background: "#1a2e1a", border: "1px solid #4caf50", color: "#7ecba1", fontWeight: 600, padding: "12px 22px" }} onClick={proceedHarvest} disabled={dead || exhausted}>Dig in</button>
         <button className="btn" onClick={() => setScreen("POI")}>Leave it</button>
       </div>
     </div>
@@ -744,16 +815,27 @@ export default function App() {
 
   const craftPreviewScreen = craftPreview && (
     <div className="card">
-      <h2>Craft — projected cost</h2>
-      <div className="kv">
-        <div>Recipe</div><div>{prettyRecipe(craftPreview.recipeId).name}</div>
-        <div>Time</div><div>{craftPreview.craftPeriods} periods</div>
-        <div>Projected Hunger</div><div>+{craftPreview.hungerIncrease}</div>
-        <div>Projected Fatigue</div><div>+{craftPreview.fatigueIncrease}</div>
-        <div>Chomper chomp</div><div>{chomperDisplay(craftPreview.estFoodConsumed)}</div>
+      <PreviewTitle main="Tinker" sub="What It'll Cost You" />
+
+      <div style={{ background: "#0e0e0e", borderRadius: 12, padding: "12px 16px", marginBottom: 10 }}>
+        <div style={{ fontSize: "0.7rem", opacity: 0.45, letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 8 }}>Cost</div>
+        <div className="kv">
+          <div>Hunger</div><div style={{ color: "#e8a05a" }}>+{craftPreview.hungerIncrease}</div>
+          <div>Fatigue</div><div style={{ color: "#cc6b1a" }}>+{craftPreview.fatigueIncrease}</div>
+          <div>Time</div><div style={{ opacity: 0.8 }}>{craftPreview.craftPeriods} periods</div>
+        </div>
       </div>
-      <div className="row" style={{ marginTop: 12 }}>
-        <button className="btn" onClick={proceedCraft} disabled={dead || exhausted}>Proceed</button>
+
+      <div style={{ background: "#0e0e0e", borderRadius: 12, padding: "12px 16px", marginBottom: 14 }}>
+        <div style={{ fontSize: "0.7rem", opacity: 0.45, letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 8 }}>Outcome</div>
+        <div className="kv">
+          <div>Making</div><div style={{ opacity: 0.8 }}>{prettyRecipe(craftPreview.recipeId).name}</div>
+          <div>Chomper chomp</div><div style={{ opacity: 0.8 }}>{chomperDisplay(craftPreview.estFoodConsumed)}</div>
+        </div>
+      </div>
+
+      <div className="row">
+        <button className="btn" style={{ background: "#1a2e1a", border: "1px solid #4caf50", color: "#7ecba1", fontWeight: 600, padding: "12px 22px" }} onClick={proceedCraft} disabled={dead || exhausted}>Make it</button>
         <button className="btn" onClick={() => setScreen("CRAFT_MENU")}>Put it down</button>
       </div>
     </div>
@@ -783,25 +865,35 @@ export default function App() {
   const curlerCount = countEquippedTail(player, "eq_tail_curler");
   const recoverPreviewScreen = (
     <div className="card">
-      <h2>Belly Down — projected cost</h2>
-      <p className="small">
+      <PreviewTitle main="Belly Down" sub="What It'll Cost You" />
+      <p className="small" style={{ textAlign: "center", marginBottom: 14, opacity: 0.7 }}>
         {curlerCount > 0
-          ? `You flop down. The Tail Curler${curlerCount === 2 ? "s work" : " works"} harder when you're horizontal — 1.5× recovery${curlerCount === 2 ? ", doubled for two curlers" : ""}. You'll unwind faster lying still.`
-          : "You flop down. No Tail Curler equipped — you'll just lie there getting hungrier. Bold strategy."}
+          ? `The Tail Curler${curlerCount === 2 ? "s work" : " works"} harder when you're horizontal — 1.5× recovery${curlerCount === 2 ? ", doubled for two curlers" : ""}. You'll unwind faster lying still.`
+          : "No Tail Curler equipped — you'll just lie there getting hungrier. Bold strategy."}
       </p>
       {(() => {
         const pv = recoverPreview(player, chomperAutoEnabled);
         return (
-          <div className="kv">
-            <div>Time</div><div>{pv.periods} periods</div>
-            <div>Projected Hunger</div><div>+{pv.hungerDeltaRange[0]}</div>
-            <div>Projected Fatigue</div><div>{curlerCount > 0 ? `−${Math.round(pv.fatigueRecoveredRange[1])} (est.)` : "No change"}</div>
-            <div>Chomper chomp</div><div>{chomperDisplay(pv.estFoodConsumed)}</div>
-          </div>
+          <>
+            <div style={{ background: "#0e0e0e", borderRadius: 12, padding: "12px 16px", marginBottom: 10 }}>
+              <div style={{ fontSize: "0.7rem", opacity: 0.45, letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 8 }}>Cost</div>
+              <div className="kv">
+                <div>Hunger</div><div style={{ color: "#e8a05a" }}>+{pv.hungerDeltaRange[0]}</div>
+                <div>Time</div><div style={{ opacity: 0.8 }}>{pv.periods} periods</div>
+              </div>
+            </div>
+            <div style={{ background: "#0e0e0e", borderRadius: 12, padding: "12px 16px", marginBottom: 14 }}>
+              <div style={{ fontSize: "0.7rem", opacity: 0.45, letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 8 }}>Outcome</div>
+              <div className="kv">
+                <div>Fatigue</div><div style={{ color: "#7ecba1" }}>{curlerCount > 0 ? `−${Math.round(pv.fatigueRecoveredRange[1])} (est.)` : "No change"}</div>
+                <div>Chomper chomp</div><div style={{ opacity: 0.8 }}>{chomperDisplay(pv.estFoodConsumed)}</div>
+              </div>
+            </div>
+          </>
         );
       })()}
-      <div className="row" style={{ marginTop: 12 }}>
-        <button className="btn" onClick={proceedRecover} disabled={dead}>Flop down</button>
+      <div className="row">
+        <button className="btn" style={{ background: "#1a2e1a", border: "1px solid #4caf50", color: "#7ecba1", fontWeight: 600, padding: "12px 22px" }} onClick={proceedRecover} disabled={dead}>Flop down</button>
         <button className="btn" onClick={gotoHub}>Stay upright</button>
       </div>
     </div>
@@ -862,6 +954,27 @@ export default function App() {
           <p className="small" style={{ marginTop: 8, opacity: 0.6 }}>Storable food rots over time. Freshness numbers count down each period.</p>
           <div className="row" style={{ marginTop: 12 }}>
             <button className="btn" onClick={() => setInventoryOpen(false)}>Close</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
+  // ── How It Works modal ───────────────────────────────────────────────────
+  const howItWorksModal = howItWorksOpen && (
+    <div className="modal-overlay" onClick={() => setHowItWorksOpen(false)}>
+      <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+        <div className="card">
+          <h2>How it works</h2>
+          <ul className="small" style={{ lineHeight: 1.9 }}>
+            <li>Equip tail tools using the sidebar dropdowns. Changes take effect immediately on any open preview.</li>
+            <li>3 resources: Resin Glob, Fiber Clump, Brittle Stone.</li>
+            <li>5 harvesting methods, each with its own skill — check Skills in the sidebar.</li>
+            <li>3 foods: Soft Sap (eat on spot with Chomper), Resin Chew + Dense Ration (storable, rot over time).</li>
+            <li>Dual Tail Curlers stack recovery. Dual Chompers eat 2 units per period from stores (sap limit unchanged).</li>
+          </ul>
+          <div className="row" style={{ marginTop: 12 }}>
+            <button className="btn" onClick={() => setHowItWorksOpen(false)}>Got it</button>
           </div>
         </div>
       </div>
@@ -965,18 +1078,9 @@ export default function App() {
         <div style={{ opacity: 0.5, fontSize: 13, marginBottom: 12 }}>Sticky Survival Prototype</div>
         {hud}
         {body}
-        <div className="card" style={{ marginTop: 24 }}>
-          <h3>How it works</h3>
-          <ul className="small">
-            <li>Equip tail tools using the sidebar dropdowns. Changes take effect immediately on any open preview.</li>
-            <li>3 resources: Resin Glob, Fiber Clump, Brittle Stone.</li>
-            <li>5 harvesting methods, each with its own skill — check Skills in the sidebar.</li>
-            <li>3 foods: Soft Sap (eat on spot with Chomper), Resin Chew + Dense Ration (storable, rot over time).</li>
-            <li>Dual Tail Curlers stack recovery. Dual Chompers eat 2 units per period from stores (sap limit unchanged).</li>
-          </ul>
-        </div>
         {inventoryModal}
         {skillsModal}
+        {howItWorksModal}
         {storablePreviewModal}
       </div>
     </div>

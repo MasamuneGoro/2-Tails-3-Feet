@@ -96,7 +96,9 @@ export interface JourneyPreview {
   mode: "explore" | "findFood";
   stepsRange: [number, number];
   hungerIncreaseRange: [number, number];
+  hungerRestoredRange: [number, number];
   fatigueIncreaseRange: [number, number];
+  fatigueRecoveryPerPeriodRange: [number, number];
   estFoodConsumed: { foodId: FoodId; unitsRange: [number, number] }[];
   poi: { id: PoiId; quality: Quality };
   surfacedEvents: EventId[];
@@ -109,6 +111,7 @@ export interface JourneyResult {
   surfacedEvents: EventId[];
   eventEffects: Record<EventId, { hungerDelta: number; fatigueDelta: number; gained: { id: ResourceId | FoodId; qty: number }[] }>;
   hungerDelta: number;
+  hungerRestoredByChomper: number;
   fatigueDelta: number;
   fatigueRecovery: FatigueRecoveryEntry[];
   poi: { id: PoiId; quality: Quality };
@@ -124,7 +127,9 @@ export interface HarvestPreview {
   method: HarvestMethodId;
   periodsRange: [number, number];
   hungerIncreaseRange: [number, number];
+  hungerRestoredRange: [number, number];
   fatigueIncreaseRange: [number, number];
+  fatigueRecoveryPerPeriodRange: [number, number];
   yieldRange: [number, number];
   estFoodConsumed: { foodId: FoodId; unitsRange: [number, number] }[];
   efficiencyLabel: string;
@@ -135,6 +140,7 @@ export interface HarvestResult {
   method: HarvestMethodId;
   periods: number;
   hungerDelta: number;
+  hungerRestoredByChomper: number;
   fatigueDelta: number;
   fatigueRecovery: FatigueRecoveryEntry[];
   gained: { id: ResourceId | FoodId; qty: number; freshness?: number[] }[];
@@ -148,7 +154,9 @@ export interface CraftPreview {
   recipeId: string;
   craftPeriods: number;
   hungerIncrease: number;
+  hungerRestoredRange: [number, number];
   fatigueIncrease: number;
+  fatigueRecoveryTotal: number;
   estFoodConsumed: { foodId: FoodId; unitsRange: [number, number] }[];
 }
 
@@ -157,6 +165,7 @@ export interface CraftResult {
   success: boolean;
   failReason?: "missing_resources" | "exhausted" | "dead";
   hungerDelta: number;
+  hungerRestoredByChomper: number;
   fatigueDelta: number;
   fatigueRecovery: FatigueRecoveryEntry[];
   foodConsumed: { foodId: FoodId; units: number }[];

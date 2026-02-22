@@ -134,14 +134,14 @@ export function countEquippedTail(player: PlayerState, itemId: ItemId): number {
   return player.equipment.tailSlots.filter(s => s === itemId).length;
 }
 
-export function autoConsumeStorableFood(player: PlayerState, periods: number, chomperAutoEnabled = true) {
+export function autoConsumeStorableFood(player: PlayerState, periods: number, chomperAutoEnabled = true): { consumed: { foodId: FoodId; units: number }[]; hungerRestored: number } {
   const chomperCount = countEquippedTail(player, "eq_chomper");
   if (chomperCount === 0 || !chomperAutoEnabled) {
     for (let i = 0; i < periods; i++) rotStorableFoodOneCharge(player.inventory);
-    return [];
+    return { consumed: [], hungerRestored: 0 };
   }
-  // Each Chomper consumes up to 1 unit per period — dual Chompers = up to 2 per period
   const consumed: { foodId: FoodId; units: number }[] = [];
+  let hungerRestored = 0;
   for (let i = 0; i < periods; i++) {
     rotStorableFoodOneCharge(player.inventory);
     for (let c = 0; c < chomperCount; c++) {
@@ -158,13 +158,15 @@ export function autoConsumeStorableFood(player: PlayerState, periods: number, ch
         invRemove(player.inventory, foodId, 1);
       }
       const red = FOODS[foodId].hungerReduction;
+      const before = player.stats.hunger;
       player.stats.hunger = clamp(player.stats.hunger - red, 0, player.stats.maxHunger);
+      hungerRestored += before - player.stats.hunger;
       const rec = consumed.find((x) => x.foodId === foodId);
       if (rec) rec.units += 1;
       else consumed.push({ foodId, units: 1 });
     }
   }
-  return consumed;
+  return { consumed, hungerRestored };
 }
 
 export function applyFatigueRecovery(player: PlayerState, periods: number, isResting = false): import("./types").FatigueRecoveryEntry[] {
@@ -215,13 +217,18 @@ export function makeJourneyPreview(player: PlayerState, mode: "explore" | "findF
   const journeyPeriods = (n: number) => Math.floor(n / 20);
 
   const hungerIncreaseRange = baseHungerIncreaseRange;
-  const fatigueIncreaseRange: [number, number] = [
-    Math.max(0, baseFatigueIncreaseRange[0] - tailCurlerRecoveryPerPeriod * journeyPeriods(stepsRange[0])),
-    Math.max(0, baseFatigueIncreaseRange[1] - tailCurlerRecoveryPerPeriod * journeyPeriods(stepsRange[1])),
+  const fatigueIncreaseRange = baseFatigueIncreaseRange; // raw, recovery shown separately
+
+  // Tail Curler recovery per period range for display
+  const fatigueRecoveryPerPeriodRange: [number, number] = [
+    tailCurlerRecoveryPerPeriod * journeyPeriods(stepsRange[0]),
+    tailCurlerRecoveryPerPeriod * journeyPeriods(stepsRange[1]),
   ];
 
+  // Chomper hunger restoration range
   const chomperCount = countEquippedTail(player, "eq_chomper");
   const estFoodConsumed: { foodId: FoodId; unitsRange: [number, number] }[] = [];
+  let hungerRestoredRange: [number, number] = [0, 0];
   const totalPeriodsUpper = stepsRange[1];
 
   if (chomperCount > 0 && chomperAutoEnabled) {
@@ -230,14 +237,18 @@ export function makeJourneyPreview(player: PlayerState, mode: "explore" | "findF
         .filter((s) => typeof s.id === "string" && s.id.startsWith("food_") && FOODS[s.id as FoodId]?.storable && s.qty > 0)
         .map((s) => s.id as FoodId)
     ));
+    let maxHungerPerPeriod = 0;
     for (const id of storableIds) {
       const maxUnits = Math.min(totalPeriodsUpper * chomperCount, invGet(player.inventory, id)?.qty ?? 0);
       estFoodConsumed.push({ foodId: id, unitsRange: [0, maxUnits] });
+      maxHungerPerPeriod += FOODS[id].hungerReduction * Math.min(chomperCount, invGet(player.inventory, id)?.qty ?? 0);
     }
+    const maxRestored = Math.min(baseHungerIncreaseRange[1], maxHungerPerPeriod);
+    hungerRestoredRange = [0, maxRestored];
   }
 
   const blot = generateBlot(poiId, quality);
-  return { mode, stepsRange, hungerIncreaseRange, fatigueIncreaseRange, estFoodConsumed, poi: { id: poiId, quality }, surfacedEvents: events, blot };
+  return { mode, stepsRange, hungerIncreaseRange, hungerRestoredRange, fatigueIncreaseRange, fatigueRecoveryPerPeriodRange, estFoodConsumed, poi: { id: poiId, quality }, surfacedEvents: events, blot };
 }
 
 export function generateBlot(poiId: PoiId, quality: Quality): BlotState {
@@ -282,7 +293,7 @@ function applyEvents(
         applyFatigueRecovery(player, Math.floor(20 / 20)); // 1 effective period for extra steps
         // chomper also gets 2 more periods to work
         if (countEquippedTail(player, "eq_chomper") > 0 && chomperAutoEnabled) {
-          const fc = autoConsumeStorableFood(player, 2, chomperAutoEnabled);
+          const { consumed: fc } = autoConsumeStorableFood(player, 2, chomperAutoEnabled);
           for (const c of fc) {
             const r = foodConsumed.find(x => x.foodId === c.foodId);
             if (r) r.units += c.units; else foodConsumed.push({ ...c });
@@ -359,7 +370,7 @@ export function resolveJourney(player: PlayerState, preview: JourneyPreview, cho
 
   const fatigueRecovery = applyFatigueRecovery(player, Math.floor(steps / 20));
 
-  const foodConsumed = autoConsumeStorableFood(player, steps, chomperAutoEnabled);
+  const { consumed: foodConsumed, hungerRestored: hungerRestoredByChomper } = autoConsumeStorableFood(player, steps, chomperAutoEnabled);
 
   // Apply events — real mechanics now
   const { eventEffects, extraSteps, foodConsumed: eventFood } = applyEvents(player, eventsOut, chomperAutoEnabled);
@@ -385,7 +396,7 @@ export function resolveJourney(player: PlayerState, preview: JourneyPreview, cho
   if (player.stats.hunger >= player.stats.maxHunger) {
     return {
       mode: preview.mode, steps: steps + extraSteps, surfacedEvents: eventsOut, eventEffects,
-      hungerDelta, fatigueDelta, fatigueRecovery, poi, gained, foodConsumed, blot: preview.blot, outcome: "dead",
+      hungerDelta, hungerRestoredByChomper, fatigueDelta, fatigueRecovery, poi, gained, foodConsumed, blot: preview.blot, outcome: "dead",
     };
   }
 
@@ -406,6 +417,7 @@ export function resolveJourney(player: PlayerState, preview: JourneyPreview, cho
     surfacedEvents: eventsOut,
     eventEffects,
     hungerDelta,
+    hungerRestoredByChomper,
     fatigueDelta,
     fatigueRecovery,
     poi,
@@ -435,7 +447,7 @@ export function makeHarvestPreview(player: PlayerState, poiId: PoiId, method: Ha
   const poi = POIS[poiId];
   const tuning = poi.methodTuning?.[method];
   if (!tuning || !poi.resourceId || !poi.baseYieldRange || !poi.methodRank || !poi.efficiencyMultipliers) {
-    return { poiId, method, periodsRange: [8, 10], hungerIncreaseRange: [8, 10], fatigueIncreaseRange: [8, 10], yieldRange: [1, 2], estFoodConsumed: [], efficiencyLabel: "ok" };
+    return { poiId, method, periodsRange: [8, 10], hungerIncreaseRange: [8, 10], hungerRestoredRange: [0, 0], fatigueIncreaseRange: [8, 10], fatigueRecoveryPerPeriodRange: [0, 0], yieldRange: [1, 2], estFoodConsumed: [], efficiencyLabel: "ok" };
   }
 
   const periodsRange = tuning.periodsRange;
@@ -445,10 +457,8 @@ export function makeHarvestPreview(player: PlayerState, poiId: PoiId, method: Ha
   const hungerIncreaseRange: [number, number] = [periodsRange[0] * hungerPerPeriod, periodsRange[1] * hungerPerPeriod];
   const curlerCount = countEquippedTail(player, "eq_tail_curler");
   const tailCurlerRec = curlerCount * (ITEMS.eq_tail_curler.effects?.fatigueRecoveryPerPeriod ?? 0);
-  const fatigueIncreaseRange: [number, number] = [
-    Math.max(0, periodsRange[0] * fatiguePerPeriod - tailCurlerRec * periodsRange[0]),
-    Math.max(0, periodsRange[1] * fatiguePerPeriod - tailCurlerRec * periodsRange[1]),
-  ];
+  const fatigueIncreaseRange: [number, number] = [periodsRange[0] * fatiguePerPeriod, periodsRange[1] * fatiguePerPeriod]; // raw
+  const fatigueRecoveryPerPeriodRange: [number, number] = [tailCurlerRec * periodsRange[0], tailCurlerRec * periodsRange[1]];
 
   const effLabel = poi.methodRank[method];
   const eff = poi.efficiencyMultipliers[effLabel] ?? 1;
@@ -457,25 +467,29 @@ export function makeHarvestPreview(player: PlayerState, poiId: PoiId, method: Ha
 
   const chomperCount = countEquippedTail(player, "eq_chomper");
   const estFoodConsumed: { foodId: FoodId; unitsRange: [number, number] }[] = [];
+  let hungerRestoredRange: [number, number] = [0, 0];
   if (chomperCount > 0 && chomperAutoEnabled) {
     const storableIds = Array.from(new Set(
       player.inventory
         .filter((s) => typeof s.id === "string" && s.id.startsWith("food_") && FOODS[s.id as FoodId]?.storable && s.qty > 0)
         .map((s) => s.id as FoodId)
     ));
+    let maxHungerRestored = 0;
     for (const id of storableIds) {
       const maxUnits = Math.min(periodsRange[1] * chomperCount, invGet(player.inventory, id)?.qty ?? 0);
       estFoodConsumed.push({ foodId: id, unitsRange: [0, maxUnits] });
+      maxHungerRestored += FOODS[id].hungerReduction * maxUnits;
     }
+    hungerRestoredRange = [0, Math.min(hungerIncreaseRange[1], maxHungerRestored)];
   }
 
-  return { poiId, method, periodsRange, hungerIncreaseRange, fatigueIncreaseRange, yieldRange, estFoodConsumed, efficiencyLabel: effLabel };
+  return { poiId, method, periodsRange, hungerIncreaseRange, hungerRestoredRange, fatigueIncreaseRange, fatigueRecoveryPerPeriodRange, yieldRange, estFoodConsumed, efficiencyLabel: effLabel };
 }
 
 export function resolveHarvest(player: PlayerState, preview: HarvestPreview, chomperAutoEnabled = true): HarvestResult {
   const poi = POIS[preview.poiId];
   if (poi.kind !== "harvest" || !poi.resourceId || !poi.methodTuning || !poi.methodRank || !poi.efficiencyMultipliers) {
-    return { poiId: preview.poiId, method: preview.method, periods: 0, hungerDelta: 0, fatigueDelta: 0, fatigueRecovery: [], gained: [], xpGained: 0, foodConsumed: [], outcome: "ok", message: "Nothing to harvest here." };
+    return { poiId: preview.poiId, method: preview.method, periods: 0, hungerDelta: 0, hungerRestoredByChomper: 0, fatigueDelta: 0, fatigueRecovery: [], gained: [], xpGained: 0, foodConsumed: [], outcome: "ok", message: "Nothing to harvest here." };
   }
 
   const tuning = poi.methodTuning[preview.method];
@@ -490,7 +504,7 @@ export function resolveHarvest(player: PlayerState, preview: HarvestPreview, cho
   player.stats.fatigue = clamp(player.stats.fatigue + fatigueDelta, 0, player.stats.maxFatigue);
 
   const fatigueRecovery = applyFatigueRecovery(player, periods);
-  const foodConsumed = autoConsumeStorableFood(player, periods, chomperAutoEnabled);
+  const { consumed: foodConsumed, hungerRestored: hungerRestoredByChomper } = autoConsumeStorableFood(player, periods, chomperAutoEnabled);
 
   const effLabel = poi.methodRank[preview.method];
   const eff = poi.efficiencyMultipliers[effLabel] ?? 1;
@@ -506,7 +520,7 @@ export function resolveHarvest(player: PlayerState, preview: HarvestPreview, cho
   player.xp[preview.method] = (player.xp[preview.method] ?? 0) + xpGained;
 
   const outcome = player.stats.hunger >= player.stats.maxHunger ? "dead" : player.stats.fatigue >= player.stats.maxFatigue ? "exhausted" : "ok";
-  return { poiId: preview.poiId, method: preview.method, periods, hungerDelta, fatigueDelta, fatigueRecovery, gained, xpGained, foodConsumed, outcome };
+  return { poiId: preview.poiId, method: preview.method, periods, hungerDelta, hungerRestoredByChomper, fatigueDelta, fatigueRecovery, gained, xpGained, foodConsumed, outcome };
 }
 
 export function canCraft(player: PlayerState) {
@@ -523,24 +537,31 @@ export function makeCraftPreview(player: PlayerState, recipeId: string, chomperA
   const r = RECIPES[recipeId];
   const chomperCount = countEquippedTail(player, "eq_chomper");
   const estFoodConsumed: { foodId: FoodId; unitsRange: [number, number] }[] = [];
+  let hungerRestoredRange: [number, number] = [0, 0];
   if (chomperCount > 0 && chomperAutoEnabled) {
     const storableIds = Array.from(new Set(
       player.inventory
         .filter((s) => typeof s.id === "string" && s.id.startsWith("food_") && FOODS[s.id as FoodId]?.storable && s.qty > 0)
         .map((s) => s.id as FoodId)
     ));
+    let maxHungerRestored = 0;
     for (const id of storableIds) {
       const maxUnits = Math.min(r.craftPeriods * chomperCount, invGet(player.inventory, id)?.qty ?? 0);
       estFoodConsumed.push({ foodId: id, unitsRange: [0, maxUnits] });
+      maxHungerRestored += FOODS[id].hungerReduction * maxUnits;
     }
+    const rawHunger = r.craftPeriods * r.hungerPerPeriod;
+    hungerRestoredRange = [0, Math.min(rawHunger, maxHungerRestored)];
   }
   const curlerCount = countEquippedTail(player, "eq_tail_curler");
-  const craftTailCurlerRec = curlerCount * (ITEMS.eq_tail_curler.effects?.fatigueRecoveryPerPeriod ?? 0);
+  const fatigueRecoveryTotal = curlerCount * (ITEMS.eq_tail_curler.effects?.fatigueRecoveryPerPeriod ?? 0) * r.craftPeriods;
   return {
     recipeId,
     craftPeriods: r.craftPeriods,
     hungerIncrease: r.craftPeriods * r.hungerPerPeriod,
-    fatigueIncrease: Math.max(0, r.craftPeriods * r.fatiguePerPeriod - craftTailCurlerRec * r.craftPeriods),
+    hungerRestoredRange,
+    fatigueIncrease: r.craftPeriods * r.fatiguePerPeriod, // raw
+    fatigueRecoveryTotal,
     estFoodConsumed,
   };
 }
@@ -549,7 +570,7 @@ export function resolveCraft(player: PlayerState, preview: CraftPreview, chomper
   const r = RECIPES[preview.recipeId];
   for (const need of r.inputs) {
     const have = invGet(player.inventory, need.id)?.qty ?? 0;
-    if (have < need.qty) return { recipeId: preview.recipeId, success: false, failReason: "missing_resources", hungerDelta: 0, fatigueDelta: 0, fatigueRecovery: [], foodConsumed: [] };
+    if (have < need.qty) return { recipeId: preview.recipeId, success: false, failReason: "missing_resources", hungerDelta: 0, hungerRestoredByChomper: 0, fatigueDelta: 0, fatigueRecovery: [], foodConsumed: [] };
   }
   for (const need of r.inputs) invRemove(player.inventory, need.id, need.qty);
 
@@ -560,13 +581,13 @@ export function resolveCraft(player: PlayerState, preview: CraftPreview, chomper
   player.stats.fatigue = clamp(player.stats.fatigue + fatigueDelta, 0, player.stats.maxFatigue);
 
   const fatigueRecovery = applyFatigueRecovery(player, r.craftPeriods);
-  const foodConsumed = autoConsumeStorableFood(player, r.craftPeriods, chomperAutoEnabled);
+  const { consumed: foodConsumed, hungerRestored: hungerRestoredByChomper } = autoConsumeStorableFood(player, r.craftPeriods, chomperAutoEnabled);
 
-  if (player.stats.hunger >= player.stats.maxHunger) return { recipeId: preview.recipeId, success: false, failReason: "dead", hungerDelta, fatigueDelta, fatigueRecovery, foodConsumed };
-  if (player.stats.fatigue >= player.stats.maxFatigue) return { recipeId: preview.recipeId, success: false, failReason: "exhausted", hungerDelta, fatigueDelta, fatigueRecovery, foodConsumed };
+  if (player.stats.hunger >= player.stats.maxHunger) return { recipeId: preview.recipeId, success: false, failReason: "dead", hungerDelta, hungerRestoredByChomper, fatigueDelta, fatigueRecovery, foodConsumed };
+  if (player.stats.fatigue >= player.stats.maxFatigue) return { recipeId: preview.recipeId, success: false, failReason: "exhausted", hungerDelta, hungerRestoredByChomper, fatigueDelta, fatigueRecovery, foodConsumed };
 
   invAdd(player.inventory, r.output.itemId, r.output.qty);
-  return { recipeId: preview.recipeId, success: true, hungerDelta, fatigueDelta, fatigueRecovery, foodConsumed, crafted: { itemId: r.output.itemId, qty: r.output.qty } };
+  return { recipeId: preview.recipeId, success: true, hungerDelta, hungerRestoredByChomper, fatigueDelta, fatigueRecovery, foodConsumed, crafted: { itemId: r.output.itemId, qty: r.output.qty } };
 }
 
 export function recoverPreview(player: PlayerState, chomperAutoEnabled = true) {
@@ -598,7 +619,7 @@ export function resolveRecover(player: PlayerState, periods: number, chomperAuto
   const before = player.stats.fatigue;
   applyFatigueRecovery(player, periods, true);
   const recovered = before - player.stats.fatigue;
-  const foodConsumed = autoConsumeStorableFood(player, periods, chomperAutoEnabled);
+  const { consumed: foodConsumed } = autoConsumeStorableFood(player, periods, chomperAutoEnabled);
   const outcome = player.stats.hunger >= player.stats.maxHunger ? "dead" : player.stats.fatigue >= player.stats.maxFatigue ? "exhausted" : "ok";
   return { periods, hungerDelta, fatigueRecovered: recovered, foodConsumed, outcome };
 }
@@ -635,7 +656,7 @@ export function harvestStorableAtBlot(player: PlayerState, blot: BlotState): Har
   player.stats.hunger = clamp(player.stats.hunger + hungerCost, 0, player.stats.maxHunger);
   player.stats.fatigue = clamp(player.stats.fatigue + fatigueCost, 0, player.stats.maxFatigue);
   applyFatigueRecovery(player, 1);
-  const foodConsumed = autoConsumeStorableFood(player, 1);
+  const { consumed: foodConsumed } = autoConsumeStorableFood(player, 1);
   const fr = FOODS[food].freshnessRange!;
   const freshness = [randInt(fr[0], fr[1])];
   invAdd(player.inventory, food, 1, freshness);

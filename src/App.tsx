@@ -97,6 +97,8 @@ export default function App() {
   const [recoverState, setRecoverState] = useState<{ periods: number } | null>(null);
   const [recoverSummary, setRecoverSummary] = useState<any>(null);
   const [inventoryOpen, setInventoryOpen] = useState(false);
+  const [chomperAutoEnabled, setChomperAutoEnabled] = useState(true);
+  const [storablePreviewOpen, setStorablePreviewOpen] = useState(false);
 
   const exhausted = player.stats.fatigue >= player.stats.maxFatigue;
   const dead = player.stats.hunger >= player.stats.maxHunger;
@@ -119,6 +121,7 @@ export default function App() {
     setCraftResult(null);
     setRecoverState(null);
     setRecoverSummary(null);
+    setStorablePreviewOpen(false);
   }
 
   function gotoHub() {
@@ -133,25 +136,23 @@ export default function App() {
 
   function closeInventory() {
     setInventoryOpen(false);
-    // Regenerate whichever preview is active so equipment changes are reflected
     if (screen === "PREVIEW_JOURNEY" && journeyPreview) {
-      const pv = makeJourneyPreview(player, journeyPreview.mode);
-      // preserve the same poi/events roll — only recalc costs and food estimates
+      const pv = makeJourneyPreview(player, journeyPreview.mode, chomperAutoEnabled);
       setJourneyPreview({ ...pv, poi: journeyPreview.poi, surfacedEvents: journeyPreview.surfacedEvents });
     } else if (screen === "PREVIEW_HARVEST" && harvestPreview) {
-      const pv = makeHarvestPreview(player, harvestPreview.poiId, harvestPreview.method);
+      const pv = makeHarvestPreview(player, harvestPreview.poiId, harvestPreview.method, chomperAutoEnabled);
       setHarvestPreview(pv);
     } else if (screen === "PREVIEW_CRAFT" && craftPreview) {
-      const pv = makeCraftPreview(player, craftPreview.recipeId);
+      const pv = makeCraftPreview(player, craftPreview.recipeId, chomperAutoEnabled);
       setCraftPreview(pv);
     } else if (screen === "PREVIEW_RECOVER") {
-      const pv = recoverPreview(player);
+      const pv = recoverPreview(player, chomperAutoEnabled);
       setRecoverState({ periods: pv.periods });
     }
   }
 
   function genJourney(mode: "explore" | "findFood") {
-    const pv = makeJourneyPreview(player, mode);
+    const pv = makeJourneyPreview(player, mode, chomperAutoEnabled);
     setJourneyPreview(pv);
     setJourneyResult(null);
     setScreen("PREVIEW_JOURNEY");
@@ -160,7 +161,7 @@ export default function App() {
   function proceedJourney() {
     if (!journeyPreview) return;
     const next = structuredClone(player);
-    const res = resolveJourney(next, journeyPreview);
+    const res = resolveJourney(next, journeyPreview, chomperAutoEnabled);
     setPlayer(next);
     setJourneyResult(res);
     setScreen("SUMMARY_JOURNEY");
@@ -178,7 +179,7 @@ export default function App() {
 
   function chooseMethod(method: HarvestMethodId) {
     if (!activePoi) return;
-    const pv = makeHarvestPreview(player, activePoi.id, method);
+    const pv = makeHarvestPreview(player, activePoi.id, method, chomperAutoEnabled);
     setHarvestPreview(pv);
     setHarvestResult(null);
     setScreen("PREVIEW_HARVEST");
@@ -214,8 +215,8 @@ export default function App() {
     for (const method of methods) {
       if (blotCopy.harvestCharges !== undefined && blotCopy.harvestCharges <= 0) break;
       if (next.stats.hunger >= next.stats.maxHunger || next.stats.fatigue >= next.stats.maxFatigue) break;
-      const pv = makeHarvestPreview(next, activePoi.id, method);
-      const res = resolveHarvest(next, pv);
+      const pv = makeHarvestPreview(next, activePoi.id, method, chomperAutoEnabled);
+      const res = resolveHarvest(next, pv, chomperAutoEnabled);
       results.push(res);
       if (blotCopy.harvestCharges !== undefined) {
         blotCopy.harvestCharges = Math.max(0, blotCopy.harvestCharges - 1);
@@ -231,7 +232,7 @@ export default function App() {
   function proceedHarvest() {
     if (!harvestPreview) return;
     const next = structuredClone(player);
-    const res = resolveHarvest(next, harvestPreview);
+    const res = resolveHarvest(next, harvestPreview, chomperAutoEnabled);
     setPlayer(next);
     setHarvestResult(res);
     // Decrement blot charges
@@ -250,7 +251,7 @@ export default function App() {
   }
 
   function chooseRecipe(recipeId: string) {
-    const pv = makeCraftPreview(player, recipeId);
+    const pv = makeCraftPreview(player, recipeId, chomperAutoEnabled);
     setCraftPreview(pv);
     setCraftResult(null);
     setScreen("PREVIEW_CRAFT");
@@ -259,14 +260,14 @@ export default function App() {
   function proceedCraft() {
     if (!craftPreview) return;
     const next = structuredClone(player);
-    const res = resolveCraft(next, craftPreview);
+    const res = resolveCraft(next, craftPreview, chomperAutoEnabled);
     setPlayer(next);
     setCraftResult(res);
     setScreen("SUMMARY_CRAFT");
   }
 
   function previewRecover() {
-    const pv = recoverPreview(player);
+    const pv = recoverPreview(player, chomperAutoEnabled);
     setRecoverState({ periods: pv.periods });
     setRecoverSummary(null);
     setScreen("PREVIEW_RECOVER");
@@ -275,7 +276,7 @@ export default function App() {
   function proceedRecover() {
     const periods = recoverState?.periods ?? 8;
     const next = structuredClone(player);
-    const res = resolveRecover(next, periods);
+    const res = resolveRecover(next, periods, chomperAutoEnabled);
     setPlayer(next);
     setRecoverSummary(res);
     setScreen("SUMMARY_RECOVER");
@@ -468,6 +469,18 @@ export default function App() {
         </table>
       </div>
 
+      <div className="card">
+        <h3>Chomper behaviour</h3>
+        <p className="small">
+          {chomperAutoEnabled
+            ? "Chomper is off the leash. It'll eat whatever's in your stores, one unit per period, whether you like it or not."
+            : "Chomper is sitting very still with its mouth shut. Storable food won't be touched automatically."}
+        </p>
+        <button className="btn" onClick={() => setChomperAutoEnabled(!chomperAutoEnabled)}>
+          {chomperAutoEnabled ? "Let Chomper chomp? Currently: yes (click to rein it in)" : "Let Chomper chomp? Currently: no (click to unleash it)"}
+        </button>
+      </div>
+
       <div className="row">
         <button className="btn" onClick={closeInventory}>Close</button>
       </div>
@@ -486,8 +499,8 @@ export default function App() {
         <div>+{journeyPreview.fatigueIncreaseRange[0]}–{journeyPreview.fatigueIncreaseRange[1]}</div>
         <div>Blot</div>
         <div>{prettyPoi(journeyPreview.poi.id).name} ({journeyPreview.poi.quality})</div>
-        <div>Chomper (auto)</div>
-        <div>{formatConsumedRange(journeyPreview.estFoodConsumed)}</div>
+        <div>Chomper chomp</div>
+        <div>{!hasEquippedTail(player, "eq_chomper") ? "No Chomper" : !chomperAutoEnabled ? "Off" : formatConsumedRange(journeyPreview.estFoodConsumed) || "None"}</div>
         <div>Surfaced Events</div>
         <div>
           {journeyPreview.surfacedEvents.length ? (
@@ -686,15 +699,14 @@ export default function App() {
               {activeBlot.storableRemaining !== undefined && activeBlot.storableRemaining > 0 ? (
                 hasEquippedTail(player, "eq_sticky_scoop") ? (
                   <div>
-                    <p className="small" style={{opacity:0.7,marginBottom:4}}>
-                      Costs {POIS[activePoi.id].foodSpec?.forageHungerPerPeriod ?? 1} hunger + {POIS[activePoi.id].foodSpec?.forageFatiguePerPeriod ?? 1} fatigue per unit.
-                    </p>
-                    <button className="btn" onClick={doHarvestStorable} disabled={dead || exhausted}>
-                      Scoop it up
+                    <button className="btn" onClick={() => setStorablePreviewOpen(true)} disabled={dead || exhausted}>
+                      How much will this cost?
                     </button>
                     {lastStorableResult && (
                       <p className="small" style={{marginTop:6}}>
-                        Scooped 1 {FOODS[lastStorableResult.foodId].name}. Costs <b>+{lastStorableResult.hungerCost} hunger</b> • <b>+{lastStorableResult.fatigueCost} fatigue</b>.
+                        Scooped 1 {FOODS[lastStorableResult.foodId].name}.{" "}
+                        <b>+{lastStorableResult.hungerCost} hunger</b> &bull; <b>+{lastStorableResult.fatigueCost} fatigue</b>.
+                        {lastStorableResult.outcome !== "ok" ? <> <b>{lastStorableResult.outcome.toUpperCase()}</b></> : " Stashed."}
                       </p>
                     )}
                   </div>
@@ -748,8 +760,8 @@ export default function App() {
         <div>+{harvestPreview.fatigueIncreaseRange[0]}–{harvestPreview.fatigueIncreaseRange[1]}</div>
         <div>Projected Yield</div>
         <div>{getResourceName(POIS[harvestPreview.poiId].resourceId as any)} ×{harvestPreview.yieldRange[0]}–{harvestPreview.yieldRange[1]}</div>
-        <div>Chomper (auto)</div>
-        <div>{formatConsumedRange(harvestPreview.estFoodConsumed)}</div>
+        <div>Chomper chomp</div>
+        <div>{!hasEquippedTail(player, "eq_chomper") ? "No Chomper" : !chomperAutoEnabled ? "Off" : formatConsumedRange(harvestPreview.estFoodConsumed) || "None"}</div>
       </div>
       <div className="row">
         <button className="btn" onClick={proceedHarvest} disabled={dead || exhausted}>Proceed</button>
@@ -859,8 +871,8 @@ export default function App() {
         <div>+{craftPreview.hungerIncrease}</div>
         <div>Projected Fatigue</div>
         <div>+{craftPreview.fatigueIncrease}</div>
-        <div>Chomper (auto)</div>
-        <div>{formatConsumedRange(craftPreview.estFoodConsumed)}</div>
+        <div>Chomper chomp</div>
+        <div>{!hasEquippedTail(player, "eq_chomper") ? "No Chomper" : !chomperAutoEnabled ? "Off" : formatConsumedRange(craftPreview.estFoodConsumed) || "None"}</div>
       </div>
 
       <div className="row">
@@ -911,11 +923,13 @@ export default function App() {
     <div className="card">
       <h2>Belly Down — Projected Cost Preview</h2>
       <p className="small">
-        You flop down and let the ground do the work. It makes you hungrier (lying around is surprisingly taxing)
-        but a Tail Curler will slowly unwind the fatigue. The exact amount is a mystery — your body will figure it out.
+        You flop down and stop pretending to be functional.{" "}
+        {player.equipment.tailSlots.includes("eq_tail_curler")
+          ? "The Tail Curler does its best work when you’re horizontal — something about the angle. You’ll unwind faster lying still than on your feet."
+          : "Without a Tail Curler, flopping just makes you hungrier for nothing. Bold choice."}
       </p>
       {(() => {
-        const pv = recoverPreview(player);
+        const pv = recoverPreview(player, chomperAutoEnabled);
         return (
           <div className="kv">
             <div>Time (periods)</div>
@@ -923,9 +937,9 @@ export default function App() {
             <div>Projected Hunger</div>
             <div>+{pv.hungerDeltaRange[0]}</div>
             <div>Projected Fatigue Change</div>
-            <div className="small">{player.equipment.tailSlots.includes("eq_tail_curler") ? "Should decrease (the curling is doing something)" : "Tail Curler not equipped — you’ll just get hungrier for nothing"}</div>
-            <div>Chomper (auto)</div>
-            <div>{formatConsumedRange(pv.estFoodConsumed)}</div>
+            <div className="small">{player.equipment.tailSlots.includes("eq_tail_curler") ? "Should decrease — curler works harder flat (x1.5 recovery)" : "Tail Curler not equipped — you’ll just get hungrier for nothing"}</div>
+            <div>Chomper chomp</div>
+            <div>{!hasEquippedTail(player, "eq_chomper") ? "No Chomper" : !chomperAutoEnabled ? "Off" : formatConsumedRange(pv.estFoodConsumed) || "None"}</div>
           </div>
         );
       })()}
@@ -1008,6 +1022,39 @@ export default function App() {
             <li>Tier 1 recipes need no special tool. Tier 2 + utility recipes need the Tinker Shaft equipped.</li>
           </ul>
         </div>
+      {storablePreviewOpen && activePoi && activeBlot?.storableFood && (
+        <div className="modal-overlay" onClick={() => setStorablePreviewOpen(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="card">
+              <h2>Scoop preview</h2>
+              <p className="small">{prettyPoi(activePoi.id).flavor}</p>
+              <div className="kv">
+                <div>What you’re after</div>
+                <div><b>{FOODS[activeBlot.storableFood].name}</b></div>
+                <div>Hunger cost</div>
+                <div>+{POIS[activePoi.id].foodSpec?.forageHungerPerPeriod ?? 1} per unit</div>
+                <div>Fatigue cost</div>
+                <div>+{POIS[activePoi.id].foodSpec?.forageFatiguePerPeriod ?? 1} per unit</div>
+                <div>Net fatigue (with Tail Curler)</div>
+                <div>{hasEquippedTail(player, "eq_tail_curler") ? `+${Math.max(0, (POIS[activePoi.id].foodSpec?.forageFatiguePerPeriod ?? 1) - (ITEMS.eq_tail_curler.effects?.fatigueRecoveryPerPeriod ?? 0))} per unit` : "No Tail Curler equipped"}</div>
+                <div>Freshness on harvest</div>
+                <div>{FOODS[activeBlot.storableFood].freshnessRange?.[0]}–{FOODS[activeBlot.storableFood].freshnessRange?.[1]} periods</div>
+                <div>Chomper chomp</div>
+                <div>{!hasEquippedTail(player, "eq_chomper") ? "No Chomper" : !chomperAutoEnabled ? "Off" : "May snack during gather"}</div>
+              </div>
+              <div className="row" style={{marginTop:12}}>
+                <button className="btn" onClick={() => { setStorablePreviewOpen(false); doHarvestStorable(); }} disabled={dead || exhausted}>
+                  Scoop it up
+                </button>
+                <button className="btn" onClick={() => setStorablePreviewOpen(false)}>
+                  Leave it
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {inventoryOpen && (
         <div className="modal-overlay" onClick={closeInventory}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>

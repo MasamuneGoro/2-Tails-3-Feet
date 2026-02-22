@@ -8,13 +8,16 @@ import {
   RESOURCES,
 } from "./gameData";
 import type {
+  BlotState,
   CraftPreview,
   CraftResult,
+  EatSapResult,
   EventId,
   FoodId,
   HarvestMethodId,
   HarvestPreview,
   HarvestResult,
+  HarvestStorableResult,
   InventoryStack,
   ItemId,
   JourneyPreview,
@@ -224,34 +227,20 @@ export function makeJourneyPreview(player: PlayerState, mode: "explore" | "findF
   const poiData = POIS[poiId];
   let hungerIncreaseRange = baseHungerIncreaseRange;
   let fatigueIncreaseRange = baseFatigueIncreaseRange;
-  let foragePeriodsRange: [number, number] | null = null;
-
-  if (poiData.kind === "food" && poiData.foodSpec) {
-    foragePeriodsRange = poiData.foodSpec.foragePeriodsRange;
-    hungerIncreaseRange = [
-      baseHungerIncreaseRange[0] + foragePeriodsRange[0] * poiData.foodSpec.forageHungerPerPeriod,
-      baseHungerIncreaseRange[1] + foragePeriodsRange[1] * poiData.foodSpec.forageHungerPerPeriod,
-    ];
-    fatigueIncreaseRange = [
-      baseFatigueIncreaseRange[0] + foragePeriodsRange[0] * poiData.foodSpec.forageFatiguePerPeriod,
-      baseFatigueIncreaseRange[1] + foragePeriodsRange[1] * poiData.foodSpec.forageFatiguePerPeriod,
-    ];
-  }
+  // Food blot costs are handled interactively at the blot, not during travel
 
   // Subtract Tail Curler recovery from gross fatigue to show net cost
   const tailCurlerRecoveryPerPeriod = hasEquippedTail(player, "eq_tail_curler")
     ? (ITEMS.eq_tail_curler.effects?.fatigueRecoveryPerPeriod ?? 0)
     : 0;
-  const totalPeriodsLower = stepsRange[0] + (foragePeriodsRange ? foragePeriodsRange[0] : 0);
-  const totalPeriodsUpper2 = stepsRange[1] + (foragePeriodsRange ? foragePeriodsRange[1] : 0);
   fatigueIncreaseRange = [
-    Math.max(0, fatigueIncreaseRange[0] - tailCurlerRecoveryPerPeriod * totalPeriodsLower),
-    Math.max(0, fatigueIncreaseRange[1] - tailCurlerRecoveryPerPeriod * totalPeriodsUpper2),
+    Math.max(0, fatigueIncreaseRange[0] - tailCurlerRecoveryPerPeriod * stepsRange[0]),
+    Math.max(0, fatigueIncreaseRange[1] - tailCurlerRecoveryPerPeriod * stepsRange[1]),
   ];
 
   // Estimate storable food consumption via Chomper (auto) only if Chomper is equipped
   const estFoodConsumed: { foodId: FoodId; unitsRange: [number, number] }[] = [];
-  const totalPeriodsUpper = stepsRange[1] + (foragePeriodsRange ? foragePeriodsRange[1] : 0);
+  const totalPeriodsUpper = stepsRange[1];
 
   if (hasEquippedTail(player, "eq_chomper")) {
     const storableIds = Array.from(
@@ -266,6 +255,9 @@ export function makeJourneyPreview(player: PlayerState, mode: "explore" | "findF
     }
   }
 
+  // Generate blot state
+  const blot = generateBlot(poiId, quality);
+
   return {
     mode,
     stepsRange,
@@ -274,7 +266,22 @@ export function makeJourneyPreview(player: PlayerState, mode: "explore" | "findF
     estFoodConsumed,
     poi: { id: poiId, quality },
     surfacedEvents: events,
+    blot,
   };
+}
+
+export function generateBlot(poiId: PoiId, quality: Quality): import("./types").BlotState {
+  const poiData = POIS[poiId];
+  if (poiData.kind === "harvest") {
+    const base = quality === "uncommon" ? 4 : 3;
+    const harvestCharges = randInt(base, base + 2);
+    return { poiId, quality, harvestCharges, maxHarvestCharges: harvestCharges };
+  } else {
+    const spec = poiData.foodSpec!;
+    const sapRemaining = randInt(spec.sapQtyRange[0], spec.sapQtyRange[1]);
+    const storableRemaining = randInt(spec.storableQtyRange[0], spec.storableQtyRange[1]);
+    return { poiId, quality, sapRemaining, storableRemaining, storableFood: spec.storableFood };
+  }
 }
 
 export function resolveJourney(player: PlayerState, preview: JourneyPreview): JourneyResult {
@@ -317,57 +324,74 @@ export function resolveJourney(player: PlayerState, preview: JourneyPreview): Jo
   const poi = preview.poi;
   const poiData = POIS[poi.id];
   const gained: { id: ResourceId | FoodId; qty: number; freshness?: number[] }[] = [];
-  let softSapEaten: { hungerRestored: number } | undefined;
+  let softSapEaten: { hungerRestored: number; units: number } | undefined;
+
+  // Check death BEFORE food blot resolution
+  if (player.stats.hunger >= player.stats.maxHunger) {
+    const outcome = "dead";
+    return {
+      mode: preview.mode, steps, surfacedEvents: eventsOut,
+      hungerDelta, fatigueDelta: fatigueDelta - recovered,
+      poi, gained, foodConsumed, blot: preview.blot, outcome,
+    };
+  }
+
   if (poiData.kind === "food") {
     const spec = poiData.foodSpec!;
-    const periods = randInt(spec.foragePeriodsRange[0], spec.foragePeriodsRange[1]);
-    // time passes during foraging
-    player.stats.hunger = clamp(player.stats.hunger + periods * spec.forageHungerPerPeriod, 0, player.stats.maxHunger);
-    player.stats.fatigue = clamp(player.stats.fatigue + periods * spec.forageFatiguePerPeriod, 0, player.stats.maxFatigue);
+    const blot = preview.blot;
 
-    applyFatigueRecovery(player, periods);
-    const extraConsumed = autoConsumeStorableFood(player, periods);
-    for (const c of extraConsumed) {
-      const rec = foodConsumed.find((x) => x.foodId === c.foodId);
-      if (rec) rec.units += c.units;
-      else foodConsumed.push(c);
-    }
-
-    // Soft Sap is always available at a food blot — eat it if Chomper is equipped
+    // Soft Sap — Chomper eats up to biteSize units, costs fatigue per unit eaten
     if (hasEquippedTail(player, "eq_chomper")) {
-      const red = FOODS["food_soft_sap"].hungerReduction;
-      const before = player.stats.hunger;
-      player.stats.hunger = clamp(player.stats.hunger - red, 0, player.stats.maxHunger);
-      softSapEaten = { hungerRestored: before - player.stats.hunger };
-      gained.push({ id: "food_soft_sap", qty: 1 });
+      const biteSize = ITEMS.eq_chomper.effects?.chomper?.biteSize ?? 1;
+      const available = blot.sapRemaining ?? 0;
+      const toEat = Math.min(biteSize, available);
+      if (toEat > 0) {
+        let totalHungerRestored = 0;
+        const fatigueCostPerUnit = 2;
+        for (let i = 0; i < toEat; i++) {
+          if (player.stats.fatigue >= player.stats.maxFatigue) break;
+          const red = FOODS["food_soft_sap"].hungerReduction;
+          const before = player.stats.hunger;
+          player.stats.hunger = clamp(player.stats.hunger - red, 0, player.stats.maxHunger);
+          totalHungerRestored += before - player.stats.hunger;
+          player.stats.fatigue = clamp(player.stats.fatigue + fatigueCostPerUnit, 0, player.stats.maxFatigue);
+          applyFatigueRecovery(player, 1);
+          gained.push({ id: "food_soft_sap", qty: 1 });
+          blot.sapRemaining = (blot.sapRemaining ?? 0) - 1;
+        }
+        softSapEaten = { hungerRestored: totalHungerRestored, units: toEat };
+      }
     } else {
       eventsOut.push("ev_need_chomper");
     }
 
-    // Storable food is also available if Sticky Scoop is equipped
-    // Roll weighted by hunger band for storable food type
-    let storableGained: { foodId: FoodId; qty: number; freshness: number[] } | undefined;
+    // Storable food — Sticky Scoop harvests, costs hunger + fatigue per unit
     if (hasEquippedTail(player, "eq_sticky_scoop")) {
-      const band = hungerBand(player.stats.hunger, player.stats.maxHunger);
-      const storableWeights: Record<FoodId, number> = preview.mode === "findFood"
-        ? spec.findFoodDropByBand[band]
-        : spec.exploreDropWeights;
-      // only pick storable foods from weights
-      const storableOnly: Partial<Record<FoodId, number>> = {};
-      for (const [k, v] of Object.entries(storableWeights) as [FoodId, number][]) {
-        if (FOODS[k].storable) storableOnly[k] = v;
+      const available = blot.storableRemaining ?? 0;
+      const food = blot.storableFood;
+      if (available > 0 && food) {
+        const hungerCostPerUnit = spec.forageHungerPerPeriod;
+        const fatigueCostPerUnit = spec.forageFatiguePerPeriod;
+        // harvest 1 unit
+        player.stats.hunger = clamp(player.stats.hunger + hungerCostPerUnit, 0, player.stats.maxHunger);
+        player.stats.fatigue = clamp(player.stats.fatigue + fatigueCostPerUnit, 0, player.stats.maxFatigue);
+        applyFatigueRecovery(player, 1);
+        const extraConsumed = autoConsumeStorableFood(player, 1);
+        for (const c of extraConsumed) {
+          const rec = foodConsumed.find((x) => x.foodId === c.foodId);
+          if (rec) rec.units += c.units;
+          else foodConsumed.push(c);
+        }
+        if (player.stats.hunger < player.stats.maxHunger) {
+          const fr = FOODS[food].freshnessRange!;
+          const unitFreshness = [randInt(fr[0], fr[1])];
+          invAdd(player.inventory, food, 1, unitFreshness);
+          gained.push({ id: food, qty: 1, freshness: unitFreshness });
+          blot.storableRemaining = (blot.storableRemaining ?? 0) - 1;
+        }
       }
-      const total = Object.values(storableOnly).reduce((a, b) => a + b, 0);
-      if (total > 0) {
-        const food = pickWeighted(storableOnly as Record<FoodId, number>);
-        const fr = FOODS[food].freshnessRange!;
-        const unitFreshness = Array.from({ length: 1 }, () => randInt(fr[0], fr[1]));
-        invAdd(player.inventory, food, 1, unitFreshness);
-        gained.push({ id: food, qty: 1, freshness: unitFreshness });
-        storableGained = { foodId: food, qty: 1, freshness: unitFreshness };
-      }
-    } else {
-      eventsOut.push("ev_need_scoop_for_rations");
+    } else if (!hasEquippedTail(player, "eq_sticky_scoop")) {
+      if (!eventsOut.includes("ev_need_scoop_for_rations")) eventsOut.push("ev_need_scoop_for_rations");
     }
   }
 
@@ -383,6 +407,7 @@ export function resolveJourney(player: PlayerState, preview: JourneyPreview): Jo
     gained,
     foodConsumed,
     softSapEaten,
+    blot: preview.blot,
     outcome,
   };
 }
@@ -416,6 +441,7 @@ export function makeHarvestPreview(player: PlayerState, poiId: PoiId, method: Ha
       fatigueIncreaseRange: [8, 10],
       yieldRange: [1, 2],
       estFoodConsumed: [],
+      efficiencyLabel: "ok",
     };
   }
 
@@ -450,7 +476,7 @@ export function makeHarvestPreview(player: PlayerState, poiId: PoiId, method: Ha
     for (const id of storableIds) estFoodConsumed.push({ foodId: id, unitsRange: [0, Math.min(periodsRange[1], invGet(player.inventory, id)?.qty ?? 0)] });
   }
 
-  return { poiId, method, periodsRange, hungerIncreaseRange, fatigueIncreaseRange, yieldRange, estFoodConsumed };
+  return { poiId, method, periodsRange, hungerIncreaseRange, fatigueIncreaseRange, yieldRange, estFoodConsumed, efficiencyLabel: effLabel };
 }
 
 export function resolveHarvest(player: PlayerState, preview: HarvestPreview): HarvestResult {
@@ -609,6 +635,46 @@ export function resolveRecover(player: PlayerState, periods: number) {
   const foodConsumed = autoConsumeStorableFood(player, periods);
   const outcome = player.stats.hunger >= player.stats.maxHunger ? "dead" : player.stats.fatigue >= player.stats.maxFatigue ? "exhausted" : "ok";
   return { periods, hungerDelta, fatigueRecovered: recovered, foodConsumed, outcome };
+}
+
+export function eatSapAtBlot(player: PlayerState, blot: BlotState): EatSapResult {
+  const biteSize = ITEMS.eq_chomper.effects?.chomper?.biteSize ?? 1;
+  const available = blot.sapRemaining ?? 0;
+  const toEat = Math.min(biteSize, available);
+  const fatigueCostPerUnit = 2;
+  let hungerRestored = 0;
+  let unitsEaten = 0;
+  for (let i = 0; i < toEat; i++) {
+    if (player.stats.fatigue >= player.stats.maxFatigue) break;
+    const red = FOODS["food_soft_sap"].hungerReduction;
+    const before = player.stats.hunger;
+    player.stats.hunger = clamp(player.stats.hunger - red, 0, player.stats.maxHunger);
+    hungerRestored += before - player.stats.hunger;
+    player.stats.fatigue = clamp(player.stats.fatigue + fatigueCostPerUnit, 0, player.stats.maxFatigue);
+    applyFatigueRecovery(player, 1);
+    blot.sapRemaining = (blot.sapRemaining ?? 1) - 1;
+    unitsEaten++;
+  }
+  const outcome = player.stats.hunger >= player.stats.maxHunger ? "dead" : player.stats.fatigue >= player.stats.maxFatigue ? "exhausted" : "ok";
+  return { unitsEaten, hungerRestored, fatigueCost: unitsEaten * fatigueCostPerUnit, outcome };
+}
+
+export function harvestStorableAtBlot(player: PlayerState, blot: BlotState): HarvestStorableResult {
+  const food = blot.storableFood!;
+  const poiData = POIS[blot.poiId];
+  const spec = poiData.foodSpec!;
+  const hungerCost = spec.forageHungerPerPeriod;
+  const fatigueCost = spec.forageFatiguePerPeriod;
+  player.stats.hunger = clamp(player.stats.hunger + hungerCost, 0, player.stats.maxHunger);
+  player.stats.fatigue = clamp(player.stats.fatigue + fatigueCost, 0, player.stats.maxFatigue);
+  applyFatigueRecovery(player, 1);
+  const foodConsumed = autoConsumeStorableFood(player, 1);
+  const fr = FOODS[food].freshnessRange!;
+  const freshness = [randInt(fr[0], fr[1])];
+  invAdd(player.inventory, food, 1, freshness);
+  blot.storableRemaining = (blot.storableRemaining ?? 1) - 1;
+  const outcome = player.stats.hunger >= player.stats.maxHunger ? "dead" : player.stats.fatigue >= player.stats.maxFatigue ? "exhausted" : "ok";
+  return { foodId: food, qty: 1, freshness, hungerCost, fatigueCost, foodConsumed, outcome };
 }
 
 export function prettyEvent(e: EventId) {

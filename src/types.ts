@@ -1,5 +1,5 @@
 export type BiomeLevelId = "sticky_l1";
-export type PoiId = "poi_resin_node" | "poi_fiber_patch" | "poi_stone_node" | "poi_food_source";
+export type PoiId = "poi_resin_node" | "poi_fiber_patch" | "poi_stone_node" | "poi_sap_weep" | "poi_resin_hollow" | "poi_dense_pocket";
 export type EventId =
   | "ev_sticky_drag"
   | "ev_resin_smear"
@@ -34,6 +34,19 @@ export type ItemId =
 
 export type Quality = "common" | "uncommon";
 
+// Blot state — tracks remaining charges for harvest and food blots
+export interface BlotState {
+  poiId: PoiId;
+  quality: Quality;
+  // harvest blots
+  harvestCharges?: number;       // remaining harvests possible
+  maxHarvestCharges?: number;
+  // food blots
+  sapRemaining?: number;         // soft sap units left
+  storableRemaining?: number;    // storable food units left
+  storableFood?: FoodId;         // which storable food this blot has
+}
+
 export type Screen =
   | "HUB"
   | "PREVIEW_JOURNEY"
@@ -51,8 +64,8 @@ export type Screen =
   | "DEAD";
 
 export interface PlayerStats {
-  hunger: number; // 0..maxHunger (dies when >= maxHunger)
-  fatigue: number; // 0..maxFatigue (exhausted when >= maxFatigue)
+  hunger: number;
+  fatigue: number;
   maxHunger: number;
   maxFatigue: number;
 }
@@ -65,7 +78,6 @@ export interface PlayerEquipmentState {
 export interface InventoryStack {
   id: ItemId | ResourceId | FoodId;
   qty: number;
-  // for storable food units: remaining freshness "charges" for each unit
   freshness?: number[];
 }
 
@@ -85,19 +97,20 @@ export interface JourneyPreview {
   estFoodConsumed: { foodId: FoodId; unitsRange: [number, number] }[];
   poi: { id: PoiId; quality: Quality };
   surfacedEvents: EventId[];
+  blot: BlotState;
 }
 
 export interface JourneyResult {
   mode: "explore" | "findFood";
   steps: number;
   surfacedEvents: EventId[];
-  hungerDelta: number; // + means hunger increased
+  hungerDelta: number;
   fatigueDelta: number;
   poi: { id: PoiId; quality: Quality };
   gained: { id: ResourceId | FoodId; qty: number; freshness?: number[] }[];
   foodConsumed: { foodId: FoodId; units: number }[];
-  softSapEaten?: { hungerRestored: number };
-  storableGained?: { foodId: FoodId; qty: number; freshness: number[] };
+  softSapEaten?: { hungerRestored: number; units: number };
+  blot: BlotState;
   outcome: "ok" | "exhausted" | "dead";
 }
 
@@ -109,6 +122,7 @@ export interface HarvestPreview {
   fatigueIncreaseRange: [number, number];
   yieldRange: [number, number];
   estFoodConsumed: { foodId: FoodId; unitsRange: [number, number] }[];
+  efficiencyLabel: string;
 }
 
 export interface HarvestResult {
@@ -140,4 +154,22 @@ export interface CraftResult {
   fatigueDelta: number;
   foodConsumed: { foodId: FoodId; units: number }[];
   crafted?: { itemId: ItemId; qty: number };
+}
+
+// Action results for food blot interactions
+export interface EatSapResult {
+  unitsEaten: number;
+  hungerRestored: number;
+  fatigueCost: number;
+  outcome: "ok" | "exhausted" | "dead";
+}
+
+export interface HarvestStorableResult {
+  foodId: FoodId;
+  qty: number;
+  freshness: number[];
+  hungerCost: number;
+  fatigueCost: number;
+  foodConsumed: { foodId: FoodId; units: number }[];
+  outcome: "ok" | "exhausted" | "dead";
 }

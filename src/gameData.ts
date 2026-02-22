@@ -32,17 +32,21 @@ export const BIOME_LEVEL: {
   exploreStepsRange: [5, 9],
   foodStepsRange: [4, 8],
   hungerPerStep: 2,
-  fatiguePerStep: 1,
+  fatiguePerStep: 2,
   poiWeightsExplore: {
     poi_resin_node: 30,
     poi_fiber_patch: 30,
     poi_stone_node: 25,
-    poi_food_source: 15,
+    poi_sap_weep: 8,
+    poi_resin_hollow: 5,
+    poi_dense_pocket: 2,
   },
   poiWeightsFood: {
-    poi_food_source: 85,
-    poi_resin_node: 10,
-    poi_fiber_patch: 5,
+    poi_sap_weep: 50,
+    poi_resin_hollow: 35,
+    poi_dense_pocket: 15,
+    poi_resin_node: 0,
+    poi_fiber_patch: 0,
     poi_stone_node: 0,
   },
   eventProfile: {
@@ -107,13 +111,9 @@ export const POIS: Record<
     methodRank?: Record<HarvestMethodId, "best" | "good" | "ok" | "weak" | "veryWeak" | "wasteful">;
     efficiencyMultipliers?: Record<string, number>;
     foodSpec?: {
-      exploreDropWeights: Record<FoodId, number>;
-      findFoodDropByBand: {
-        comfort: Record<FoodId, number>;
-        concern: Record<FoodId, number>;
-        desperation: Record<FoodId, number>;
-      };
-      foragePeriodsRange: [number, number];
+      sapQtyRange: [number, number];
+      storableQtyRange: [number, number];
+      storableFood: FoodId;
       forageHungerPerPeriod: number;
       forageFatiguePerPeriod: number;
     };
@@ -173,22 +173,46 @@ export const POIS: Record<
     methodRank: { smash: "best", drill: "good", poke: "weak", tease: "veryWeak", scoop: "veryWeak" },
     efficiencyMultipliers: { best: 1.25, good: 1.0, ok: 0.85, weak: 0.6, veryWeak: 0.35, wasteful: 0.25 },
   },
-  poi_food_source: {
-    id: "poi_food_source",
-    name: "Food Source",
-    flavor: "A damp, fragrant patch of ground that smells like lunch — or a dare.",
+  poi_sap_weep: {
+    id: "poi_sap_weep",
+    name: "Sap Weep",
+    flavor: "The ground here is basically crying. Warm, gloopy tears. Probably edible.",
     qualityTiers: ["common", "uncommon"],
     kind: "food",
     foodSpec: {
-      exploreDropWeights: { food_soft_sap: 60, food_resin_chew: 30, food_dense_ration: 10 },
-      findFoodDropByBand: {
-        comfort: { food_soft_sap: 85, food_resin_chew: 13, food_dense_ration: 2 },
-        concern: { food_soft_sap: 65, food_resin_chew: 28, food_dense_ration: 7 },
-        desperation: { food_soft_sap: 45, food_resin_chew: 40, food_dense_ration: 15 },
-      },
-      foragePeriodsRange: [4, 6],
+      sapQtyRange: [3, 6] as [number, number],
+      storableQtyRange: [0, 1] as [number, number],
+      storableFood: "food_resin_chew" as FoodId,
+      forageHungerPerPeriod: 0,
+      forageFatiguePerPeriod: 0,
+    },
+  },
+  poi_resin_hollow: {
+    id: "poi_resin_hollow",
+    name: "Resin Hollow",
+    flavor: "A sunken pocket stuffed with chewable lumps. Something lived here once. It left snacks.",
+    qualityTiers: ["common", "uncommon"],
+    kind: "food",
+    foodSpec: {
+      sapQtyRange: [1, 3] as [number, number],
+      storableQtyRange: [2, 4] as [number, number],
+      storableFood: "food_resin_chew" as FoodId,
       forageHungerPerPeriod: 1,
       forageFatiguePerPeriod: 1,
+    },
+  },
+  poi_dense_pocket: {
+    id: "poi_dense_pocket",
+    name: "Dense Pocket",
+    flavor: "Suspiciously compact. Days of eating if you had the right tools — and the patience.",
+    qualityTiers: ["common", "uncommon"],
+    kind: "food",
+    foodSpec: {
+      sapQtyRange: [1, 2] as [number, number],
+      storableQtyRange: [1, 3] as [number, number],
+      storableFood: "food_dense_ration" as FoodId,
+      forageHungerPerPeriod: 1,
+      forageFatiguePerPeriod: 2,
     },
   },
 };
@@ -217,7 +241,7 @@ export const ITEMS: Record<
     flavor: string;
     effects?: {
       fatigueRecoveryPerPeriod?: number;
-      chomper?: { enableImmediateFoodAtPoi: boolean; autoConsumeStorableFoodPerPeriod: boolean };
+      chomper?: { enableImmediateFoodAtPoi: boolean; autoConsumeStorableFoodPerPeriod: boolean; biteSize?: number };
     };
     harvestingMethod?: HarvestMethodId;
     isCraftingTool?: boolean;
@@ -236,7 +260,7 @@ export const ITEMS: Record<
     name: "Chomper",
     slot: "tail",
     flavor: "Snappy, eager, and absolutely not picky. It will eat things before you’ve even decided.",
-    effects: { chomper: { enableImmediateFoodAtPoi: true, autoConsumeStorableFoodPerPeriod: true } },
+    effects: { chomper: { enableImmediateFoodAtPoi: true, autoConsumeStorableFoodPerPeriod: true, biteSize: 2 } },
   },
   eq_tinker_shaft: {
     id: "eq_tinker_shaft",

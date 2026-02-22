@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from "react";
-import type { CraftPreview, CraftResult, HarvestMethodId, HarvestPreview, HarvestResult, JourneyPreview, JourneyResult, PlayerState, PoiId, Screen } from "./types";
+import type { BlotState, CraftPreview, CraftResult, EatSapResult, HarvestMethodId, HarvestPreview, HarvestResult, HarvestStorableResult, JourneyPreview, JourneyResult, PlayerState, PoiId, Screen } from "./types";
 import { BIOME_LEVEL, FOODS, ITEMS, POIS, RECIPES, RESOURCES } from "./gameData";
 import {
   canCraft,
@@ -29,6 +29,10 @@ import {
   skillXpForLevel,
   SKILL_MAX_LEVEL,
   SKILL_XP_PER_LEVEL,
+  generateBlot,
+  eatSapAtBlot,
+  harvestStorableAtBlot,
+  hasEquippedTail,
 } from "./engine";
 
 function pct(n: number, d: number) {
@@ -55,7 +59,7 @@ const START_PLAYER: PlayerState = {
     hunger: 20,
     fatigue: 0,
     maxHunger: 100,
-    maxFatigue: 60,
+    maxFatigue: 100,
   },
   equipment: {
     tailSlots: [null, null],
@@ -79,6 +83,9 @@ export default function App() {
   const [journeyResult, setJourneyResult] = useState<JourneyResult | null>(null);
 
   const [activePoi, setActivePoi] = useState<{ id: PoiId; quality: "common" | "uncommon" } | null>(null);
+  const [activeBlot, setActiveBlot] = useState<BlotState | null>(null);
+  const [lastEatResult, setLastEatResult] = useState<EatSapResult | null>(null);
+  const [lastStorableResult, setLastStorableResult] = useState<HarvestStorableResult | null>(null);
 
   const [harvestPreview, setHarvestPreview] = useState<HarvestPreview | null>(null);
   const [harvestResult, setHarvestResult] = useState<HarvestResult | null>(null);
@@ -101,6 +108,9 @@ export default function App() {
     setJourneyPreview(null);
     setJourneyResult(null);
     setActivePoi(null);
+    setActiveBlot(null);
+    setLastEatResult(null);
+    setLastStorableResult(null);
     setHarvestPreview(null);
     setHarvestResult(null);
     setCraftPreview(null);
@@ -157,6 +167,9 @@ export default function App() {
   function enterPoi() {
     if (!journeyResult) return;
     setActivePoi(journeyResult.poi);
+    setActiveBlot(journeyResult.blot);
+    setLastEatResult(null);
+    setLastStorableResult(null);
     setScreen("POI");
   }
 
@@ -168,12 +181,36 @@ export default function App() {
     setScreen("PREVIEW_HARVEST");
   }
 
+  function doEatSap() {
+    if (!activeBlot) return;
+    const next = structuredClone(player);
+    const blotCopy = structuredClone(activeBlot);
+    const result = eatSapAtBlot(next, blotCopy);
+    setPlayer(next);
+    setActiveBlot(blotCopy);
+    setLastEatResult(result);
+  }
+
+  function doHarvestStorable() {
+    if (!activeBlot) return;
+    const next = structuredClone(player);
+    const blotCopy = structuredClone(activeBlot);
+    const result = harvestStorableAtBlot(next, blotCopy);
+    setPlayer(next);
+    setActiveBlot(blotCopy);
+    setLastStorableResult(result);
+  }
+
   function proceedHarvest() {
     if (!harvestPreview) return;
     const next = structuredClone(player);
     const res = resolveHarvest(next, harvestPreview);
     setPlayer(next);
     setHarvestResult(res);
+    // Decrement blot charges
+    if (activeBlot && activeBlot.harvestCharges !== undefined) {
+      setActiveBlot({ ...activeBlot, harvestCharges: Math.max(0, activeBlot.harvestCharges - 1) });
+    }
     setScreen("SUMMARY_HARVEST");
   }
 
@@ -516,7 +553,7 @@ export default function App() {
     </div>
   );
 
-  const poiScreen = activePoi && (
+  const poiScreen = activePoi && activeBlot && (
     <div className="card">
       <h2>You found a Blot</h2>
       <h3>{prettyPoi(activePoi.id).name} — {activePoi.quality}</h3>
@@ -525,42 +562,101 @@ export default function App() {
       {POIS[activePoi.id].kind === "harvest" ? (
         <>
           <div className="card">
-            <h3>Harvest</h3>
-            <p className="small">
-              Recommended (no numbers):{" "}
-              {(() => {
-                const rec = recommendedMethod(activePoi.id);
-                if (!rec) return "—";
-                const tool = Object.values(ITEMS).find((it) => it.harvestingMethod === rec);
-                return tool ? tool.name : rec;
-              })()}
-            </p>
-
-            <p className="small">Available methods depend on your equipped tail tools.</p>
-            <div className="row">
-              {methodsAvailableFromEquipment(player).length ? (
-                methodsAvailableFromEquipment(player).map((m) => {
-                  const tool = Object.values(ITEMS).find((it) => it.harvestingMethod === m);
-                  return (
-                    <button key={m} className="btn" onClick={() => chooseMethod(m)}>
-                      {tool ? tool.name : m}
-                    </button>
-                  );
-                })
-              ) : (
-                <span className="small">No harvesting tools equipped. Open Inventory to equip one.</span>
-              )}
-            </div>
+            {activeBlot.harvestCharges !== undefined && (
+              <p className="small" style={{marginBottom:8}}>
+                {activeBlot.harvestCharges > 0
+                  ? `Blot charges remaining: ${activeBlot.harvestCharges} / ${activeBlot.maxHarvestCharges}`
+                  : "⚠️ This blot is exhausted. Nothing left to harvest."}
+              </p>
+            )}
+            {activeBlot.harvestCharges !== undefined && activeBlot.harvestCharges > 0 ? (
+              <>
+                <p className="small">
+                  Best tool for this:{" "}
+                  {(() => {
+                    const rec = recommendedMethod(activePoi.id);
+                    if (!rec) return "—";
+                    const tool = Object.values(ITEMS).find((it) => it.harvestingMethod === rec);
+                    return tool ? tool.name : rec;
+                  })()}
+                </p>
+                <p className="small">Your equipped tools:</p>
+                <div className="row">
+                  {methodsAvailableFromEquipment(player).length ? (
+                    methodsAvailableFromEquipment(player).map((m) => {
+                      const tool = Object.values(ITEMS).find((it) => it.harvestingMethod === m);
+                      return (
+                        <button key={m} className="btn" onClick={() => chooseMethod(m)}>
+                          {tool ? tool.name : m}
+                        </button>
+                      );
+                    })
+                  ) : (
+                    <span className="small">No harvesting tools equipped. Open Inventory to equip one.</span>
+                  )}
+                </div>
+              </>
+            ) : activeBlot.harvestCharges === 0 ? (
+              <p className="small">You’ve picked this place clean. Time to move on.</p>
+            ) : null}
           </div>
         </>
       ) : (
         <div className="card">
           <h3>Food Blot</h3>
           <p className="small">The ground here smells edible. Suspicious, but promising.</p>
-          {journeyResult && journeyResult.softSapEaten ? (
-            <p className="small">You already scoffed the soft sap on the way here. −{journeyResult.softSapEaten.hungerRestored} hunger. Good call.</p>
-          ) : (
-            <p className="small">No Chomper equipped — nothing to eat here.</p>
+
+          {/* Soft Sap section */}
+          <div style={{marginBottom:12}}>
+            <p className="small"><b>Soft Sap</b> — {activeBlot.sapRemaining ?? 0} remaining</p>
+            {activeBlot.sapRemaining !== undefined && activeBlot.sapRemaining > 0 ? (
+              hasEquippedTail(player, "eq_chomper") ? (
+                <div>
+                  <button className="btn" onClick={doEatSap} disabled={dead || exhausted}>
+                    SCOFF IT
+                  </button>
+                  {lastEatResult && (
+                    <p className="small" style={{marginTop:6}}>
+                      You inhale {lastEatResult.unitsEaten} unit{lastEatResult.unitsEaten !== 1 ? "s" : ""} of sap before it has time to reconsider.{" "}
+                      <b>−{lastEatResult.hungerRestored} hunger</b> • <b>+{lastEatResult.fatigueCost} fatigue</b>.
+                      {lastEatResult.hungerRestored === 0 ? " (You weren’t hungry enough to benefit.)" : " Warm. Gloopy. Worth it."}
+                    </p>
+                  )}
+                </div>
+              ) : (
+                <p className="small">No Chomper equipped — the sap just sits there, judging you.</p>
+              )
+            ) : (
+              <p className="small">All the sap is gone. You ate it all. No regrets.</p>
+            )}
+          </div>
+
+          {/* Storable food section */}
+          {activeBlot.storableFood && (
+            <div>
+              <p className="small"><b>{FOODS[activeBlot.storableFood].name}</b> — {activeBlot.storableRemaining ?? 0} remaining</p>
+              {activeBlot.storableRemaining !== undefined && activeBlot.storableRemaining > 0 ? (
+                hasEquippedTail(player, "eq_sticky_scoop") ? (
+                  <div>
+                    <p className="small" style={{opacity:0.7,marginBottom:4}}>
+                      Costs {POIS[activePoi.id].foodSpec?.forageHungerPerPeriod ?? 1} hunger + {POIS[activePoi.id].foodSpec?.forageFatiguePerPeriod ?? 1} fatigue per unit.
+                    </p>
+                    <button className="btn" onClick={doHarvestStorable} disabled={dead || exhausted}>
+                      Scoop it up
+                    </button>
+                    {lastStorableResult && (
+                      <p className="small" style={{marginTop:6}}>
+                        Scooped 1 {FOODS[lastStorableResult.foodId].name}. Costs <b>+{lastStorableResult.hungerCost} hunger</b> • <b>+{lastStorableResult.fatigueCost} fatigue</b>.
+                      </p>
+                    )}
+                  </div>
+                ) : (
+                  <p className="small">No Sticky Scoop — the {FOODS[activeBlot.storableFood].name} sits just out of reach.</p>
+                )
+              ) : (
+                <p className="small">All {FOODS[activeBlot.storableFood].name} has been gathered.</p>
+              )}
+            </div>
           )}
         </div>
       )}
@@ -577,7 +673,25 @@ export default function App() {
       <h2>Dig in — what it might cost</h2>
       <div className="kv">
         <div>Method</div>
-        <div>{harvestPreview.method.toUpperCase()}</div>
+        <div>
+          {(() => {
+            const tool = Object.values(ITEMS).find((it) => it.harvestingMethod === harvestPreview.method);
+            const flavour: Record<string, string> = {
+              best: "This tool was made for this. Clean, fast, satisfying.",
+              good: "A solid approach. Not perfect, but it gets the job done.",
+              ok: "Workable. You\'ll get something out of it.",
+              weak: "This tool isn\'t really suited here. Progress will be slow.",
+              veryWeak: "A bad match. You\'ll be here a while for very little.",
+              wasteful: "Wrong tool entirely. Half of what you gather just falls away.",
+            };
+            return (
+              <span>
+                {tool ? tool.name : harvestPreview.method}{" "}
+                <span className="small" style={{opacity:0.7}}>— {flavour[harvestPreview.efficiencyLabel] ?? ""}</span>
+              </span>
+            );
+          })()}
+        </div>
         <div>Projected Time (periods)</div>
         <div>{harvestPreview.periodsRange[0]}–{harvestPreview.periodsRange[1]}</div>
         <div>Projected Hunger</div>
@@ -620,8 +734,8 @@ export default function App() {
       </div>
 
       <div className="row">
+        <button className="btn" onClick={() => setScreen("POI")}>Stay at Blot</button>
         <button className="btn" onClick={gotoHub}>Head back</button>
-        <button className="btn" onClick={() => setScreen("POI")}>Back to Blot</button>
       </div>
 
       {harvestResult.outcome !== "ok" && (

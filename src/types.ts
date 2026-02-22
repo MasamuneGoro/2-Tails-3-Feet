@@ -56,7 +56,9 @@ export type Screen =
   | "EXHAUSTED"
   | "PREVIEW_RECOVER"
   | "SUMMARY_RECOVER"
-  | "DEAD";
+  | "DEAD"
+  | "INVENTORY"
+  | "SKILLS";
 
 export interface PlayerStats {
   hunger: number;

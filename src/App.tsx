@@ -83,8 +83,8 @@ export default function App() {
   const [recoverState, setRecoverState] = useState<{ periods: number } | null>(null);
   const [recoverSummary, setRecoverSummary] = useState<any>(null);
 
-  const [inventoryOpen, setInventoryOpen] = useState(false);
-  const [skillsOpen, setSkillsOpen] = useState(false);
+  const [returnScreen, setReturnScreen] = useState<Screen>("HUB");
+  const [expandedItem, setExpandedItem] = useState<string | null>(null);
   const [howItWorksOpen, setHowItWorksOpen] = useState(false);
   const [scoopExpanded, setScoopExpanded] = useState(false);
   const [chomperAutoEnabled, setChomperAutoEnabled] = useState(true);
@@ -150,6 +150,17 @@ export default function App() {
     if (dead) setScreen("DEAD");
     else if (exhausted) setScreen("EXHAUSTED");
     else setScreen("HUB");
+  }
+
+  function openMetaScreen(target: "INVENTORY" | "SKILLS") {
+    // Only store return point when first leaving main flow
+    if (screen !== "INVENTORY" && screen !== "SKILLS") setReturnScreen(screen);
+    setExpandedItem(null);
+    setScreen(target);
+  }
+
+  function backFromMeta() {
+    setScreen(returnScreen);
   }
 
   // ── Journey ───────────────────────────────────────────────────────────────
@@ -396,10 +407,10 @@ export default function App() {
       )}
 
       <div style={{ borderTop: "1px solid #2a2a2a", paddingTop: 10, display: "flex", flexDirection: "column", gap: 8 }}>
-        <button className="btn" style={{ width: "100%", fontSize: "0.88rem" }} onClick={() => setInventoryOpen(true)}>
+        <button className="btn" style={{ width: "100%", fontSize: "0.88rem", background: screen === "INVENTORY" ? "#1a2e1a" : undefined, border: screen === "INVENTORY" ? "1px solid #4caf50" : undefined, color: screen === "INVENTORY" ? "#7ecba1" : undefined }} onClick={() => openMetaScreen("INVENTORY")}>
           Inventory
         </button>
-        <button className="btn" style={{ width: "100%", fontSize: "0.88rem" }} onClick={() => setSkillsOpen(true)}>
+        <button className="btn" style={{ width: "100%", fontSize: "0.88rem", background: screen === "SKILLS" ? "#1a2e1a" : undefined, border: screen === "SKILLS" ? "1px solid #4caf50" : undefined, color: screen === "SKILLS" ? "#7ecba1" : undefined }} onClick={() => openMetaScreen("SKILLS")}>
           Skills
         </button>
       </div>
@@ -1047,29 +1058,123 @@ export default function App() {
   );
 
   // ── Inventory modal ───────────────────────────────────────────────────────
-  const inventoryModal = inventoryOpen && (
-    <div className="modal-overlay" onClick={() => setInventoryOpen(false)}>
-      <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-        <div className="card">
-          <h2>Inventory</h2>
-          <table className="table">
-            <thead><tr><th>Item</th><th>Qty</th><th>Notes</th></tr></thead>
-            <tbody>
-              {player.inventory.length === 0
-                ? <tr><td colSpan={3} className="small">Empty.</td></tr>
-                : player.inventory.map((s) => {
-                  const id = s.id as any;
-                  const name = id.startsWith?.("eq_") ? getItemName(id) : id.startsWith?.("food_") ? getFoodName(id) : getResourceName(id);
-                  const note = id.startsWith?.("food_") && FOODS[id as import("./types").FoodId]?.storable ? `Freshness: ${s.freshness?.join(", ") ?? "?"}` : "";
-                  return <tr key={id}><td>{name}</td><td>{s.qty}</td><td className="small">{note}</td></tr>;
-                })}
-            </tbody>
-          </table>
-          <p className="small" style={{ marginTop: 8, opacity: 0.6 }}>Storable food rots over time. Freshness numbers count down each period.</p>
-          <div className="row" style={{ marginTop: 12 }}>
-            <button className="btn" onClick={() => setInventoryOpen(false)}>Close</button>
-          </div>
-        </div>
+  // ── Inventory screen ──────────────────────────────────────────────────────
+  const inventoryScreen = (
+    <div style={{ background: "#111", minHeight: "100%", borderRadius: 14, border: "1px solid #2a2a2a", overflow: "hidden" }}>
+      {/* Panel header */}
+      <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "14px 18px", borderBottom: "1px solid #2a2a2a", background: "#0e0e0e" }}>
+        <button onClick={backFromMeta} style={{ background: "none", border: "none", color: "#7ecba1", cursor: "pointer", fontSize: "0.9rem", padding: "4px 8px", borderRadius: 6, fontWeight: 600 }}>← Back</button>
+        <div style={{ fontSize: "1.1rem", fontWeight: 700, letterSpacing: "0.05em" }}>Inventory</div>
+        <div style={{ marginLeft: "auto", fontSize: "0.78rem", opacity: 0.4 }}>{player.inventory.length} stacks</div>
+      </div>
+
+      <div style={{ padding: "16px 18px", display: "flex", flexDirection: "column", gap: 10 }}>
+        {/* Equipment */}
+        {(() => {
+          const equip = player.inventory.filter(s => (s.id as string).startsWith("eq_"));
+          if (!equip.length) return null;
+          return (
+            <div>
+              <div style={{ fontSize: "0.7rem", opacity: 0.4, letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: 8 }}>Equipment</div>
+              {equip.map(s => {
+                const id = s.id as import("./types").ItemId;
+                const item = ITEMS[id];
+                const isExpanded = expandedItem === id;
+                const slot = item.slot === "tail" ? "Tail tool" : "Shoe";
+                const equipped = player.equipment.tailSlots.includes(id) || player.equipment.shoe === id;
+                return (
+                  <div key={id} style={{ background: "#161616", borderRadius: 10, border: "1px solid #2a2a2a", borderLeft: "3px solid #c8a96e", marginBottom: 6, overflow: "hidden" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", cursor: "pointer" }} onClick={() => setExpandedItem(isExpanded ? null : id)}>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontWeight: 600, fontSize: "0.95rem" }}>{item.name}</div>
+                        <div style={{ fontSize: "0.75rem", opacity: 0.5, marginTop: 2 }}>{slot}{equipped ? " · equipped" : ""}</div>
+                      </div>
+                      <div style={{ fontSize: "0.8rem", opacity: 0.5, padding: "3px 8px", background: "#1e1e1e", borderRadius: 6 }}>×{s.qty}</div>
+                      <div style={{ fontSize: "0.7rem", opacity: 0.35 }}>{isExpanded ? "▲" : "▼"}</div>
+                    </div>
+                    {isExpanded && (
+                      <div style={{ padding: "0 14px 12px", fontSize: "0.82rem", opacity: 0.65, fontStyle: "italic", borderTop: "1px solid #1e1e1e", paddingTop: 10 }}>
+                        {item.flavor}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          );
+        })()}
+
+        {/* Storable food */}
+        {(() => {
+          const foods = player.inventory.filter(s => (s.id as string).startsWith("food_") && FOODS[s.id as import("./types").FoodId]?.storable);
+          if (!foods.length) return null;
+          return (
+            <div>
+              <div style={{ fontSize: "0.7rem", opacity: 0.4, letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: 8 }}>Storable Food</div>
+              {foods.map(s => {
+                const id = s.id as import("./types").FoodId;
+                const food = FOODS[id];
+                const isExpanded = expandedItem === id;
+                const freshness = s.freshness ?? [];
+                const maxFresh = food.freshnessRange?.[1] ?? 1;
+                return (
+                  <div key={id} style={{ background: "#161616", borderRadius: 10, border: "1px solid #2a2a2a", borderLeft: "3px solid #26c6da", marginBottom: 6, overflow: "hidden" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", cursor: "pointer" }} onClick={() => setExpandedItem(isExpanded ? null : id)}>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontWeight: 600, fontSize: "0.95rem" }}>{food.name}</div>
+                        <div style={{ display: "flex", gap: 4, marginTop: 5, flexWrap: "wrap" }}>
+                          {freshness.map((f, i) => {
+                            const ratio = f / maxFresh;
+                            const col = ratio > 0.6 ? "#26c6da" : ratio > 0.3 ? "#f5c842" : "#e53935";
+                            return (
+                              <div key={i} title={`${f} periods left`} style={{ display: "flex", gap: 2 }}>
+                                {Array.from({ length: maxFresh }).map((_, pip) => (
+                                  <div key={pip} style={{ width: 6, height: 6, borderRadius: 2, background: pip < f ? col : "#2a2a2a" }} />
+                                ))}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                      <div style={{ fontSize: "0.8rem", opacity: 0.5, padding: "3px 8px", background: "#1e1e1e", borderRadius: 6 }}>×{s.qty}</div>
+                      <div style={{ fontSize: "0.7rem", opacity: 0.35 }}>{isExpanded ? "▲" : "▼"}</div>
+                    </div>
+                    {isExpanded && (
+                      <div style={{ padding: "0 14px 12px", fontSize: "0.82rem", opacity: 0.65, fontStyle: "italic", borderTop: "1px solid #1e1e1e", paddingTop: 10 }}>
+                        {food.flavor}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+              <p className="small" style={{ opacity: 0.4, marginTop: 4 }}>Each pip = 1 period of freshness remaining.</p>
+            </div>
+          );
+        })()}
+
+        {/* Resources */}
+        {(() => {
+          const resources = player.inventory.filter(s => !((s.id as string).startsWith("eq_") || (s.id as string).startsWith("food_")));
+          if (!resources.length) return null;
+          return (
+            <div>
+              <div style={{ fontSize: "0.7rem", opacity: 0.4, letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: 8 }}>Resources</div>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                {resources.map(s => (
+                  <div key={s.id as string} style={{ background: "#161616", borderRadius: 10, border: "1px solid #2a2a2a", padding: "10px 16px", minWidth: 90, textAlign: "center" }}>
+                    <div style={{ fontWeight: 600, fontSize: "0.9rem" }}>{getResourceName(s.id as any)}</div>
+                    <div style={{ fontSize: "1.4rem", fontWeight: 700, margin: "4px 0", opacity: 0.9 }}>{s.qty}</div>
+                    <div style={{ fontSize: "0.72rem", opacity: 0.4 }}>units</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          );
+        })()}
+
+        {player.inventory.length === 0 && (
+          <p className="small" style={{ opacity: 0.4, textAlign: "center", marginTop: 20 }}>Nothing here yet.</p>
+        )}
       </div>
     </div>
   );
@@ -1095,42 +1200,46 @@ export default function App() {
     </div>
   );
 
-  // ── Skills modal ──────────────────────────────────────────────────────────
-  const skillsModal = skillsOpen && (
-    <div className="modal-overlay" onClick={() => setSkillsOpen(false)}>
-      <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-        <div className="card">
-          <h2>Skills</h2>
-          <p className="small">Each harvesting method levels up independently. +8% yield per level.</p>
-          <table className="table">
-            <thead><tr><th>Method</th><th>Level</th><th>Progress</th><th>XP</th></tr></thead>
-            <tbody>
-              {(["poke", "smash", "tease", "drill", "scoop"] as import("./types").HarvestMethodId[]).map((method) => {
-                const xp = player.xp[method] ?? 0;
-                const level = skillLevel(xp);
-                const xpForThis = skillXpForLevel(level);
-                const xpForNext = level >= SKILL_MAX_LEVEL ? xpForThis + SKILL_XP_PER_LEVEL : skillXpForLevel(level + 1);
-                const progress = level >= SKILL_MAX_LEVEL ? 100 : Math.round(((xp - xpForThis) / (xpForNext - xpForThis)) * 100);
-                const methodNames: Record<import("./types").HarvestMethodId, string> = { poke: "Poke", smash: "Smash", tease: "Tease", drill: "Drill", scoop: "Scoop" };
-                return (
-                  <tr key={method}>
-                    <td>{methodNames[method]}</td>
-                    <td>Lv {level}{level >= SKILL_MAX_LEVEL ? " (max)" : ""}</td>
-                    <td>
-                      <div style={{ background: "#333", borderRadius: 4, height: 8, width: 120, display: "inline-block", verticalAlign: "middle" }}>
-                        <div style={{ background: "#7ecba1", borderRadius: 4, height: 8, width: `${progress}%` }} />
-                      </div>
-                    </td>
-                    <td className="small">{level >= SKILL_MAX_LEVEL ? "MAX" : `${xp - xpForThis} / ${xpForNext - xpForThis}`}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-          <div className="row" style={{ marginTop: 12 }}>
-            <button className="btn" onClick={() => setSkillsOpen(false)}>Close</button>
-          </div>
-        </div>
+  // ── Skills screen ─────────────────────────────────────────────────────────
+  const skillsScreen = (
+    <div style={{ background: "#111", minHeight: "100%", borderRadius: 14, border: "1px solid #2a2a2a", overflow: "hidden" }}>
+      {/* Panel header */}
+      <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "14px 18px", borderBottom: "1px solid #2a2a2a", background: "#0e0e0e" }}>
+        <button onClick={backFromMeta} style={{ background: "none", border: "none", color: "#7ecba1", cursor: "pointer", fontSize: "0.9rem", padding: "4px 8px", borderRadius: 6, fontWeight: 600 }}>← Back</button>
+        <div style={{ fontSize: "1.1rem", fontWeight: 700, letterSpacing: "0.05em" }}>Skills</div>
+      </div>
+
+      <div style={{ padding: "16px 18px", display: "flex", flexDirection: "column", gap: 10 }}>
+        <p className="small" style={{ opacity: 0.5, marginBottom: 4 }}>Each harvesting method levels up independently. +8% yield per level.</p>
+        {(["poke", "smash", "tease", "drill", "scoop"] as import("./types").HarvestMethodId[]).map((method) => {
+          const xp = player.xp[method] ?? 0;
+          const level = skillLevel(xp);
+          const xpForThis = skillXpForLevel(level);
+          const xpForNext = level >= SKILL_MAX_LEVEL ? xpForThis + SKILL_XP_PER_LEVEL : skillXpForLevel(level + 1);
+          const progress = level >= SKILL_MAX_LEVEL ? 100 : Math.round(((xp - xpForThis) / (xpForNext - xpForThis)) * 100);
+          const methodNames: Record<import("./types").HarvestMethodId, string> = { poke: "Poke", smash: "Smash", tease: "Tease", drill: "Drill", scoop: "Scoop" };
+          const toolName: Record<import("./types").HarvestMethodId, string> = { poke: "Pointed Twig", smash: "Crude Hammerhead", tease: "Fiber Comb", drill: "Hand Drill", scoop: "Sticky Scoop" };
+          const isMax = level >= SKILL_MAX_LEVEL;
+          return (
+            <div key={method} style={{ background: "#161616", borderRadius: 10, border: "1px solid #2a2a2a", borderLeft: "3px solid #c8a96e", padding: "12px 16px" }}>
+              <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 6 }}>
+                <div style={{ fontWeight: 700, fontSize: "0.95rem" }}>{methodNames[method]}</div>
+                <div style={{ fontSize: "0.75rem", opacity: 0.45 }}>{toolName[method]}</div>
+                <div style={{ marginLeft: "auto", fontSize: "0.82rem", fontWeight: 600, color: isMax ? "#c8a96e" : "#7ecba1" }}>
+                  Lv {level}{isMax ? " · MAX" : ""}
+                </div>
+              </div>
+              <div style={{ background: "#0e0e0e", borderRadius: 4, height: 8, width: "100%", overflow: "hidden" }}>
+                <div style={{ background: isMax ? "#c8a96e" : "#4caf50", borderRadius: 4, height: 8, width: `${progress}%`, transition: "width 0.4s" }} />
+              </div>
+              {!isMax && (
+                <div style={{ fontSize: "0.72rem", opacity: 0.35, marginTop: 5, textAlign: "right" }}>
+                  {xp - xpForThis} / {xpForNext - xpForThis} XP to next level
+                </div>
+              )}
+            </div>
+          );
+        })}
       </div>
     </div>
   );
@@ -1155,6 +1264,8 @@ export default function App() {
       case "SUMMARY_CRAFT": body = craftSummaryScreen; break;
       case "PREVIEW_RECOVER": body = recoverPreviewScreen; break;
       case "SUMMARY_RECOVER": body = recoverSummaryScreen; break;
+      case "INVENTORY": body = inventoryScreen; break;
+      case "SKILLS": body = skillsScreen; break;
       default: body = hub;
     }
   }
@@ -1167,8 +1278,6 @@ export default function App() {
         <div style={{ opacity: 0.5, fontSize: 13, marginBottom: 12 }}>Sticky Survival Prototype</div>
         {hud}
         {body}
-        {inventoryModal}
-        {skillsModal}
         {howItWorksModal}
       </div>
     </div>

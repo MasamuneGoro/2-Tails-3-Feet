@@ -34,12 +34,12 @@ export const BIOME_LEVEL: {
   hungerPerStep: 1,
   fatiguePerStep: 1,
   poiWeightsExplore: {
-    poi_resin_node: 30,
-    poi_fiber_patch: 30,
+    poi_resin_node: 40,
+    poi_fiber_patch: 35,
     poi_stone_node: 25,
-    poi_sap_weep: 8,
-    poi_resin_hollow: 5,
-    poi_dense_pocket: 2,
+    poi_sap_weep: 0,
+    poi_resin_hollow: 0,
+    poi_dense_pocket: 0,
   },
   poiWeightsFood: {
     poi_sap_weep: 50,

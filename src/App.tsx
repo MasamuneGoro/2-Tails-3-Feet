@@ -65,6 +65,8 @@ export default function App() {
 
   const [journeyPreview, setJourneyPreview] = useState<JourneyPreview | null>(null);
   const [journeyResult, setJourneyResult] = useState<JourneyResult | null>(null);
+  const [savedExploreRoll, setSavedExploreRoll] = useState<JourneyPreview | null>(null);
+  const [savedFoodRoll, setSavedFoodRoll] = useState<JourneyPreview | null>(null);
 
   const [activePoi, setActivePoi] = useState<{ id: PoiId; quality: "common" | "uncommon" } | null>(null);
   const [activeBlot, setActiveBlot] = useState<BlotState | null>(null);
@@ -84,7 +86,7 @@ export default function App() {
   const [inventoryOpen, setInventoryOpen] = useState(false);
   const [skillsOpen, setSkillsOpen] = useState(false);
   const [howItWorksOpen, setHowItWorksOpen] = useState(false);
-  const [storablePreviewOpen, setStorablePreviewOpen] = useState(false);
+  const [scoopExpanded, setScoopExpanded] = useState(false);
   const [chomperAutoEnabled, setChomperAutoEnabled] = useState(true);
 
   const exhausted = player.stats.fatigue >= player.stats.maxFatigue;
@@ -93,6 +95,7 @@ export default function App() {
   const hungerRatio = player.stats.hunger / player.stats.maxHunger;
   const fatigueRatio = player.stats.fatigue / player.stats.maxFatigue;
   const chomperEquipped = countEquippedTail(player, "eq_chomper") > 0;
+  const curlerCount = countEquippedTail(player, "eq_tail_curler");
 
   const unlockedRecipes = useMemo(() => listUnlockedRecipes(player), [player]);
 
@@ -132,13 +135,14 @@ export default function App() {
     setPlayer(structuredClone(START_PLAYER));
     setScreen("HUB");
     setJourneyPreview(null); setJourneyResult(null);
+    setSavedExploreRoll(null); setSavedFoodRoll(null);
     setActivePoi(null); setActiveBlot(null);
     setLastEatResult(null); setLastStorableResult(null);
     setMultiHarvestResults([]);
     setHarvestPreview(null); setHarvestResult(null);
     setCraftPreview(null); setCraftResult(null);
     setRecoverState(null); setRecoverSummary(null);
-    setStorablePreviewOpen(false);
+    setScoopExpanded(false);
     setChomperAutoEnabled(true);
   }
 
@@ -150,7 +154,12 @@ export default function App() {
 
   // ── Journey ───────────────────────────────────────────────────────────────
   function genJourney(mode: "explore" | "findFood") {
-    const pv = makeJourneyPreview(player, mode, chomperAutoEnabled);
+    const saved = mode === "explore" ? savedExploreRoll : savedFoodRoll;
+    const pv = saved ?? makeJourneyPreview(player, mode, chomperAutoEnabled);
+    if (!saved) {
+      if (mode === "explore") setSavedExploreRoll(pv);
+      else setSavedFoodRoll(pv);
+    }
     setJourneyPreview(pv); setJourneyResult(null);
     setScreen("PREVIEW_JOURNEY");
   }
@@ -159,7 +168,21 @@ export default function App() {
     const next = structuredClone(player);
     const res = resolveJourney(next, journeyPreview, chomperAutoEnabled);
     setPlayer(next); setJourneyResult(res);
+    // Clear the saved roll for this mode now that it's been used
+    if (journeyPreview.mode === "explore") setSavedExploreRoll(null);
+    else setSavedFoodRoll(null);
     setScreen("SUMMARY_JOURNEY");
+  }
+  function sniffAgain() {
+    if (!journeyPreview) return;
+    const next = structuredClone(player);
+    next.stats.hunger = clamp(next.stats.hunger + 20, 0, next.stats.maxHunger);
+    next.stats.fatigue = clamp(next.stats.fatigue + 20, 0, next.stats.maxFatigue);
+    setPlayer(next);
+    const pv = makeJourneyPreview(next, journeyPreview.mode, chomperAutoEnabled);
+    if (journeyPreview.mode === "explore") setSavedExploreRoll(pv);
+    else setSavedFoodRoll(pv);
+    setJourneyPreview(pv);
   }
   function enterPoi() {
     if (!journeyResult) return;
@@ -524,7 +547,11 @@ export default function App() {
 
       <div className="row">
         <button className="btn" style={{ background: "#1a2e1a", border: "1px solid #4caf50", color: "#7ecba1", fontWeight: 600, padding: "12px 22px" }} onClick={proceedJourney} disabled={dead || exhausted}>Set off</button>
-        <button className="btn" onClick={gotoHub}>Stay put</button>
+        <button className="btn" onClick={gotoHub}>Head back</button>
+        <button className="btn" style={{ opacity: 0.7 }} onClick={sniffAgain} disabled={dead || exhausted}>Sniff In Another Direction</button>
+      </div>
+      <div style={{ marginTop: 8, fontSize: "0.75rem", opacity: 0.4, textAlign: "center" }}>
+        Sniff Again costs −20 hunger, −20 fatigue
       </div>
     </div>
   );
@@ -677,10 +704,32 @@ export default function App() {
             <div>
               {hasEquippedTail(player, "eq_sticky_scoop") ? (
                 <>
-                  <button className="btn" style={{ marginBottom: 6 }} onClick={() => setStorablePreviewOpen(true)} disabled={dead || exhausted}>
-                    Scoop it Up ({FOODS[activeBlot.storableFood].name})
-                  </button>
-                  {lastStorableResult && (
+                  {!scoopExpanded ? (
+                    <button className="btn" style={{ marginBottom: 6 }} onClick={() => setScoopExpanded(true)} disabled={dead || exhausted}>
+                      Scoop it Up ({FOODS[activeBlot.storableFood].name})
+                    </button>
+                  ) : (
+                    <div style={{ background: "#0e0e0e", borderRadius: 12, padding: "12px 16px", marginBottom: 8 }}>
+                      <div style={{ fontSize: "0.7rem", opacity: 0.45, letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 10 }}>Scoop preview — {FOODS[activeBlot.storableFood].name}</div>
+                      <div className="kv" style={{ marginBottom: 10 }}>
+                        <div>Hunger cost</div><div style={{ color: "#e8a05a" }}>+{POIS[activePoi!.id].foodSpec?.forageHungerPerPeriod ?? 1} per unit</div>
+                        <div>Fatigue cost</div><div style={{ color: "#cc6b1a" }}>+{POIS[activePoi!.id].foodSpec?.forageFatiguePerPeriod ?? 1} per unit</div>
+                        {curlerCount > 0 && (
+                          <>
+                            <div>Net fatigue (Tail Curler)</div>
+                            <div style={{ color: "#7ecba1" }}>+{Math.max(0, (POIS[activePoi!.id].foodSpec?.forageFatiguePerPeriod ?? 1) - curlerCount * (ITEMS.eq_tail_curler.effects?.fatigueRecoveryPerPeriod ?? 0))} per unit</div>
+                          </>
+                        )}
+                        <div>Freshness on harvest</div><div style={{ opacity: 0.8 }}>{FOODS[activeBlot.storableFood].freshnessRange?.[0]}–{FOODS[activeBlot.storableFood].freshnessRange?.[1]} periods</div>
+                        <div>Chomper</div><div style={{ opacity: 0.8 }}>{!chomperEquipped ? "No Chomper" : !chomperAutoEnabled ? "Off" : "May snack"}</div>
+                      </div>
+                      <div className="row">
+                        <button className="btn" style={{ background: "#1a2e1a", border: "1px solid #4caf50", color: "#7ecba1", fontWeight: 600 }} onClick={() => { setScoopExpanded(false); doHarvestStorable(); }} disabled={dead || exhausted}>Confirm scoop</button>
+                        <button className="btn" onClick={() => setScoopExpanded(false)}>Never mind</button>
+                      </div>
+                    </div>
+                  )}
+                  {lastStorableResult && !scoopExpanded && (
                     <p className="small">
                       Scooped 1 {FOODS[lastStorableResult.foodId].name}.{" "}
                       <b>+{lastStorableResult.hungerCost} hunger</b> • <b>+{lastStorableResult.fatigueCost} fatigue</b>.{" "}
@@ -857,7 +906,6 @@ export default function App() {
   );
 
   // ── Recover screens ───────────────────────────────────────────────────────
-  const curlerCount = countEquippedTail(player, "eq_tail_curler");
   const recoverPreviewScreen = (
     <div className="card">
       <PreviewTitle main="Belly Down" sub="What It'll Cost You" />
@@ -1016,30 +1064,6 @@ export default function App() {
     </div>
   );
 
-  // ── Storable harvest preview modal ────────────────────────────────────────
-  const storablePreviewModal = storablePreviewOpen && activePoi && activeBlot?.storableFood && (
-    <div className="modal-overlay" onClick={() => setStorablePreviewOpen(false)}>
-      <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-        <div className="card">
-          <h2>Scoop preview</h2>
-          <div className="kv">
-            <div>What you're after</div><div><b>{FOODS[activeBlot.storableFood].name}</b></div>
-            <div>Hunger cost</div><div>+{POIS[activePoi.id].foodSpec?.forageHungerPerPeriod ?? 1} per unit</div>
-            <div>Fatigue cost</div><div>+{POIS[activePoi.id].foodSpec?.forageFatiguePerPeriod ?? 1} per unit</div>
-            <div>Net fatigue (with Tail Curler)</div>
-            <div>{curlerCount > 0 ? `+${Math.max(0, (POIS[activePoi.id].foodSpec?.forageFatiguePerPeriod ?? 1) - curlerCount * (ITEMS.eq_tail_curler.effects?.fatigueRecoveryPerPeriod ?? 0))} per unit` : "No Tail Curler"}</div>
-            <div>Freshness on harvest</div><div>{FOODS[activeBlot.storableFood].freshnessRange?.[0]}–{FOODS[activeBlot.storableFood].freshnessRange?.[1]} periods</div>
-            <div>Chomper chomp</div><div>{!chomperEquipped ? "No Chomper" : !chomperAutoEnabled ? "Off" : "May snack during gather"}</div>
-          </div>
-          <div className="row" style={{ marginTop: 12 }}>
-            <button className="btn" onClick={() => { setStorablePreviewOpen(false); doHarvestStorable(); }} disabled={dead || exhausted}>Scoop it up</button>
-            <button className="btn" onClick={() => setStorablePreviewOpen(false)}>Leave it</button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-
   // ── Screen routing ────────────────────────────────────────────────────────
   let body: React.ReactNode = null;
   if (dead) body = deadScreen;
@@ -1076,7 +1100,6 @@ export default function App() {
         {inventoryModal}
         {skillsModal}
         {howItWorksModal}
-        {storablePreviewModal}
       </div>
     </div>
   );

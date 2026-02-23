@@ -1,7 +1,4 @@
 // ─── Sound Manager ────────────────────────────────────────────────────────────
-// Loads all SFX as Audio objects and exposes playSfx(id, delayMs).
-// Sounds are loaded lazily on first play to avoid blocking initial render.
-
 const SFX_IDS = [
   "sfx_click",
   "sfx_transition",
@@ -30,16 +27,25 @@ const SFX_IDS = [
   "sfx_exhausted",
   "sfx_dead",
   "sfx_level_up",
-  "sfx_xp_tick",
 ] as const;
 
 export type SfxId = typeof SFX_IDS[number];
 
-// Cache of loaded Audio objects
 const cache = new Map<SfxId, HTMLAudioElement>();
-
-// Whether the user has interacted (browsers block autoplay until then)
 let unlocked = false;
+
+// Track the journey_start instance so we can truncate it
+let journeyStartInstance: HTMLAudioElement | null = null;
+
+// Track whether any non-click sound is currently playing, to suppress sfx_click
+let nonClickPlaying = false;
+let nonClickTimer: ReturnType<typeof setTimeout> | null = null;
+
+function markNonClickPlaying(durationMs: number) {
+  nonClickPlaying = true;
+  if (nonClickTimer) clearTimeout(nonClickTimer);
+  nonClickTimer = setTimeout(() => { nonClickPlaying = false; }, durationMs);
+}
 
 export function unlockAudio() {
   unlocked = true;
@@ -54,30 +60,70 @@ function getAudio(id: SfxId): HTMLAudioElement {
   return cache.get(id)!;
 }
 
-// Preload all sounds eagerly after first user interaction
 export function preloadAll() {
-  for (const id of SFX_IDS) {
-    getAudio(id);
-  }
+  for (const id of SFX_IDS) getAudio(id);
 }
 
-const pendingTimeouts: ReturnType<typeof setTimeout>[] = [];
+// Durations in ms (approximate, used for click suppression window)
+const DURATIONS: Partial<Record<SfxId, number>> = {
+  sfx_journey_start:  5060,
+  sfx_journey_arrive: 2060,
+  sfx_transition:     2060,
+  sfx_event_good:      650,
+  sfx_event_bad:       650,
+  sfx_item_pickup:     650,
+  sfx_item_fly:        940,
+  sfx_harvest_poke:   1250,
+  sfx_harvest_smash:  1250,
+  sfx_harvest_tease:  1250,
+  sfx_harvest_drill:  1250,
+  sfx_harvest_scoop:  1250,
+  sfx_craft_open:     1250,
+  sfx_craft_start:    1250,
+  sfx_craft_success:  1250,
+  sfx_craft_fail:     1250,
+  sfx_flop_down:      1250,
+  sfx_wake_up:        1250,
+  sfx_chomp:          1250,
+  sfx_eat_sap:         940,
+  sfx_hunger_warning:  940,
+  sfx_inventory_open:  940,
+  sfx_food_expiring:   940,
+  sfx_exhausted:       940,
+  sfx_dead:           1540,
+  sfx_level_up:       1540,
+};
 
 export function playSfx(id: SfxId, delayMs = 0) {
   if (!unlocked) return;
-  const t = setTimeout(() => {
+
+  setTimeout(() => {
+    // Suppress click if any non-click sound is active
+    if (id === "sfx_click" && nonClickPlaying) return;
+
+    // Truncate journey_start if a new non-click sound fires
+    if (id !== "sfx_click" && journeyStartInstance) {
+      journeyStartInstance.pause();
+      journeyStartInstance.currentTime = 0;
+      journeyStartInstance = null;
+    }
+
     const audio = getAudio(id);
-    // Clone so overlapping plays of the same sound work
     const instance = audio.cloneNode() as HTMLAudioElement;
     instance.volume = VOLUMES[id] ?? 1.0;
-    instance.play().catch(() => {
-      // Autoplay blocked — silently ignore
-    });
+    instance.play().catch(() => {});
+
+    if (id === "sfx_journey_start") {
+      journeyStartInstance = instance;
+      instance.addEventListener("ended", () => { journeyStartInstance = null; });
+    }
+
+    if (id !== "sfx_click") {
+      markNonClickPlaying(DURATIONS[id] ?? 1500);
+    }
   }, delayMs);
-  pendingTimeouts.push(t);
 }
 
-// Per-sound volume adjustments so nothing is jarring
 const VOLUMES: Partial<Record<SfxId, number>> = {
   sfx_click:          0.5,
   sfx_transition:     0.4,
@@ -106,5 +152,4 @@ const VOLUMES: Partial<Record<SfxId, number>> = {
   sfx_exhausted:      0.75,
   sfx_dead:           0.8,
   sfx_level_up:       0.75,
-  sfx_xp_tick:        0.4,
 };

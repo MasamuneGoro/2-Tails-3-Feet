@@ -400,12 +400,9 @@ export default function App() {
     if (journeyResult.outcome === "dead") playSfx("sfx_dead", 600);
   }, [journeyResult]);
 
-  // Harvest summary: tool sound + XP tick + level up + chomp
+  // Harvest summary: level up + chomp
   useEffect(() => {
     if (!multiHarvestResults.length || screen !== "SUMMARY_HARVEST") return;
-    // XP tick fires when bar animates
-    playSfx("sfx_xp_tick", 180);
-    // Check if any method levelled up
     multiHarvestResults.forEach((res) => {
       const xpBefore = harvestXpBefore[res.method] ?? 0;
       const levelBefore = Math.floor(xpBefore / 100);
@@ -417,17 +414,15 @@ export default function App() {
     });
   }, [multiHarvestResults]);
 
-  // Scoop storable: XP tick
+  // Scoop storable: chomp if food consumed
   useEffect(() => {
     if (!lastStorableResult) return;
-    playSfx("sfx_xp_tick", 200);
     if (lastStorableResult.foodConsumed?.length > 0) playSfx("sfx_chomp", 350);
   }, [lastStorableResult]);
 
-  // Wake up sound on recover summary
+  // Wake up sound fires on "Get up" button click, not on summary mount
   useEffect(() => {
     if (screen === "SUMMARY_RECOVER" && recoverSummary) {
-      playSfx("sfx_wake_up", 300);
       if (recoverSummary.foodConsumed?.length > 0) playSfx("sfx_chomp", 600);
     }
   }, [recoverSummary]);
@@ -1749,7 +1744,7 @@ export default function App() {
       <FadeIn delay={recoverSummary.foodConsumed.length > 0 ? 240 : 160}>
         <div className="row">
           <button className="btn" onClick={keepFlopping} disabled={dead}>Keep flopping</button>
-          <button className="btn" onClick={gotoHub}>Get up</button>
+          <button className="btn" onClick={() => { playSfx("sfx_wake_up"); gotoHub(); }}>Get up</button>
         </div>
         {recoverSummary.outcome !== "ok" && (
           <div className="notice"><b>Outcome:</b> {recoverSummary.outcome.toUpperCase()}</div>

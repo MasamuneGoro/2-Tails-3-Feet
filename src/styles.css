@@ -180,3 +180,21 @@ hr {
   from { opacity: 0; transform: translateY(10px); }
   to   { opacity: 1; transform: translateY(0); }
 }
+
+@keyframes flyToInventory {
+  0%   { opacity: 1; transform: translate(0, 0) scale(1); }
+  60%  { opacity: 0.9; transform: translate(-120px, -80px) scale(0.7); }
+  100% { opacity: 0; transform: translate(-180px, -140px) scale(0.3); }
+}
+
+@keyframes craftPop {
+  0%   { opacity: 0; transform: translate(-50%, -50%) scale(0.4); }
+  30%  { opacity: 1; transform: translate(-50%, -50%) scale(1.15); }
+  60%  { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  100% { opacity: 0; transform: translate(-50%, -80%) scale(0.8); }
+}
+
+@keyframes xpBarFill {
+  from { width: var(--xp-before); }
+  to   { width: var(--xp-after); }
+}

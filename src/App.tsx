@@ -22,6 +22,80 @@ function FadeIn({ delay = 0, children }: { delay?: number; children: React.React
   );
 }
 
+function FlyToInventory({ id, delay = 0 }: { id: string; delay?: number }) {
+  return (
+    <div style={{ position: "relative", display: "inline-block" }}>
+      <div style={{
+        position: "absolute", top: 0, left: 0, pointerEvents: "none",
+        animation: `flyToInventory 700ms ease-in both`,
+        animationDelay: `${delay}ms`,
+        zIndex: 50,
+      }}>
+        <ItemIcon id={id} size={28} />
+      </div>
+    </div>
+  );
+}
+
+function MiniXPBar({ method, xpBefore, xpAfter }: {
+  method: import("./types").HarvestMethodId;
+  xpBefore: number;
+  xpAfter: number;
+}) {
+  const toolIds: Record<import("./types").HarvestMethodId, string> = {
+    poke: "eq_pointed_twig", smash: "eq_crude_hammerhead",
+    tease: "eq_fiber_comb", drill: "eq_hand_drill", scoop: "eq_sticky_scoop",
+  };
+  const level = Math.min(10, Math.floor(xpAfter / 100) + 1);
+  const xpForLevel = (Math.floor(xpAfter / 100)) * 100;
+  const xpForNext = xpForLevel + 100;
+  const isMax = level >= 10;
+  const pctBefore = isMax ? 100 : Math.min(100, ((xpBefore - xpForLevel) / 100) * 100);
+  const pctAfter = isMax ? 100 : Math.min(100, ((xpAfter - xpForLevel) / 100) * 100);
+  const ref = React.useRef<HTMLDivElement>(null);
+  React.useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    el.style.width = `${pctBefore}%`;
+    const t = setTimeout(() => { el.style.width = `${pctAfter}%`; }, 80);
+    return () => clearTimeout(t);
+  }, [pctBefore, pctAfter]);
+  return (
+    <div style={{ marginTop: 6, display: "flex", alignItems: "center", gap: 8 }}>
+      <ItemIcon id={toolIds[method]} size={14} />
+      <div style={{ flex: 1, background: "#0e0e0e", borderRadius: 3, height: 5, overflow: "hidden" }}>
+        <div ref={ref} style={{
+          height: "100%", background: isMax ? "#c8a96e" : "#4caf50",
+          borderRadius: 3, transition: "width 0.6s ease",
+        }} />
+      </div>
+      <div style={{ fontSize: "0.68rem", opacity: 0.5, whiteSpace: "nowrap" }}>
+        Lv {level}{isMax ? " MAX" : ` · +${xpAfter - xpBefore} xp`}
+      </div>
+    </div>
+  );
+}
+
+function CraftSuccessFlash({ itemId, onDone }: { itemId: string; onDone: () => void }) {
+  React.useEffect(() => {
+    const t = setTimeout(onDone, 900);
+    return () => clearTimeout(t);
+  }, [onDone]);
+  return (
+    <div style={{
+      position: "fixed", inset: 0, zIndex: 200,
+      pointerEvents: "none", display: "flex", alignItems: "center", justifyContent: "center",
+    }}>
+      <div style={{
+        position: "absolute", top: "42%", left: "55%",
+        animation: "craftPop 900ms ease both",
+      }}>
+        <ItemIcon id={itemId} size={72} />
+      </div>
+    </div>
+  );
+}
+
 function formatConsumed(consumed: { foodId: import("./types").FoodId; units: number }[]) {
   if (!consumed.length) return "None";
   return consumed.map((c) => `${FOODS[c.foodId].name} ×${c.units}`).join(", ");
@@ -109,12 +183,14 @@ export default function App() {
   const [lastEatResult, setLastEatResult] = useState<EatSapResult | null>(null);
   const [lastStorableResult, setLastStorableResult] = useState<HarvestStorableResult | null>(null);
   const [multiHarvestResults, setMultiHarvestResults] = useState<HarvestResult[]>([]);
+  const [harvestXpBefore, setHarvestXpBefore] = useState<Partial<Record<import("./types").HarvestMethodId, number>>>({});
 
   const [harvestPreview, setHarvestPreview] = useState<HarvestPreview | null>(null);
   const [harvestResult, setHarvestResult] = useState<HarvestResult | null>(null);
 
   const [craftPreview, setCraftPreview] = useState<CraftPreview | null>(null);
   const [craftResult, setCraftResult] = useState<CraftResult | null>(null);
+  const [craftFlashItem, setCraftFlashItem] = useState<string | null>(null);
 
   const [recoverState, setRecoverState] = useState<{ periods: number } | null>(null);
   const [recoverSummary, setRecoverSummary] = useState<any>(null);
@@ -175,7 +251,7 @@ export default function App() {
     setSavedExploreRoll(null); setSavedFoodRoll(null);
     setActivePoi(null); setActiveBlot(null);
     setLastEatResult(null); setLastStorableResult(null);
-    setMultiHarvestResults([]);
+    setMultiHarvestResults([]); setHarvestXpBefore({});
     setHarvestPreview(null); setHarvestResult(null);
     setCraftPreview(null); setCraftResult(null);
     setRecoverState(null); setRecoverSummary(null);
@@ -289,9 +365,11 @@ export default function App() {
   function proceedHarvest() {
     if (!harvestPreview) return;
     const snap = snapshotStorableQty(player.inventory);
+    const xpBefore = { [harvestPreview.method]: player.xp[harvestPreview.method] ?? 0 };
     const next = structuredClone(player);
     const res = resolveHarvest(next, harvestPreview, chomperAutoEnabled);
     setPlayer(next); setHarvestResult(res);
+    setHarvestXpBefore(xpBefore);
     checkDecayAlert(snap, next.inventory, res.foodConsumed);
     if (activeBlot && activeBlot.harvestCharges !== undefined)
       setActiveBlot({ ...activeBlot, harvestCharges: Math.max(0, activeBlot.harvestCharges - 1) });
@@ -302,6 +380,8 @@ export default function App() {
     const methods = methodsAvailableFromEquipment(player);
     if (!methods.length) return;
     const snap = snapshotStorableQty(player.inventory);
+    const xpBefore: Partial<Record<import("./types").HarvestMethodId, number>> = {};
+    for (const m of methods) xpBefore[m] = player.xp[m] ?? 0;
     let next = structuredClone(player);
     let blotCopy = structuredClone(activeBlot);
     const results: HarvestResult[] = [];
@@ -315,6 +395,7 @@ export default function App() {
       if (res.outcome !== "ok") break;
     }
     setPlayer(next); setActiveBlot(blotCopy); setMultiHarvestResults(results);
+    setHarvestXpBefore(xpBefore);
     const allConsumed = results.flatMap(r => r.foodConsumed);
     checkDecayAlert(snap, next.inventory, allConsumed);
     setScreen("SUMMARY_HARVEST");
@@ -356,6 +437,7 @@ export default function App() {
     const next = structuredClone(player);
     const res = resolveCraft(next, craftPreview, chomperAutoEnabled);
     setPlayer(next); setCraftResult(res);
+    if (res.success && res.crafted) setCraftFlashItem(res.crafted.itemId);
     checkDecayAlert(snap, next.inventory, res.foodConsumed);
     setScreen("SUMMARY_CRAFT");
   }
@@ -1083,12 +1165,27 @@ export default function App() {
         const tool = Object.values(ITEMS).find(it => it.harvestingMethod === res.method);
         const flavour: Record<string, string> = { best: "Clean and efficient.", good: "Solid work.", ok: "Got something out of it.", weak: "Slow going, but you persisted.", veryWeak: "That hurt more than it helped.", wasteful: "Half of it crumbled away." };
         const effLabel = POIS[res.poiId].methodRank?.[res.method] ?? "ok";
+        const xpBefore = harvestXpBefore[res.method] ?? 0;
+        const xpAfter = player.xp[res.method] ?? 0;
         return (
           <FadeIn key={i} delay={140 + i * 100}>
             <div className="card">
-              <h3>{tool ? tool.name : res.method} pass</h3>
-              <p className="small">{flavour[effLabel] ?? ""}</p>
-              <ul>{res.gained.map((g, j) => <li key={j} className="small">{(g.id as string).startsWith("food_") ? getFoodName(g.id as any) : getResourceName(g.id as any)} ×{g.qty}</li>)}</ul>
+              <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 10 }}>
+                {res.gained.length > 0 && (() => {
+                  const g = res.gained[0];
+                  return (
+                    <div style={{ position: "relative" }}>
+                      <ItemIcon id={g.id as string} size={36} />
+                      <FlyToInventory id={g.id as string} delay={300 + i * 100} />
+                    </div>
+                  );
+                })()}
+                <div>
+                  <h3 style={{ margin: 0 }}>{tool ? tool.name : res.method} pass</h3>
+                  <p className="small" style={{ margin: 0, opacity: 0.55 }}>{flavour[effLabel] ?? ""}</p>
+                </div>
+              </div>
+              <ul style={{ marginBottom: 8 }}>{res.gained.map((g, j) => <li key={j} className="small">{(g.id as string).startsWith("food_") ? getFoodName(g.id as any) : getResourceName(g.id as any)} ×{g.qty}</li>)}</ul>
               <p className="small" style={{ marginTop: 4 }}>
                 <span style={{ opacity: 0.6 }}>Satiety</span>{" "}<SatietyLine raw={res.satietyDelta} restored={res.satietyRestoredByChomper} />
               </p>
@@ -1098,7 +1195,8 @@ export default function App() {
               <p className="small">
                 <span style={{ opacity: 0.6 }}>XP</span>{" "}+{res.xpGained}
               </p>
-              {res.foodConsumed.length > 0 && <p className="small">Chomper snacked: {formatConsumed(res.foodConsumed)}</p>}
+              <MiniXPBar method={res.method} xpBefore={xpBefore} xpAfter={xpAfter} />
+              {res.foodConsumed.length > 0 && <p className="small" style={{ marginTop: 6 }}>Chomper snacked: {formatConsumed(res.foodConsumed)}</p>}
             </div>
           </FadeIn>
         );
@@ -1441,15 +1539,16 @@ export default function App() {
                       <ItemIcon id={id} size={20} />
                       <div style={{ flex: 1 }}>
                         <div style={{ fontWeight: 600, fontSize: "0.95rem" }}>{food.name}</div>
-                        <div style={{ display: "flex", gap: 4, marginTop: 5, flexWrap: "wrap" }}>
+                        <div style={{ display: "flex", gap: 3, marginTop: 5, flexWrap: "wrap", alignItems: "center" }}>
                           {freshness.map((f, i) => {
                             const ratio = f / maxFresh;
                             const col = ratio > 0.6 ? "#26c6da" : ratio > 0.3 ? "#f5c842" : "#e53935";
                             return (
-                              <div key={i} title={`${f} periods left`} style={{ display: "flex", gap: 2 }}>
-                                {Array.from({ length: maxFresh }).map((_, pip) => (
-                                  <div key={pip} style={{ width: 6, height: 6, borderRadius: 2, background: pip < f ? col : "#2a2a2a" }} />
-                                ))}
+                              <div key={i} title={`${f} periods left`} style={{ display: "flex", alignItems: "center", gap: 2 }}>
+                                <div style={{ width: 28, height: 5, borderRadius: 2, background: "#2a2a2a", overflow: "hidden" }}>
+                                  <div style={{ width: `${ratio * 100}%`, height: "100%", background: col, borderRadius: 2 }} />
+                                </div>
+                                <span style={{ fontSize: "0.6rem", opacity: 0.5, minWidth: 14 }}>{f}</span>
                               </div>
                             );
                           })}
@@ -1466,7 +1565,7 @@ export default function App() {
                   </div>
                 );
               })}
-              <p className="small" style={{ opacity: 0.4, marginTop: 4 }}>Each pip = 1 period of freshness remaining.</p>
+              <p className="small" style={{ opacity: 0.4, marginTop: 4 }}>Each bar = one unit. Number = periods of freshness remaining.</p>
             </div>
           );
         })()}
@@ -1641,6 +1740,9 @@ export default function App() {
         )}
         {body}
         {howItWorksModal}
+        {craftFlashItem && (
+          <CraftSuccessFlash itemId={craftFlashItem} onDone={() => setCraftFlashItem(null)} />
+        )}
       </div>
     </div>
   );

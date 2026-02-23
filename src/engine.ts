@@ -211,11 +211,11 @@ export function makeJourneyPreview(player: PlayerState, mode: "explore" | "findF
   const events = rollEvents(mode);
 
   const baseSatietyCostRange: [number, number] = [stepsRange[0] * BIOME_LEVEL.satietyPerStep, stepsRange[1] * BIOME_LEVEL.satietyPerStep];
-  const baseStaminaCostRange: [number, number] = [stepsRange[0] * BIOME_LEVEL.staminaPerStep, stepsRange[1] * BIOME_LEVEL.staminaPerStep];
+  const baseStaminaCostRange: [number, number] = [Math.floor(stepsRange[0] / 10) * BIOME_LEVEL.staminaPerStep, Math.floor(stepsRange[1] / 10) * BIOME_LEVEL.staminaPerStep];
 
   const curlerCount = countEquippedTail(player, "eq_tail_curler");
   const tailCurlerRecoveryPerPeriod = curlerCount * (ITEMS.eq_tail_curler.effects?.staminaRecoveryPerPeriod ?? 0);
-  const journeyPeriods = (n: number) => Math.floor(n / 20);
+  const journeyPeriods = (n: number) => Math.floor(n / 10);
 
   const satietyCostRange = baseSatietyCostRange;
   const staminaCostRange = baseStaminaCostRange;
@@ -228,7 +228,7 @@ export function makeJourneyPreview(player: PlayerState, mode: "explore" | "findF
   const chomperCount = countEquippedTail(player, "eq_chomper");
   const estFoodConsumed: { foodId: FoodId; unitsRange: [number, number] }[] = [];
   let satietyRestoredRange: [number, number] = [0, 0];
-  const totalPeriodsUpper = stepsRange[1];
+  const totalPeriodsUpper = Math.floor(stepsRange[1] / 10);
 
   if (chomperCount > 0 && chomperAutoEnabled) {
     const storableIds = Array.from(new Set(
@@ -288,8 +288,8 @@ function applyEvents(
       case "ev_sticky_drag":
         extraSteps += 20;
         player.stats.satiety = clamp(player.stats.satiety - 20 * BIOME_LEVEL.satietyPerStep, 0, player.stats.maxSatiety);
-        player.stats.stamina = clamp(player.stats.stamina - 20 * BIOME_LEVEL.staminaPerStep, 0, player.stats.maxStamina);
-        applyStaminaRecovery(player, Math.floor(20 / 20));
+        player.stats.stamina = clamp(player.stats.stamina - 2 * BIOME_LEVEL.staminaPerStep, 0, player.stats.maxStamina);
+        applyStaminaRecovery(player, 2);
         if (countEquippedTail(player, "eq_chomper") > 0 && chomperAutoEnabled) {
           const { consumed: fc } = autoConsumeStorableFood(player, 2, chomperAutoEnabled);
           for (const c of fc) {
@@ -360,14 +360,15 @@ export function resolveJourney(player: PlayerState, preview: JourneyPreview, cho
   const eventsOut: EventId[] = [...preview.surfacedEvents];
 
   const satietyDelta = steps * BIOME_LEVEL.satietyPerStep;
-  const staminaDelta = steps * BIOME_LEVEL.staminaPerStep;
+  const periods = Math.floor(steps / 10);
+  const staminaDelta = periods * BIOME_LEVEL.staminaPerStep;
 
   player.stats.satiety = clamp(player.stats.satiety - satietyDelta, 0, player.stats.maxSatiety);
   player.stats.stamina = clamp(player.stats.stamina - staminaDelta, 0, player.stats.maxStamina);
 
-  const staminaRecovery = applyStaminaRecovery(player, Math.floor(steps / 20));
+  const staminaRecovery = applyStaminaRecovery(player, periods);
 
-  const { consumed: foodConsumed, satietyRestored: satietyRestoredByChomper } = autoConsumeStorableFood(player, steps, chomperAutoEnabled);
+  const { consumed: foodConsumed, satietyRestored: satietyRestoredByChomper } = autoConsumeStorableFood(player, periods, chomperAutoEnabled);
 
   const { eventEffects, extraSteps, foodConsumed: eventFood } = applyEvents(player, eventsOut, chomperAutoEnabled);
   for (const c of eventFood) {

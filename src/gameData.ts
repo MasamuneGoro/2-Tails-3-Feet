@@ -32,7 +32,7 @@ export const BIOME_LEVEL: {
   exploreStepsRange: [75, 125],
   foodStepsRange: [63, 100],
   satietyPerStep: 1,
-  staminaPerStep: 1,
+  staminaPerStep: 5,
   poiWeightsExplore: {
     poi_resin_node: 40,
     poi_fiber_patch: 35,
@@ -168,10 +168,10 @@ export const POIS: Record<
     qualityTiers: ["common", "uncommon"],
     kind: "harvest",
     resourceId: "brittle_stone",
-    baseYieldRange: [2, 3],
+    baseYieldRange: [3, 5],
     methodTuning: {
-      smash: { periodsRange: [5, 7], staminaPerPeriod: 30 },
-      drill: { periodsRange: [7, 9], staminaPerPeriod: 20 },
+      smash: { periodsRange: [5, 7], staminaPerPeriod: 22 },
+      drill: { periodsRange: [7, 9], staminaPerPeriod: 14 },
       poke: { periodsRange: [10, 12], staminaPerPeriod: 10 },
       tease: { periodsRange: [12, 14], staminaPerPeriod: 10 },
       scoop: { periodsRange: [12, 14], staminaPerPeriod: 10 },
@@ -234,8 +234,8 @@ export const FOODS: Record<
   { id: FoodId; name: string; satietyRestored: number; storable: boolean; freshnessRange?: [number, number]; flavor: string }
 > = {
   food_soft_sap: { id: "food_soft_sap", name: "Soft Sap", satietyRestored: 150, storable: false, flavor: "Warm, gloopy, and barely qualifies as food. Your belly doesn't care." },
-  food_resin_chew: { id: "food_resin_chew", name: "Resin Chew", satietyRestored: 40, storable: true, freshnessRange: [35, 49], flavor: "Chewy in a way that makes you think. Not about what's in it, though." },
-  food_dense_ration: { id: "food_dense_ration", name: "Dense Ration", satietyRestored: 120, storable: true, freshnessRange: [56, 84], flavor: "Suspiciously well-preserved. You decide gratitude is the right response." },
+  food_resin_chew: { id: "food_resin_chew", name: "Resin Chew", satietyRestored: 40, storable: true, freshnessRange: [25, 34], flavor: "Chewy in a way that makes you think. Not about what's in it, though." },
+  food_dense_ration: { id: "food_dense_ration", name: "Dense Ration", satietyRestored: 120, storable: true, freshnessRange: [39, 59], flavor: "Suspiciously well-preserved. You decide gratitude is the right response." },
 };
 
 export const ITEMS: Record<

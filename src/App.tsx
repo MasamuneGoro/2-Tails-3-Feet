@@ -82,7 +82,7 @@ const START_PLAYER: PlayerState = {
     { id: "eq_tail_curler", qty: 1 },
     { id: "eq_chomper", qty: 1 },
     { id: "eq_pointed_twig", qty: 1 },
-    { id: "food_resin_chew", qty: 1, freshness: [49] },
+    { id: "food_resin_chew", qty: 1, freshness: [34] },
   ],
   xp: { poke: 0, smash: 0, tease: 0, drill: 0, scoop: 0 },
 };

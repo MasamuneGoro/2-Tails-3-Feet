@@ -1703,14 +1703,22 @@ export default function App() {
                 const item = ITEMS[id];
                 const isExpanded = expandedItem === id;
                 const slot = item.slot === "tail" ? "Tail tool" : "Shoe";
+                const toolType = item.slot === "tail"
+                  ? (item.harvestingMethod ? "Harvesting Type"
+                    : id === "eq_tail_curler" ? "Recovery Type"
+                    : id === "eq_chomper" ? "Consumption Type"
+                    : id === "eq_tinker_shaft" ? "Crafting Type"
+                    : null)
+                  : null;
                 const equipped = player.equipment.tailSlots.includes(id) || player.equipment.shoe === id;
+                const subtitle = [slot, toolType, equipped ? "equipped" : null].filter(Boolean).join(" · ");
                 return (
                   <div key={id} style={{ background: "#161616", borderRadius: 10, border: "1px solid #2a2a2a", borderLeft: "3px solid #c8a96e", marginBottom: 6, overflow: "hidden" }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", cursor: "pointer" }} onClick={() => setExpandedItem(isExpanded ? null : id)}>
                       <ItemIcon id={id} size={20} />
                       <div style={{ flex: 1 }}>
                         <div style={{ fontWeight: 600, fontSize: "0.95rem" }}>{item.name}</div>
-                        <div style={{ fontSize: "0.75rem", opacity: 0.5, marginTop: 2 }}>{slot}{equipped ? " · equipped" : ""}</div>
+                        <div style={{ fontSize: "0.75rem", opacity: 0.5, marginTop: 2 }}>{subtitle}</div>
                       </div>
                       <div style={{ fontSize: "0.8rem", opacity: 0.5, padding: "3px 8px", background: "#1e1e1e", borderRadius: 6 }}>×{s.qty}</div>
                       <div style={{ fontSize: "0.7rem", opacity: 0.35 }}>{isExpanded ? "▲" : "▼"}</div>

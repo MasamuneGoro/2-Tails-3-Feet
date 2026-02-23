@@ -195,12 +195,13 @@ export default function App() {
     return snap;
   }
 
-  /** After an action, compare snapshot to current inv; alert if any storable food qty dropped to 0 */
-  function checkDecayAlert(before: Record<string, number>, afterInv: typeof player.inventory) {
+  /** After an action, compare snapshot to current inv; alert if any storable food qty dropped to 0 due to rot (not chomper) */
+  function checkDecayAlert(before: Record<string, number>, afterInv: typeof player.inventory, chomperConsumed: { foodId: import("./types").FoodId; units: number }[] = []) {
     const afterQty: Record<string, number> = {};
     for (const s of afterInv) afterQty[s.id as string] = s.qty;
+    const chomperIds = new Set(chomperConsumed.map(c => c.foodId as string));
     for (const [id, qty] of Object.entries(before)) {
-      if (qty > 0 && (afterQty[id] ?? 0) === 0) {
+      if (qty > 0 && (afterQty[id] ?? 0) === 0 && !chomperIds.has(id)) {
         const name = FOODS[id as import("./types").FoodId]?.name ?? id;
         setDecayedFoodAlert(name);
         return;
@@ -246,7 +247,7 @@ export default function App() {
     const next = structuredClone(player);
     const res = resolveJourney(next, journeyPreview, chomperAutoEnabled);
     setPlayer(next); setJourneyResult(res);
-    checkDecayAlert(snap, next.inventory);
+    checkDecayAlert(snap, next.inventory, res.foodConsumed);
     setActivePoi(null); setActiveBlot(null);
     setLastEatResult(null); setLastStorableResult(null);
     setScoopExpanded(false);
@@ -291,7 +292,7 @@ export default function App() {
     const next = structuredClone(player);
     const res = resolveHarvest(next, harvestPreview, chomperAutoEnabled);
     setPlayer(next); setHarvestResult(res);
-    checkDecayAlert(snap, next.inventory);
+    checkDecayAlert(snap, next.inventory, res.foodConsumed);
     if (activeBlot && activeBlot.harvestCharges !== undefined)
       setActiveBlot({ ...activeBlot, harvestCharges: Math.max(0, activeBlot.harvestCharges - 1) });
     setScreen("SUMMARY_HARVEST");
@@ -314,7 +315,8 @@ export default function App() {
       if (res.outcome !== "ok") break;
     }
     setPlayer(next); setActiveBlot(blotCopy); setMultiHarvestResults(results);
-    checkDecayAlert(snap, next.inventory);
+    const allConsumed = results.flatMap(r => r.foodConsumed);
+    checkDecayAlert(snap, next.inventory, allConsumed);
     setScreen("SUMMARY_HARVEST");
   }
 
@@ -334,7 +336,7 @@ export default function App() {
     const blotCopy = structuredClone(activeBlot);
     const result = harvestStorableAtBlot(next, blotCopy);
     setPlayer(next); setActiveBlot(blotCopy); setLastStorableResult(result);
-    checkDecayAlert(snap, next.inventory);
+    checkDecayAlert(snap, next.inventory, result.foodConsumed);
   }
 
   // ── Craft ─────────────────────────────────────────────────────────────────
@@ -354,7 +356,7 @@ export default function App() {
     const next = structuredClone(player);
     const res = resolveCraft(next, craftPreview, chomperAutoEnabled);
     setPlayer(next); setCraftResult(res);
-    checkDecayAlert(snap, next.inventory);
+    checkDecayAlert(snap, next.inventory, res.foodConsumed);
     setScreen("SUMMARY_CRAFT");
   }
 
@@ -372,7 +374,7 @@ export default function App() {
     const next = structuredClone(player);
     const res = resolveRecover(next, periods, chomperAutoEnabled);
     setPlayer(next); setRecoverSummary(res);
-    checkDecayAlert(snap, next.inventory);
+    checkDecayAlert(snap, next.inventory, res.foodConsumed);
     setScreen("SUMMARY_RECOVER");
   }
   function keepFlopping() {
@@ -381,7 +383,7 @@ export default function App() {
     const next = structuredClone(player);
     const res = resolveRecover(next, periods, chomperAutoEnabled);
     setPlayer(next); setRecoverSummary(res);
-    checkDecayAlert(snap, next.inventory);
+    checkDecayAlert(snap, next.inventory, res.foodConsumed);
     // stay on SUMMARY_RECOVER
   }
 
@@ -510,7 +512,7 @@ export default function App() {
         const allFreshness = foods.flatMap(s => s.freshness ?? []);
         const minFresh = allFreshness.length ? Math.min(...allFreshness) : Infinity;
         const WARNING_THRESHOLD = 25; // periods
-        const isExpiring = minFresh <= WARNING_THRESHOLD;
+        const isExpiring = minFresh <= WARNING_THRESHOLD && !(chomperEquipped && chomperAutoEnabled);
 
         return (
           <div style={{ borderTop: "1px solid #2a2a2a", paddingTop: 10 }}>
@@ -830,7 +832,7 @@ export default function App() {
                       )}
                       {lastStorableResult && hasEquippedTail(player, "eq_sticky_scoop") && (
                         <p className="small" style={{ opacity: 0.8, margin: 0 }}>
-                          Gathered 1 {FOODS[lastStorableResult.foodId].name}.{" "}
+                          Gathered {lastStorableResult.qty} {FOODS[lastStorableResult.foodId].name}.{" "}
                           <SatietyLine raw={lastStorableResult.satietyCost} restored={lastStorableResult.foodConsumed.reduce((s, c) => s + FOODS[c.foodId].satietyRestored * c.units, 0)} /> satiety •{" "}
                           <StaminaRecoveryLine raw={lastStorableResult.staminaCost} recovery={lastStorableResult.staminaRecovery ?? []} /> stamina.{" "}
                           {lastStorableResult.outcome !== "ok" ? <b>{lastStorableResult.outcome.toUpperCase()}</b> : "Stashed."}
@@ -1087,7 +1089,15 @@ export default function App() {
               <h3>{tool ? tool.name : res.method} pass</h3>
               <p className="small">{flavour[effLabel] ?? ""}</p>
               <ul>{res.gained.map((g, j) => <li key={j} className="small">{(g.id as string).startsWith("food_") ? getFoodName(g.id as any) : getResourceName(g.id as any)} ×{g.qty}</li>)}</ul>
-              <p className="small">→ <SatietyLine raw={res.satietyDelta} restored={res.satietyRestoredByChomper} /> satiety · <StaminaRecoveryLine raw={res.staminaDelta} recovery={res.staminaRecovery} /> stamina · +{res.xpGained} XP</p>
+              <p className="small" style={{ marginTop: 4 }}>
+                <span style={{ opacity: 0.6 }}>Satiety</span>{" "}<SatietyLine raw={res.satietyDelta} restored={res.satietyRestoredByChomper} />
+              </p>
+              <p className="small">
+                <span style={{ opacity: 0.6 }}>Stamina</span>{" "}<StaminaRecoveryLine raw={res.staminaDelta} recovery={res.staminaRecovery} />
+              </p>
+              <p className="small">
+                <span style={{ opacity: 0.6 }}>XP</span>{" "}+{res.xpGained}
+              </p>
               {res.foodConsumed.length > 0 && <p className="small">Chomper snacked: {formatConsumed(res.foodConsumed)}</p>}
             </div>
           </FadeIn>

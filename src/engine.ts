@@ -666,10 +666,11 @@ export function harvestStorableAtBlot(player: PlayerState, blot: BlotState): Har
   const staminaRecovery = applyStaminaRecovery(player, 1, "working");
   const { consumed: foodConsumed } = autoConsumeStorableFood(player, 1);
   const fr = FOODS[food].freshnessRange!;
-  // Each equipped sticky scoop harvests up to 10 units — cap at what's remaining
+  // Each equipped sticky scoop harvests 8–12 units randomly — cap at what's remaining
   const scoopCount = countEquippedTail(player, "eq_sticky_scoop");
   const available = blot.storableRemaining ?? 1;
-  const qty = Math.min(scoopCount * 10, available);
+  const scoopQty = Array.from({ length: scoopCount }, () => randInt(8, 12)).reduce((a, b) => a + b, 0);
+  const qty = Math.min(scoopQty, available);
   const freshness: number[] = [];
   for (let i = 0; i < qty; i++) freshness.push(randInt(fr[0], fr[1]));
   invAdd(player.inventory, food, qty, freshness);

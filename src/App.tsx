@@ -14,6 +14,14 @@ import {
 
 function pct(n: number, d: number) { return Math.round((n / d) * 100); }
 
+function FadeIn({ delay = 0, children }: { delay?: number; children: React.ReactNode }) {
+  return (
+    <div style={{ animation: "fadeSlideIn 180ms ease both", animationDelay: `${delay}ms` }}>
+      {children}
+    </div>
+  );
+}
+
 function formatConsumed(consumed: { foodId: import("./types").FoodId; units: number }[]) {
   if (!consumed.length) return "None";
   return consumed.map((c) => `${FOODS[c.foodId].name} ×${c.units}`).join(", ");
@@ -960,51 +968,61 @@ export default function App() {
   // ── Journey summary ───────────────────────────────────────────────────────
   const journeySummaryScreen = journeyResult && (
     <div className="card">
-      <h2>What happened out there</h2>
-      <div className="kv" style={{ marginBottom: 12 }}>
-        <div>Found</div><div><b>{prettyPoi(journeyResult.poi.id).name}</b> <span style={{opacity:0.6}}>({journeyResult.poi.quality})</span></div>
-        <div>Steps taken</div><div>{journeyResult.steps}</div>
-        <div>Satiety cost</div><div><SatietyLine raw={journeyResult.satietyDelta} restored={journeyResult.satietyRestoredByChomper} /></div>
-        <div>Stamina cost</div><div><StaminaRecoveryLine raw={journeyResult.staminaDelta} recovery={journeyResult.staminaRecovery} /></div>
-      </div>
+      <FadeIn delay={0}><h2>What happened out there</h2></FadeIn>
+      <FadeIn delay={60}>
+        <div className="kv" style={{ marginBottom: 12 }}>
+          <div>Found</div><div><b>{prettyPoi(journeyResult.poi.id).name}</b> <span style={{opacity:0.6}}>({journeyResult.poi.quality})</span></div>
+          <div>Steps taken</div><div>{journeyResult.steps}</div>
+          <div>Satiety cost</div><div><SatietyLine raw={journeyResult.satietyDelta} restored={journeyResult.satietyRestoredByChomper} /></div>
+          <div>Stamina cost</div><div><StaminaRecoveryLine raw={journeyResult.staminaDelta} recovery={journeyResult.staminaRecovery} /></div>
+        </div>
+      </FadeIn>
 
       {journeyResult.surfacedEvents.filter(e => !["ev_need_chomper","ev_need_scoop_for_rations"].includes(e)).length > 0 && (
-        <div className="card">
-          <h3>Events</h3>
-          <EventList events={journeyResult.surfacedEvents} effects={journeyResult.eventEffects} />
-        </div>
+        <FadeIn delay={140}>
+          <div className="card">
+            <h3>Events</h3>
+            <EventList events={journeyResult.surfacedEvents} effects={journeyResult.eventEffects} />
+          </div>
+        </FadeIn>
       )}
 
       {journeyResult.gained.length > 0 && (
-        <div className="card">
-          <h3>Collected along the way</h3>
-          <ul>
-            {journeyResult.gained.map((g, i) => (
-              <li key={i} className="small">
-                {(g.id as string).startsWith("food_") ? getFoodName(g.id as any) : getResourceName(g.id as any)} ×{g.qty}
-              </li>
-            ))}
-          </ul>
-        </div>
+        <FadeIn delay={220}>
+          <div className="card">
+            <h3>Collected along the way</h3>
+            <ul>
+              {journeyResult.gained.map((g, i) => (
+                <li key={i} className="small">
+                  {(g.id as string).startsWith("food_") ? getFoodName(g.id as any) : getResourceName(g.id as any)} ×{g.qty}
+                </li>
+              ))}
+            </ul>
+          </div>
+        </FadeIn>
       )}
 
       {journeyResult.foodConsumed.length > 0 && (
-        <div className="card">
-          <h3>Chomper snacked</h3>
-          <p className="small">{formatConsumed(journeyResult.foodConsumed)}</p>
-        </div>
+        <FadeIn delay={300}>
+          <div className="card">
+            <h3>Chomper snacked</h3>
+            <p className="small">{formatConsumed(journeyResult.foodConsumed)}</p>
+          </div>
+        </FadeIn>
       )}
 
-      <div className="row">
-        <button className="btn" style={{ background: "#1a2e1a", border: "1px solid #4caf50", color: "#7ecba1", fontWeight: 600, padding: "12px 22px" }} onClick={enterPoi} disabled={journeyResult.outcome !== "ok"}>Arrive</button>
-      </div>
-
-      {journeyResult.outcome !== "ok" && (
-        <div className="notice">
-          <b>Outcome:</b> {journeyResult.outcome.toUpperCase()}
-          <div className="small">{journeyResult.outcome === "exhausted" ? "Your tails have given up. Lay down." : "Satiety hit zero. Reset to try again."}</div>
+      <FadeIn delay={360}>
+        <div className="row">
+          <button className="btn" style={{ background: "#1a2e1a", border: "1px solid #4caf50", color: "#7ecba1", fontWeight: 600, padding: "12px 22px" }} onClick={enterPoi} disabled={journeyResult.outcome !== "ok"}>Arrive</button>
         </div>
-      )}
+
+        {journeyResult.outcome !== "ok" && (
+          <div className="notice">
+            <b>Outcome:</b> {journeyResult.outcome.toUpperCase()}
+            <div className="small">{journeyResult.outcome === "exhausted" ? "Your tails have given up. Lay down." : "Satiety hit zero. Reset to try again."}</div>
+          </div>
+        )}
+      </FadeIn>
     </div>
   );
 
@@ -1052,34 +1070,40 @@ export default function App() {
   // ── Harvest summary ───────────────────────────────────────────────────────
   const harvestSummaryScreen = multiHarvestResults.length > 0 && (
     <div className="card">
-      <h2>Haul report</h2>
-      <p className="small">
-        {multiHarvestResults.length === 2 ? "Both tools took a swing." : "One pass done."}{" "}
-        Total: {multiHarvestResults.reduce((s, r) => s + r.periods, 0)} periods.
-      </p>
+      <FadeIn delay={0}><h2>Haul report</h2></FadeIn>
+      <FadeIn delay={60}>
+        <p className="small">
+          {multiHarvestResults.length === 2 ? "Both tools took a swing." : "One pass done."}{" "}
+          Total: {multiHarvestResults.reduce((s, r) => s + r.periods, 0)} periods.
+        </p>
+      </FadeIn>
       {multiHarvestResults.map((res, i) => {
         const tool = Object.values(ITEMS).find(it => it.harvestingMethod === res.method);
         const flavour: Record<string, string> = { best: "Clean and efficient.", good: "Solid work.", ok: "Got something out of it.", weak: "Slow going, but you persisted.", veryWeak: "That hurt more than it helped.", wasteful: "Half of it crumbled away." };
         const effLabel = POIS[res.poiId].methodRank?.[res.method] ?? "ok";
         return (
-          <div className="card" key={i}>
-            <h3>{tool ? tool.name : res.method} pass</h3>
-            <p className="small">{flavour[effLabel] ?? ""}</p>
-            <ul>{res.gained.map((g, j) => <li key={j} className="small">{(g.id as string).startsWith("food_") ? getFoodName(g.id as any) : getResourceName(g.id as any)} ×{g.qty}</li>)}</ul>
-            <p className="small">→ <SatietyLine raw={res.satietyDelta} restored={res.satietyRestoredByChomper} /> satiety · <StaminaRecoveryLine raw={res.staminaDelta} recovery={res.staminaRecovery} /> stamina · +{res.xpGained} XP</p>
-            {res.foodConsumed.length > 0 && <p className="small">Chomper snacked: {formatConsumed(res.foodConsumed)}</p>}
-          </div>
+          <FadeIn key={i} delay={140 + i * 100}>
+            <div className="card">
+              <h3>{tool ? tool.name : res.method} pass</h3>
+              <p className="small">{flavour[effLabel] ?? ""}</p>
+              <ul>{res.gained.map((g, j) => <li key={j} className="small">{(g.id as string).startsWith("food_") ? getFoodName(g.id as any) : getResourceName(g.id as any)} ×{g.qty}</li>)}</ul>
+              <p className="small">→ <SatietyLine raw={res.satietyDelta} restored={res.satietyRestoredByChomper} /> satiety · <StaminaRecoveryLine raw={res.staminaDelta} recovery={res.staminaRecovery} /> stamina · +{res.xpGained} XP</p>
+              {res.foodConsumed.length > 0 && <p className="small">Chomper snacked: {formatConsumed(res.foodConsumed)}</p>}
+            </div>
+          </FadeIn>
         );
       })}
-      <div className="row">
-        <button className="btn" onClick={() => { setMultiHarvestResults([]); setScreen("HUB"); }}>Back to it</button>
-      </div>
-      {multiHarvestResults[multiHarvestResults.length - 1]?.outcome !== "ok" && (
-        <div className="notice">
-          <b>Outcome:</b> {multiHarvestResults[multiHarvestResults.length - 1]?.outcome.toUpperCase()}
-          <div className="small">{multiHarvestResults[multiHarvestResults.length - 1]?.outcome === "exhausted" ? "Lay down." : "Satiety hit zero."}</div>
+      <FadeIn delay={multiHarvestResults.length > 1 ? 360 : 260}>
+        <div className="row">
+          <button className="btn" onClick={() => { setMultiHarvestResults([]); setScreen("HUB"); }}>Back to it</button>
         </div>
-      )}
+        {multiHarvestResults[multiHarvestResults.length - 1]?.outcome !== "ok" && (
+          <div className="notice">
+            <b>Outcome:</b> {multiHarvestResults[multiHarvestResults.length - 1]?.outcome.toUpperCase()}
+            <div className="small">{multiHarvestResults[multiHarvestResults.length - 1]?.outcome === "exhausted" ? "Lay down." : "Satiety hit zero."}</div>
+          </div>
+        )}
+      </FadeIn>
     </div>
   );
 
@@ -1213,22 +1237,28 @@ export default function App() {
 
   const craftSummaryScreen = craftResult && (
     <div className="card">
-      <h2>Craft Summary</h2>
-      <div className="card">
-        <h3>Result</h3>
-        {craftResult.success
-          ? <p className="small">Crafted: <b>{getItemName(craftResult.crafted!.itemId)}</b> ×{craftResult.crafted!.qty}</p>
-          : <p className="small">Failed: <b>{craftResult.failReason}</b></p>}
-        <p className="small" style={{ marginTop: 6 }}><SatietyLine raw={craftResult.satietyDelta} restored={craftResult.satietyRestoredByChomper} /> satiety · <StaminaRecoveryLine raw={craftResult.staminaDelta} recovery={craftResult.staminaRecovery} /> stamina</p>
-      </div>
+      <FadeIn delay={0}><h2>Craft Summary</h2></FadeIn>
+      <FadeIn delay={80}>
+        <div className="card">
+          <h3>Result</h3>
+          {craftResult.success
+            ? <p className="small">Crafted: <b>{getItemName(craftResult.crafted!.itemId)}</b> ×{craftResult.crafted!.qty}</p>
+            : <p className="small">Failed: <b>{craftResult.failReason}</b></p>}
+          <p className="small" style={{ marginTop: 6 }}><SatietyLine raw={craftResult.satietyDelta} restored={craftResult.satietyRestoredByChomper} /> satiety · <StaminaRecoveryLine raw={craftResult.staminaDelta} recovery={craftResult.staminaRecovery} /> stamina</p>
+        </div>
+      </FadeIn>
       {craftResult.foodConsumed.length > 0 && (
-        <div className="card"><h3>Chomper Consumption</h3><p className="small">{formatConsumed(craftResult.foodConsumed)}</p></div>
+        <FadeIn delay={160}>
+          <div className="card"><h3>Chomper Consumption</h3><p className="small">{formatConsumed(craftResult.foodConsumed)}</p></div>
+        </FadeIn>
       )}
-      <div className="row">
-        <button className="btn" onClick={() => setScreen("CRAFT_MENU")}>Keep tinkering</button>
-        <button className="btn" onClick={gotoHub}>Done</button>
-      </div>
-      {!craftResult.success && <div className="notice">Outcome: {craftResult.failReason?.toUpperCase()}</div>}
+      <FadeIn delay={craftResult.foodConsumed.length > 0 ? 240 : 160}>
+        <div className="row">
+          <button className="btn" onClick={() => setScreen("CRAFT_MENU")}>Keep tinkering</button>
+          <button className="btn" onClick={gotoHub}>Done</button>
+        </div>
+        {!craftResult.success && <div className="notice">Outcome: {craftResult.failReason?.toUpperCase()}</div>}
+      </FadeIn>
     </div>
   );
 
@@ -1238,7 +1268,7 @@ export default function App() {
       <PreviewTitle main="Belly Down" sub="What It'll Cost You" />
       <p className="small" style={{ textAlign: "center", marginBottom: 14, opacity: 0.7 }}>
         {curlerCount > 0
-          ? `The Tail Curler${curlerCount === 2 ? "s work" : " works"} harder when you're horizontal — 1.5× recovery${curlerCount === 2 ? ", doubled for two curlers" : ""}. You'll unwind faster lying still.`
+          ? `The Tail Curler${curlerCount === 2 ? "s tick" : " ticks"} faster while you're horizontal — napping gives the best recovery rate${curlerCount === 2 ? ", and two curlers stack" : ""}. You'll unwind faster lying still.`
           : "No Tail Curler equipped — you'll just lie there getting hungrier. Bold strategy."}
       </p>
       {(() => {
@@ -1270,18 +1300,24 @@ export default function App() {
 
   const recoverSummaryScreen = recoverSummary && (
     <div className="card">
-      <h2>Back on your feet (sort of)</h2>
-      <p className="small">You spent {recoverSummary.periods} periods horizontal. Stamina recovered: <b>{Math.round(recoverSummary.staminaRecovered)}</b>.</p>
+      <FadeIn delay={0}><h2>Back on your feet (sort of)</h2></FadeIn>
+      <FadeIn delay={80}>
+        <p className="small">You spent {recoverSummary.periods} periods horizontal. Stamina recovered: <b>{Math.round(recoverSummary.staminaRecovered)}</b>.</p>
+      </FadeIn>
       {recoverSummary.foodConsumed.length > 0 && (
-        <div className="card"><h3>Chomper Snacked</h3><p className="small">{formatConsumed(recoverSummary.foodConsumed)}</p></div>
+        <FadeIn delay={160}>
+          <div className="card"><h3>Chomper Snacked</h3><p className="small">{formatConsumed(recoverSummary.foodConsumed)}</p></div>
+        </FadeIn>
       )}
-      <div className="row">
-        <button className="btn" onClick={keepFlopping} disabled={dead}>Keep flopping</button>
-        <button className="btn" onClick={gotoHub}>Get up</button>
-      </div>
-      {recoverSummary.outcome !== "ok" && (
-        <div className="notice"><b>Outcome:</b> {recoverSummary.outcome.toUpperCase()}</div>
-      )}
+      <FadeIn delay={recoverSummary.foodConsumed.length > 0 ? 240 : 160}>
+        <div className="row">
+          <button className="btn" onClick={keepFlopping} disabled={dead}>Keep flopping</button>
+          <button className="btn" onClick={gotoHub}>Get up</button>
+        </div>
+        {recoverSummary.outcome !== "ok" && (
+          <div className="notice"><b>Outcome:</b> {recoverSummary.outcome.toUpperCase()}</div>
+        )}
+      </FadeIn>
     </div>
   );
 

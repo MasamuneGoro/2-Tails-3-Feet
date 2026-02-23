@@ -3,14 +3,17 @@ import type { ItemId, PoiId } from "./types";
 
 // ─── ITEM ICONS ──────────────────────────────────────────────────────────────
 // 24×24 viewBox, strokeWidth 2, linecap/linejoin round
-// Equipment:  amber  #c8a96e
+// Harvesting tools:  amber   #c8a96e  (pointed twig, hammerhead, fiber comb, hand drill, sticky scoop)
+// Recovery tools:    blue    #7eaac8  (tail curler)
+// Crafting tools:    purple  #a07ed4  (tinker shaft)
+// Eating/utility:    green   #6dbf82  (chomper)
 // Resources:  varied per resource
 // Foods:      teal   #26c6da / green #4caf50
 
 const ICON_DEFS: Record<string, { color: string; paths: string }> = {
   // ── Equipment — amber #c8a96e, strokeWidth 2.5 main / 1.8 detail ─────────
   eq_tail_curler: {
-    color: "#c8a96e",
+    color: "#7eaac8",
     paths: `
       <path d="M12 20 C6 20 2.5 16 2.5 11.5 C2.5 7 5.5 4 9 4 C12.5 4 15 6.5 15 10 C15 13 12.5 15 10 15 C8.5 15 7 14 7 12.5" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
       <circle cx="7" cy="12.5" r="1.5" fill="currentColor"/>
@@ -20,18 +23,22 @@ const ICON_DEFS: Record<string, { color: string; paths: string }> = {
     `,
   },
   eq_chomper: {
-    color: "#c8a96e",
+    color: "#6dbf82",
     paths: `
-      <path d="M2.5 12 L9.5 7.5 L9.5 16.5 Z" fill="currentColor"/>
-      <path d="M21.5 12 L14.5 7.5 L14.5 16.5 Z" fill="currentColor"/>
-      <line x1="9.5" y1="9.5"  x2="14.5" y2="9.5"  stroke="currentColor" stroke-width="1.8" stroke-linecap="round" opacity="0.45"/>
-      <line x1="9.5" y1="12"   x2="14.5" y2="12"   stroke="currentColor" stroke-width="2"   stroke-linecap="round" opacity="0.9"/>
-      <line x1="9.5" y1="14.5" x2="14.5" y2="14.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" opacity="0.45"/>
-      <ellipse cx="12" cy="12" rx="1.5" ry="5" fill="none" stroke="currentColor" stroke-width="1.2" opacity="0.2"/>
+      <path d="M3 9 L21 9" stroke="currentColor" stroke-width="2" stroke-linecap="round" opacity="0.3"/>
+      <path d="M3 15 L21 15" stroke="currentColor" stroke-width="2" stroke-linecap="round" opacity="0.3"/>
+      <path d="M3 9 L3 6 L6 9" fill="currentColor" opacity="0.9"/>
+      <path d="M7.5 9 L7.5 5 L10.5 9" fill="currentColor" opacity="0.9"/>
+      <path d="M12 9 L12 5 L15 9" fill="currentColor" opacity="0.9"/>
+      <path d="M16.5 9 L16.5 6 L19.5 9" fill="currentColor" opacity="0.9"/>
+      <path d="M3 15 L3 18 L6 15" fill="currentColor" opacity="0.9"/>
+      <path d="M7.5 15 L7.5 19 L10.5 15" fill="currentColor" opacity="0.9"/>
+      <path d="M12 15 L12 19 L15 15" fill="currentColor" opacity="0.9"/>
+      <path d="M16.5 15 L16.5 18 L19.5 15" fill="currentColor" opacity="0.9"/>
     `,
   },
   eq_tinker_shaft: {
-    color: "#c8a96e",
+    color: "#a07ed4",
     paths: `
       <path d="M4.5 20 L14.5 10" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
       <circle cx="17.5" cy="7" r="3.5" fill="none" stroke="currentColor" stroke-width="2.5"/>
@@ -67,17 +74,15 @@ const ICON_DEFS: Record<string, { color: string; paths: string }> = {
   eq_fiber_comb: {
     color: "#c8a96e",
     paths: `
-      <path d="M3.5 20 L14.5 9" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
-      <path d="M14.5 9 L12 5.5"   stroke="currentColor" stroke-width="2"   stroke-linecap="round"/>
-      <path d="M14.5 9 L14.5 4.5" stroke="currentColor" stroke-width="2"   stroke-linecap="round"/>
-      <path d="M14.5 9 L17 5.5"   stroke="currentColor" stroke-width="2"   stroke-linecap="round"/>
-      <path d="M14.5 9 L19.5 6.5" stroke="currentColor" stroke-width="2"   stroke-linecap="round"/>
-      <path d="M14.5 9 L21 10"    stroke="currentColor" stroke-width="2"   stroke-linecap="round"/>
-      <circle cx="12"   cy="5.5"  r="1.2" fill="currentColor" opacity="0.6"/>
-      <circle cx="14.5" cy="4.5"  r="1.2" fill="currentColor" opacity="0.6"/>
-      <circle cx="17"   cy="5.5"  r="1.2" fill="currentColor" opacity="0.6"/>
-      <circle cx="19.5" cy="6.5"  r="1.2" fill="currentColor" opacity="0.6"/>
-      <circle cx="21"   cy="10"   r="1.2" fill="currentColor" opacity="0.6"/>
+      <path d="M3 8 L21 8" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
+      <path d="M5.5 8 L5.5 17" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+      <path d="M9 8 L9 17" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+      <path d="M12.5 8 L12.5 17" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+      <path d="M16 8 L16 17" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+      <path d="M19.5 8 L19.5 17" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+      <path d="M2.5 5 L21.5 5 L21.5 8 L2.5 8 Z" fill="currentColor" opacity="0.15"/>
+      <path d="M3 5.5 L21 5.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" opacity="0.5"/>
+      <path d="M3 5 L21 5" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
     `,
   },
   eq_hand_drill: {

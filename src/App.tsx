@@ -46,9 +46,11 @@ function MiniXPBar({ method, xpBefore, xpAfter }: {
     poke: "eq_pointed_twig", smash: "eq_crude_hammerhead",
     tease: "eq_fiber_comb", drill: "eq_hand_drill", scoop: "eq_sticky_scoop",
   };
+  const methodNames: Record<import("./types").HarvestMethodId, string> = {
+    poke: "Poke", smash: "Smash", tease: "Tease", drill: "Drill", scoop: "Scoop",
+  };
   const level = Math.min(10, Math.floor(xpAfter / 100) + 1);
   const xpForLevel = (Math.floor(xpAfter / 100)) * 100;
-  const xpForNext = xpForLevel + 100;
   const isMax = level >= 10;
   const pctBefore = isMax ? 100 : Math.min(100, ((xpBefore - xpForLevel) / 100) * 100);
   const pctAfter = isMax ? 100 : Math.min(100, ((xpAfter - xpForLevel) / 100) * 100);
@@ -61,16 +63,21 @@ function MiniXPBar({ method, xpBefore, xpAfter }: {
     return () => clearTimeout(t);
   }, [pctBefore, pctAfter]);
   return (
-    <div style={{ marginTop: 6, display: "flex", alignItems: "center", gap: 8 }}>
-      <ItemIcon id={toolIds[method]} size={14} />
-      <div style={{ flex: 1, background: "#0e0e0e", borderRadius: 3, height: 5, overflow: "hidden" }}>
-        <div ref={ref} style={{
-          height: "100%", background: isMax ? "#c8a96e" : "#4caf50",
-          borderRadius: 3, transition: "width 0.6s ease",
-        }} />
+    <div style={{ marginTop: 6 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <ItemIcon id={toolIds[method]} size={14} />
+        <div style={{ flex: 1, background: "#0e0e0e", borderRadius: 3, height: 5, overflow: "hidden" }}>
+          <div ref={ref} style={{
+            height: "100%", background: isMax ? "#c8a96e" : "#4caf50",
+            borderRadius: 3, transition: "width 0.6s ease",
+          }} />
+        </div>
+        <div style={{ fontSize: "0.68rem", opacity: 0.5, whiteSpace: "nowrap" }}>
+          Lv {level}{isMax ? " MAX" : ` · +${xpAfter - xpBefore} xp`}
+        </div>
       </div>
-      <div style={{ fontSize: "0.68rem", opacity: 0.5, whiteSpace: "nowrap" }}>
-        Lv {level}{isMax ? " MAX" : ` · +${xpAfter - xpBefore} xp`}
+      <div style={{ fontSize: "0.65rem", opacity: 0.35, marginTop: 3, paddingLeft: 22 }}>
+        {methodNames[method]} proficiency
       </div>
     </div>
   );
@@ -1170,7 +1177,8 @@ export default function App() {
         return (
           <FadeIn key={i} delay={140 + i * 100}>
             <div className="card">
-              <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 10 }}>
+              {/* Header: tool icon + name */}
+              <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12 }}>
                 {res.gained.length > 0 && (() => {
                   const g = res.gained[0];
                   return (
@@ -1185,18 +1193,37 @@ export default function App() {
                   <p className="small" style={{ margin: 0, opacity: 0.55 }}>{flavour[effLabel] ?? ""}</p>
                 </div>
               </div>
-              <ul style={{ marginBottom: 8 }}>{res.gained.map((g, j) => <li key={j} className="small">{(g.id as string).startsWith("food_") ? getFoodName(g.id as any) : getResourceName(g.id as any)} ×{g.qty}</li>)}</ul>
-              <p className="small" style={{ marginTop: 4 }}>
-                <span style={{ opacity: 0.6 }}>Satiety</span>{" "}<SatietyLine raw={res.satietyDelta} restored={res.satietyRestoredByChomper} />
-              </p>
-              <p className="small">
-                <span style={{ opacity: 0.6 }}>Stamina</span>{" "}<StaminaRecoveryLine raw={res.staminaDelta} recovery={res.staminaRecovery} />
-              </p>
-              <p className="small">
+
+              {/* Harvested items — icon inline, no bullet */}
+              <div style={{ display: "flex", flexDirection: "column", gap: 4, marginBottom: 10 }}>
+                {res.gained.map((g, j) => (
+                  <div key={j} style={{ display: "flex", alignItems: "center", gap: 7 }}>
+                    <ItemIcon id={g.id as string} size={16} />
+                    <span className="small">{(g.id as string).startsWith("food_") ? getFoodName(g.id as any) : getResourceName(g.id as any)} ×{g.qty}</span>
+                  </div>
+                ))}
+              </div>
+
+              {/* XP */}
+              <p className="small" style={{ marginBottom: 2 }}>
                 <span style={{ opacity: 0.6 }}>XP</span>{" "}+{res.xpGained}
               </p>
               <MiniXPBar method={res.method} xpBefore={xpBefore} xpAfter={xpAfter} />
-              {res.foodConsumed.length > 0 && <p className="small" style={{ marginTop: 6 }}>Chomper snacked: {formatConsumed(res.foodConsumed)}</p>}
+
+              {/* Chomper */}
+              {res.foodConsumed.length > 0 && (
+                <p className="small" style={{ marginTop: 10 }}>Chomper snacked: {formatConsumed(res.foodConsumed)}</p>
+              )}
+
+              {/* Cost */}
+              <div style={{ marginTop: res.foodConsumed.length > 0 ? 4 : 10 }}>
+                <p className="small">
+                  <span style={{ opacity: 0.6 }}>Satiety</span>{" "}<SatietyLine raw={res.satietyDelta} restored={res.satietyRestoredByChomper} />
+                </p>
+                <p className="small">
+                  <span style={{ opacity: 0.6 }}>Stamina</span>{" "}<StaminaRecoveryLine raw={res.staminaDelta} recovery={res.staminaRecovery} />
+                </p>
+              </div>
             </div>
           </FadeIn>
         );

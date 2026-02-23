@@ -601,11 +601,15 @@ export function resolveCraft(player: PlayerState, preview: CraftPreview, chomper
 }
 
 export function recoverPreview(player: PlayerState, chomperAutoEnabled = true) {
-  const periods = 8;
-  const satietyCost = periods * 10;
+  const periodsMin = 7;
+  const periodsMax = 12;
+  const periodsAvg = Math.round((periodsMin + periodsMax) / 2);
+  const satietyCostRange: [number, number] = [periodsMin * 10, periodsMax * 10];
   const curlerCount = countEquippedTail(player, "eq_tail_curler");
   const restingRecovery = ITEMS.eq_tail_curler.effects?.staminaRecoveryPerPeriodResting ?? ITEMS.eq_tail_curler.effects?.staminaRecoveryPerPeriod ?? 0;
-  const staminaRecovered = curlerCount > 0 ? restingRecovery * curlerCount * periods : 0;
+  const staminaRecoveryRange: [number, number] = curlerCount > 0
+    ? [restingRecovery * curlerCount * periodsMin, restingRecovery * curlerCount * periodsMax]
+    : [0, 0];
   const chomperCount = countEquippedTail(player, "eq_chomper");
   const estFoodConsumed: { foodId: FoodId; unitsRange: [number, number] }[] = [];
   if (chomperCount > 0 && chomperAutoEnabled) {
@@ -615,11 +619,11 @@ export function recoverPreview(player: PlayerState, chomperAutoEnabled = true) {
         .map((s) => s.id as FoodId)
     ));
     for (const id of storableIds) {
-      const maxUnits = Math.min(periods * chomperCount, invGet(player.inventory, id)?.qty ?? 0);
+      const maxUnits = Math.min(periodsMax * chomperCount, invGet(player.inventory, id)?.qty ?? 0);
       estFoodConsumed.push({ foodId: id, unitsRange: [0, maxUnits] });
     }
   }
-  return { periods, satietyCostRange: [satietyCost, satietyCost] as [number, number], staminaRecoveryRange: [0, staminaRecovered] as [number, number], estFoodConsumed };
+  return { periodsMin, periodsMax, periodsAvg, satietyCostRange, staminaRecoveryRange, estFoodConsumed };
 }
 
 export function resolveRecover(player: PlayerState, periods: number, chomperAutoEnabled = true) {
@@ -675,8 +679,10 @@ export function harvestStorableAtBlot(player: PlayerState, blot: BlotState): Har
   for (let i = 0; i < qty; i++) freshness.push(randInt(fr[0], fr[1]));
   invAdd(player.inventory, food, qty, freshness);
   blot.storableRemaining = available - qty;
+  const xpGained = Math.max(4, Math.floor(1 * 1.25)); // 1 period per scoop call
+  player.xp["scoop"] = (player.xp["scoop"] ?? 0) + xpGained;
   const outcome = player.stats.satiety <= 0 ? "dead" : player.stats.stamina <= 0 ? "exhausted" : "ok";
-  return { foodId: food, qty, freshness, satietyCost, staminaCost, staminaRecovery, foodConsumed, outcome };
+  return { foodId: food, qty, freshness, satietyCost, staminaCost, staminaRecovery, foodConsumed, xpGained, outcome };
 }
 
 export function prettyEvent(e: EventId) { return EVENTS[e]; }

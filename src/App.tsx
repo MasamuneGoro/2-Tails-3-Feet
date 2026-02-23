@@ -83,21 +83,34 @@ function MiniXPBar({ method, xpBefore, xpAfter }: {
   );
 }
 
-function CraftSuccessFlash({ itemId, onDone }: { itemId: string; onDone: () => void }) {
+function CraftSuccessFlash({ itemId, origin, onDone }: { itemId: string; origin: { x: number; y: number } | null; onDone: () => void }) {
+  const ref = React.useRef<HTMLDivElement>(null);
   React.useEffect(() => {
-    const t = setTimeout(onDone, 900);
-    return () => clearTimeout(t);
-  }, [onDone]);
+    const el = ref.current;
+    if (!el) return;
+    // Inventory button is in sidebar top-right area — estimate fixed position
+    const targetX = window.innerWidth - 60;
+    const targetY = 60;
+    const startX = origin ? origin.x : window.innerWidth * 0.5;
+    const startY = origin ? origin.y : window.innerHeight * 0.5;
+    el.style.left = `${startX}px`;
+    el.style.top = `${startY}px`;
+    el.style.transform = "translate(-50%, -50%) scale(1)";
+    el.style.opacity = "1";
+    const frame = requestAnimationFrame(() => {
+      el.style.transition = "left 650ms ease-in, top 650ms ease-in, transform 650ms ease-in, opacity 300ms ease-in 400ms";
+      el.style.left = `${targetX}px`;
+      el.style.top = `${targetY}px`;
+      el.style.transform = "translate(-50%, -50%) scale(0.25)";
+      el.style.opacity = "0";
+    });
+    const t = setTimeout(onDone, 750);
+    return () => { cancelAnimationFrame(frame); clearTimeout(t); };
+  }, [origin, onDone]);
   return (
-    <div style={{
-      position: "fixed", inset: 0, zIndex: 200,
-      pointerEvents: "none", display: "flex", alignItems: "center", justifyContent: "center",
-    }}>
-      <div style={{
-        position: "absolute", top: "42%", left: "55%",
-        animation: "craftPop 900ms ease both",
-      }}>
-        <ItemIcon id={itemId} size={72} />
+    <div style={{ position: "fixed", inset: 0, zIndex: 200, pointerEvents: "none" }}>
+      <div ref={ref} style={{ position: "absolute", willChange: "left, top, transform, opacity" }}>
+        <ItemIcon id={itemId} size={56} />
       </div>
     </div>
   );
@@ -123,22 +136,22 @@ function SatietyLine({ raw, restored }: { raw: number; restored: number }) {
 }
 
 function SatietyRangeLine({ raw, restoredRange }: { raw: [number, number]; restoredRange: [number, number] }) {
-  if (restoredRange[1] === 0) return <span>−{raw[0]}–{raw[1]}</span>;
+  if (restoredRange[1] === 0) return <span>−{raw[0]} to −{raw[1]}</span>;
   const netLo = Math.max(0, raw[0] - restoredRange[1]);
   const netHi = Math.max(0, raw[1] - restoredRange[1]);
-  return <span>−{raw[0]}–{raw[1]} <span style={{ opacity: 0.6, fontSize: "0.85em" }}>(+up to {restoredRange[1]} Chomper)</span> = −{netLo}–{netHi}</span>;
+  return <span>−{raw[0]} to −{raw[1]} <span style={{ opacity: 0.6, fontSize: "0.85em" }}>(+up to {restoredRange[1]} Chomper)</span> = −{netLo} to −{netHi}</span>;
 }
 
 function StaminaRangeLine({ raw, recoveryRange }: { raw: [number, number]; recoveryRange: [number, number] }) {
-  if (recoveryRange[1] === 0) return <span>−{raw[0]}–{raw[1]}</span>;
+  if (recoveryRange[1] === 0) return <span>−{raw[0]} to −{raw[1]}</span>;
   const netLo = Math.max(0, raw[0] - recoveryRange[1]);
   const netHi = Math.max(0, raw[1] - recoveryRange[1]);
-  return <span>−{raw[0]}–{raw[1]} <span style={{ opacity: 0.6, fontSize: "0.85em" }}>(+up to {recoveryRange[1]} Tail Curler)</span> = −{netLo}–{netHi}</span>;
+  return <span>−{raw[0]} to −{raw[1]} <span style={{ opacity: 0.6, fontSize: "0.85em" }}>(+up to {recoveryRange[1]} Tail Curler)</span> = −{netLo} to −{netHi}</span>;
 }
 
 function formatConsumedRange(consumed: { foodId: import("./types").FoodId; unitsRange: [number, number] }[]) {
   if (!consumed.length) return "";
-  return consumed.map((c) => `${FOODS[c.foodId].name} ×${c.unitsRange[0]}–${c.unitsRange[1]}`).join(", ");
+  return consumed.map((c) => `${FOODS[c.foodId].name} ×${c.unitsRange[0]} to ${c.unitsRange[1]}`).join(", ");
 }
 
 function StatBar({ value, max, kind }: { value: number; max: number; kind: "satiety" | "stamina" }) {
@@ -189,6 +202,7 @@ export default function App() {
   const [activeBlot, setActiveBlot] = useState<BlotState | null>(null);
   const [lastEatResult, setLastEatResult] = useState<EatSapResult | null>(null);
   const [lastStorableResult, setLastStorableResult] = useState<HarvestStorableResult | null>(null);
+  const [scoopXpBefore, setScoopXpBefore] = useState<number>(0);
   const [multiHarvestResults, setMultiHarvestResults] = useState<HarvestResult[]>([]);
   const [harvestXpBefore, setHarvestXpBefore] = useState<Partial<Record<import("./types").HarvestMethodId, number>>>({});
 
@@ -198,6 +212,8 @@ export default function App() {
   const [craftPreview, setCraftPreview] = useState<CraftPreview | null>(null);
   const [craftResult, setCraftResult] = useState<CraftResult | null>(null);
   const [craftFlashItem, setCraftFlashItem] = useState<string | null>(null);
+  const [craftFlashOrigin, setCraftFlashOrigin] = useState<{ x: number; y: number } | null>(null);
+  const craftButtonRef = React.useRef<HTMLButtonElement>(null);
 
   const [recoverState, setRecoverState] = useState<{ periods: number } | null>(null);
   const [recoverSummary, setRecoverSummary] = useState<any>(null);
@@ -420,9 +436,11 @@ export default function App() {
   function doHarvestStorable() {
     if (!activeBlot) return;
     const snap = snapshotStorableQty(player.inventory);
+    const xpBefore = player.xp["scoop"] ?? 0;
     const next = structuredClone(player);
     const blotCopy = structuredClone(activeBlot);
     const result = harvestStorableAtBlot(next, blotCopy);
+    setScoopXpBefore(xpBefore);
     setPlayer(next); setActiveBlot(blotCopy); setLastStorableResult(result);
     checkDecayAlert(snap, next.inventory, result.foodConsumed);
   }
@@ -444,7 +462,12 @@ export default function App() {
     const next = structuredClone(player);
     const res = resolveCraft(next, craftPreview, chomperAutoEnabled);
     setPlayer(next); setCraftResult(res);
-    if (res.success && res.crafted) setCraftFlashItem(res.crafted.itemId);
+    if (res.success && res.crafted) {
+      const btn = craftButtonRef.current;
+      const rect = btn?.getBoundingClientRect();
+      setCraftFlashOrigin(rect ? { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 } : null);
+      setCraftFlashItem(res.crafted.itemId);
+    }
     checkDecayAlert(snap, next.inventory, res.foodConsumed);
     setScreen("SUMMARY_CRAFT");
   }
@@ -452,13 +475,11 @@ export default function App() {
   // ── Recover ───────────────────────────────────────────────────────────────
   function previewRecover() {
     setDecayedFoodAlert(null);
-    const pv = recoverPreview(player, chomperAutoEnabled);
-    setRecoverState({ periods: pv.periods });
     setRecoverSummary(null);
     setScreen("PREVIEW_RECOVER");
   }
   function proceedRecover() {
-    const periods = recoverState?.periods ?? 8;
+    const periods = 7 + Math.floor(Math.random() * 6); // 7–12
     const snap = snapshotStorableQty(player.inventory);
     const next = structuredClone(player);
     const res = resolveRecover(next, periods, chomperAutoEnabled);
@@ -467,7 +488,7 @@ export default function App() {
     setScreen("SUMMARY_RECOVER");
   }
   function keepFlopping() {
-    const periods = recoverState?.periods ?? 8;
+    const periods = 7 + Math.floor(Math.random() * 6); // 7–12
     const snap = snapshotStorableQty(player.inventory);
     const next = structuredClone(player);
     const res = resolveRecover(next, periods, chomperAutoEnabled);
@@ -920,12 +941,36 @@ export default function App() {
                         <p className="small" style={{ opacity: 0.45, margin: 0 }}>Equip a Sticky Scoop to gather this</p>
                       )}
                       {lastStorableResult && hasEquippedTail(player, "eq_sticky_scoop") && (
-                        <p className="small" style={{ opacity: 0.8, margin: 0 }}>
-                          Gathered {lastStorableResult.qty} {FOODS[lastStorableResult.foodId].name}.{" "}
-                          <SatietyLine raw={lastStorableResult.satietyCost} restored={lastStorableResult.foodConsumed.reduce((s, c) => s + FOODS[c.foodId].satietyRestored * c.units, 0)} /> satiety •{" "}
-                          <StaminaRecoveryLine raw={lastStorableResult.staminaCost} recovery={lastStorableResult.staminaRecovery ?? []} /> stamina.{" "}
-                          {lastStorableResult.outcome !== "ok" ? <b>{lastStorableResult.outcome.toUpperCase()}</b> : "Stashed."}
-                        </p>
+                        <div className="card" style={{ marginTop: 8 }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
+                            <div style={{ position: "relative" }}>
+                              <ItemIcon id={lastStorableResult.foodId} size={32} />
+                              <FlyToInventory id={lastStorableResult.foodId} delay={200} />
+                            </div>
+                            <div>
+                              <div style={{ fontWeight: 600, fontSize: "0.95rem" }}>Scooped up</div>
+                              <div style={{ fontSize: "0.8rem", opacity: 0.5 }}>Sticky Scoop pass</div>
+                            </div>
+                          </div>
+                          <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 8 }}>
+                            <ItemIcon id={lastStorableResult.foodId} size={14} />
+                            <span className="small">{FOODS[lastStorableResult.foodId].name} ×{lastStorableResult.qty}</span>
+                          </div>
+                          <p className="small" style={{ marginBottom: 2 }}>
+                            <span style={{ opacity: 0.6 }}>XP</span>{" "}+{lastStorableResult.xpGained}
+                          </p>
+                          <MiniXPBar method="scoop" xpBefore={scoopXpBefore} xpAfter={player.xp["scoop"] ?? 0} />
+                          {lastStorableResult.foodConsumed.length > 0 && (
+                            <p className="small" style={{ marginTop: 8 }}>Chomper snacked: {formatConsumed(lastStorableResult.foodConsumed)}</p>
+                          )}
+                          <p className="small" style={{ marginTop: 8 }}>
+                            <span style={{ opacity: 0.6 }}>Satiety</span>{" "}<SatietyLine raw={lastStorableResult.satietyCost} restored={lastStorableResult.foodConsumed.reduce((s, c) => s + FOODS[c.foodId].satietyRestored * c.units, 0)} />
+                          </p>
+                          <p className="small">
+                            <span style={{ opacity: 0.6 }}>Stamina</span>{" "}<StaminaRecoveryLine raw={lastStorableResult.staminaCost} recovery={lastStorableResult.staminaRecovery ?? []} />
+                          </p>
+                          {lastStorableResult.outcome !== "ok" && <p className="small"><b>{lastStorableResult.outcome.toUpperCase()}</b></p>}
+                        </div>
                       )}
                     </>
                   ) : (
@@ -934,7 +979,7 @@ export default function App() {
                       <div className="kv" style={{ marginBottom: 10 }}>
                         <div>Satiety</div><div style={{ color: "#e8a05a" }}>−{POIS[activePoi.id].foodSpec?.forageSatietyCostPerPeriod ?? 1} per unit</div>
                         <div>Stamina</div><div style={{ color: "#cc6b1a" }}><StaminaRangeLine raw={[POIS[activePoi.id].foodSpec?.forageStaminaCostPerPeriod ?? 1, POIS[activePoi.id].foodSpec?.forageStaminaCostPerPeriod ?? 1]} recoveryRange={[curlerCount * (ITEMS.eq_tail_curler.effects?.staminaRecoveryPerPeriodWorking ?? 0), curlerCount * (ITEMS.eq_tail_curler.effects?.staminaRecoveryPerPeriodWorking ?? 0)]} /></div>
-                        <div>Freshness on gather</div><div style={{ opacity: 0.8 }}>{FOODS[activeBlot.storableFood].freshnessRange?.[0]}–{FOODS[activeBlot.storableFood].freshnessRange?.[1]} periods</div>
+                        <div>Freshness on gather</div><div style={{ opacity: 0.8 }}>{FOODS[activeBlot.storableFood].freshnessRange?.[0]} to {FOODS[activeBlot.storableFood].freshnessRange?.[1]} periods</div>
                       </div>
                       <div className="row">
                         <button className="btn" style={{ background: "#082428", border: "1px solid #26c6da", color: "#5dd8e8", fontWeight: 600 }} onClick={() => { setScoopExpanded(false); doHarvestStorable(); }} disabled={dead || exhausted}>Confirm scoop</button>
@@ -1014,7 +1059,7 @@ export default function App() {
     <div className="card">
       <PreviewTitle
         main={journeyPreview.mode === "explore" ? "Scout Ahead" : "Sniff Around"}
-        sub="What It'll Cost You"
+        sub="What Might Happen"
       />
 
       {/* Cost block */}
@@ -1023,7 +1068,7 @@ export default function App() {
         <div className="kv">
           <div>Satiety</div><div style={{ color: "#e8a05a" }}><SatietyRangeLine raw={journeyPreview.satietyCostRange} restoredRange={journeyPreview.satietyRestoredRange} /></div>
           <div>Stamina</div><div style={{ color: "#cc6b1a" }}><StaminaRangeLine raw={journeyPreview.staminaCostRange} recoveryRange={journeyPreview.staminaRecoveryPerPeriodRange} /></div>
-          <div>Steps</div><div style={{ opacity: 0.8 }}>{journeyPreview.stepsRange[0]}–{journeyPreview.stepsRange[1]}</div>
+          <div>Steps</div><div style={{ opacity: 0.8 }}>{journeyPreview.stepsRange[0]} to {journeyPreview.stepsRange[1]}</div>
         </div>
       </div>
 
@@ -1082,13 +1127,19 @@ export default function App() {
         <FadeIn delay={220}>
           <div className="card">
             <h3>Collected along the way</h3>
-            <ul>
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
               {journeyResult.gained.map((g, i) => (
-                <li key={i} className="small">
-                  {(g.id as string).startsWith("food_") ? getFoodName(g.id as any) : getResourceName(g.id as any)} ×{g.qty}
-                </li>
+                <div key={i} style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <div style={{ position: "relative" }}>
+                    <ItemIcon id={g.id as string} size={22} />
+                    <FlyToInventory id={g.id as string} delay={400 + i * 80} />
+                  </div>
+                  <span className="small">
+                    {(g.id as string).startsWith("food_") ? getFoodName(g.id as any) : getResourceName(g.id as any)} ×{g.qty}
+                  </span>
+                </div>
               ))}
-            </ul>
+            </div>
           </div>
         </FadeIn>
       )}
@@ -1120,7 +1171,7 @@ export default function App() {
   // ── Harvest preview ───────────────────────────────────────────────────────
   const harvestPreviewScreen = harvestPreview && (
     <div className="card">
-      <PreviewTitle main="Dig In" sub="What It'll Cost You" />
+      <PreviewTitle main="Dig In" sub="What Might Happen" />
 
       {/* Tool + efficiency */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 10, marginBottom: 14 }}>
@@ -1136,7 +1187,7 @@ export default function App() {
         <div className="kv">
           <div>Satiety</div><div style={{ color: "#e8a05a" }}><SatietyRangeLine raw={harvestPreview.satietyCostRange} restoredRange={harvestPreview.satietyRestoredRange} /></div>
           <div>Stamina</div><div style={{ color: "#cc6b1a" }}><StaminaRangeLine raw={harvestPreview.staminaCostRange} recoveryRange={harvestPreview.staminaRecoveryPerPeriodRange} /></div>
-          <div>Time</div><div style={{ opacity: 0.8 }}>{harvestPreview.periodsRange[0]}–{harvestPreview.periodsRange[1]} periods</div>
+          <div>Time</div><div style={{ opacity: 0.8 }}>{harvestPreview.periodsRange[0]} to {harvestPreview.periodsRange[1]} periods</div>
         </div>
       </div>
 
@@ -1144,7 +1195,7 @@ export default function App() {
       <div style={{ background: "#0e0e0e", borderRadius: 12, padding: "12px 16px", marginBottom: 14 }}>
         <div style={{ fontSize: "0.7rem", opacity: 0.45, letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 8 }}>Outcome</div>
         <div className="kv">
-          <div>Yield</div><div style={{ opacity: 0.8 }}>{getResourceName(POIS[harvestPreview.poiId].resourceId as any)} ×{harvestPreview.yieldRange[0]}–{harvestPreview.yieldRange[1]}</div>
+          <div>Yield</div><div style={{ opacity: 0.8 }}>{getResourceName(POIS[harvestPreview.poiId].resourceId as any)} ×{harvestPreview.yieldRange[0]} to {harvestPreview.yieldRange[1]}</div>
           {harvestPreview.estFoodConsumed.length > 0 && <>
             <div>Food chomped</div><div style={{ opacity: 0.8 }}>{chomperDisplay(harvestPreview.estFoodConsumed)}</div>
           </>}
@@ -1342,7 +1393,7 @@ export default function App() {
 
   const craftPreviewScreen = craftPreview && (
     <div className="card">
-      <PreviewTitle main="Tinker" sub="What It'll Cost You" />
+      <PreviewTitle main="Tinker" sub="What Might Happen" />
 
       <div style={{ background: "#0e0e0e", borderRadius: 12, padding: "12px 16px", marginBottom: 10 }}>
         <div style={{ fontSize: "0.7rem", opacity: 0.45, letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 8 }}>Cost</div>
@@ -1364,7 +1415,7 @@ export default function App() {
       </div>
 
       <div className="row">
-        <button className="btn" style={{ background: "#1a2e1a", border: "1px solid #4caf50", color: "#7ecba1", fontWeight: 600, padding: "12px 22px" }} onClick={proceedCraft} disabled={dead || exhausted}>Make it</button>
+        <button ref={craftButtonRef} className="btn" style={{ background: "#1a2e1a", border: "1px solid #4caf50", color: "#7ecba1", fontWeight: 600, padding: "12px 22px" }} onClick={proceedCraft} disabled={dead || exhausted}>Make it</button>
         <button className="btn" onClick={() => setScreen("CRAFT_MENU")}>Put it down</button>
       </div>
     </div>
@@ -1398,40 +1449,43 @@ export default function App() {
   );
 
   // ── Recover screens ───────────────────────────────────────────────────────
-  const recoverPreviewScreen = (
-    <div className="card">
-      <PreviewTitle main="Belly Down" sub="What It'll Cost You" />
-      <p className="small" style={{ textAlign: "center", marginBottom: 14, opacity: 0.7 }}>
-        {curlerCount > 0
-          ? `The Tail Curler${curlerCount === 2 ? "s tick" : " ticks"} faster while you're horizontal — napping gives the best recovery rate${curlerCount === 2 ? ", and two curlers stack" : ""}. You'll unwind faster lying still.`
-          : "No Tail Curler equipped — you'll just lie there getting hungrier. Bold strategy."}
-      </p>
-      {(() => {
-        const pv = recoverPreview(player, chomperAutoEnabled);
-        return (
-          <>
-            <div style={{ background: "#0e0e0e", borderRadius: 12, padding: "12px 16px", marginBottom: 10 }}>
-              <div style={{ fontSize: "0.7rem", opacity: 0.45, letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 8 }}>Cost</div>
-              <div className="kv">
-                <div>Satiety</div><div style={{ color: "#e8a05a" }}>−{pv.satietyCostRange[0]}</div>
-                <div>Time</div><div style={{ opacity: 0.8 }}>{pv.periods} periods</div>
-              </div>
+  const recoverPreviewScreen = (() => {
+    const pv = recoverPreview(player, chomperAutoEnabled);
+    return (
+      <div className="card">
+        <PreviewTitle main="Belly Down" sub="What Might Happen" />
+        <p className="small" style={{ textAlign: "center", marginBottom: 14, opacity: 0.7 }}>
+          {curlerCount > 0
+            ? `The Tail Curler${curlerCount === 2 ? "s tick" : " ticks"} faster while you're horizontal — napping gives the best recovery rate${curlerCount === 2 ? ", and two curlers stack" : ""}. You'll unwind faster lying still.`
+            : "No Tail Curler equipped. You'll lie there, get hungrier, and wake up exactly as tired. Equip one if you want this to do anything."}
+        </p>
+        <div style={{ background: "#0e0e0e", borderRadius: 12, padding: "12px 16px", marginBottom: 10 }}>
+          <div style={{ fontSize: "0.7rem", opacity: 0.45, letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 8 }}>Cost</div>
+          <div className="kv">
+            <div>Satiety</div><div style={{ color: "#e8a05a" }}>−{pv.satietyCostRange[0]} to −{pv.satietyCostRange[1]}</div>
+            <div>Time</div><div style={{ opacity: 0.8 }}>{pv.periodsMin} to {pv.periodsMax} periods</div>
+          </div>
+        </div>
+        <div style={{ background: "#0e0e0e", borderRadius: 12, padding: "12px 16px", marginBottom: 14 }}>
+          <div style={{ fontSize: "0.7rem", opacity: 0.45, letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 8 }}>Outcome</div>
+          <div className="kv">
+            <div>Stamina</div><div style={{ color: "#7ecba1" }}>
+              {curlerCount > 0
+                ? `+${pv.staminaRecoveryRange[0]} to +${pv.staminaRecoveryRange[1]} (est.)`
+                : "No change"}
             </div>
-            <div style={{ background: "#0e0e0e", borderRadius: 12, padding: "12px 16px", marginBottom: 14 }}>
-              <div style={{ fontSize: "0.7rem", opacity: 0.45, letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 8 }}>Outcome</div>
-              <div className="kv">
-                <div>Stamina</div><div style={{ color: "#7ecba1" }}>{curlerCount > 0 ? `+${Math.round(pv.staminaRecoveryRange[1])} (est.)` : "No change"}</div>
-              </div>
-            </div>
-          </>
-        );
-      })()}
-      <div className="row">
-        <button className="btn" style={{ background: "#1a2e1a", border: "1px solid #4caf50", color: "#7ecba1", fontWeight: 600, padding: "12px 22px" }} onClick={proceedRecover} disabled={dead}>Flop down</button>
-        <button className="btn" onClick={gotoHub}>Stay upright</button>
+            {pv.estFoodConsumed.length > 0 && <>
+              <div>Food chomped</div><div style={{ opacity: 0.8 }}>{chomperDisplay(pv.estFoodConsumed)}</div>
+            </>}
+          </div>
+        </div>
+        <div className="row">
+          <button className="btn" style={{ background: "#1a2e1a", border: "1px solid #4caf50", color: "#7ecba1", fontWeight: 600, padding: "12px 22px" }} onClick={proceedRecover} disabled={dead}>Flop down</button>
+          <button className="btn" onClick={gotoHub}>Stay upright</button>
+        </div>
       </div>
-    </div>
-  );
+    );
+  })();
 
   const recoverSummaryScreen = recoverSummary && (
     <div className="card">
@@ -1768,7 +1822,7 @@ export default function App() {
         {body}
         {howItWorksModal}
         {craftFlashItem && (
-          <CraftSuccessFlash itemId={craftFlashItem} onDone={() => setCraftFlashItem(null)} />
+          <CraftSuccessFlash itemId={craftFlashItem} origin={craftFlashOrigin} onDone={() => { setCraftFlashItem(null); setCraftFlashOrigin(null); }} />
         )}
       </div>
     </div>

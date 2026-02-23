@@ -188,5 +188,6 @@ export interface HarvestStorableResult {
   staminaCost: number;
   staminaRecovery: StaminaRecoveryEntry[];
   foodConsumed: { foodId: FoodId; units: number }[];
+  xpGained: number;
   outcome: "ok" | "exhausted" | "dead";
 }

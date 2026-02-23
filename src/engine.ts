@@ -232,6 +232,7 @@ export function makeJourneyPreview(player: PlayerState, mode: "explore" | "findF
   const chomperCount = countEquippedTail(player, "eq_chomper");
   const estFoodConsumed: { foodId: FoodId; unitsRange: [number, number] }[] = [];
   let satietyRestoredRange: [number, number] = [0, 0];
+  const totalPeriodsLower = Math.floor(stepsRange[0] / 5);
   const totalPeriodsUpper = Math.floor(stepsRange[1] / 5);
 
   if (chomperCount > 0 && chomperAutoEnabled) {
@@ -242,9 +243,11 @@ export function makeJourneyPreview(player: PlayerState, mode: "explore" | "findF
     ));
     let maxSatietyPerPeriod = 0;
     for (const id of storableIds) {
-      const maxUnits = Math.min(totalPeriodsUpper * chomperCount, invGet(player.inventory, id)?.qty ?? 0);
-      estFoodConsumed.push({ foodId: id, unitsRange: [0, maxUnits] });
-      maxSatietyPerPeriod += FOODS[id].satietyRestored * Math.min(chomperCount, invGet(player.inventory, id)?.qty ?? 0);
+      const available = invGet(player.inventory, id)?.qty ?? 0;
+      const minUnits = Math.min(totalPeriodsLower * chomperCount, available);
+      const maxUnits = Math.min(totalPeriodsUpper * chomperCount, available);
+      estFoodConsumed.push({ foodId: id, unitsRange: [minUnits, maxUnits] });
+      maxSatietyPerPeriod += FOODS[id].satietyRestored * Math.min(chomperCount, available);
     }
     const maxRestored = Math.min(baseSatietyCostRange[1], maxSatietyPerPeriod);
     satietyRestoredRange = [0, maxRestored];
@@ -481,8 +484,10 @@ export function makeHarvestPreview(player: PlayerState, poiId: PoiId, method: Ha
     ));
     let maxSatietyRestored = 0;
     for (const id of storableIds) {
-      const maxUnits = Math.min(periodsRange[1] * chomperCount, invGet(player.inventory, id)?.qty ?? 0);
-      estFoodConsumed.push({ foodId: id, unitsRange: [0, maxUnits] });
+      const available = invGet(player.inventory, id)?.qty ?? 0;
+      const minUnits = Math.min(periodsRange[0] * chomperCount, available);
+      const maxUnits = Math.min(periodsRange[1] * chomperCount, available);
+      estFoodConsumed.push({ foodId: id, unitsRange: [minUnits, maxUnits] });
       maxSatietyRestored += FOODS[id].satietyRestored * maxUnits;
     }
     satietyRestoredRange = [0, Math.min(satietyCostRange[1], maxSatietyRestored)];
@@ -556,9 +561,10 @@ export function makeCraftPreview(player: PlayerState, recipeId: string, chomperA
     ));
     let maxSatietyRestored = 0;
     for (const id of storableIds) {
-      const maxUnits = Math.min(r.craftPeriods * chomperCount, invGet(player.inventory, id)?.qty ?? 0);
-      estFoodConsumed.push({ foodId: id, unitsRange: [0, maxUnits] });
-      maxSatietyRestored += FOODS[id].satietyRestored * maxUnits;
+      const available = invGet(player.inventory, id)?.qty ?? 0;
+      const units = Math.min(r.craftPeriods * chomperCount, available);
+      estFoodConsumed.push({ foodId: id, unitsRange: [units, units] });
+      maxSatietyRestored += FOODS[id].satietyRestored * units;
     }
     const rawSatiety = r.craftPeriods * r.satietyPerPeriod;
     satietyRestoredRange = [0, Math.min(rawSatiety, maxSatietyRestored)];
@@ -619,8 +625,10 @@ export function recoverPreview(player: PlayerState, chomperAutoEnabled = true) {
         .map((s) => s.id as FoodId)
     ));
     for (const id of storableIds) {
-      const maxUnits = Math.min(periodsMax * chomperCount, invGet(player.inventory, id)?.qty ?? 0);
-      estFoodConsumed.push({ foodId: id, unitsRange: [0, maxUnits] });
+      const available = invGet(player.inventory, id)?.qty ?? 0;
+      const minUnits = Math.min(periodsMin * chomperCount, available);
+      const maxUnits = Math.min(periodsMax * chomperCount, available);
+      estFoodConsumed.push({ foodId: id, unitsRange: [minUnits, maxUnits] });
     }
   }
   return { periodsMin, periodsMax, periodsAvg, satietyCostRange, staminaRecoveryRange, estFoodConsumed };

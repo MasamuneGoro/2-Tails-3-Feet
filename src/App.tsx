@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from "react";
 import type { BlotState, CraftPreview, CraftResult, EatSapResult, HarvestMethodId, HarvestPreview, HarvestResult, HarvestStorableResult, JourneyPreview, JourneyResult, PlayerState, PoiId, Screen } from "./types";
-import { ItemIcon, PoiImage } from "./visuals";
+import { ItemIcon, PoiImage, PoiIcon } from "./visuals";
 import { BIOME_LEVEL, EVENTS, FOODS, ITEMS, POIS, RECIPES, RESOURCES } from "./gameData";
 import {
   canCraft, getFoodName, getItemName, getResourceName, listUnlockedRecipes,
@@ -16,7 +16,7 @@ function pct(n: number, d: number) { return Math.round((n / d) * 100); }
 
 function FadeIn({ delay = 0, children }: { delay?: number; children: React.ReactNode }) {
   return (
-    <div style={{ animation: "fadeSlideIn 180ms ease both", animationDelay: `${delay}ms` }}>
+    <div style={{ animation: "fadeSlideIn 380ms cubic-bezier(0.25, 0.1, 0.25, 1) both", animationDelay: `${delay}ms` }}>
       {children}
     </div>
   );
@@ -1075,8 +1075,14 @@ export default function App() {
       {/* Outcome block */}
       <div style={{ background: "#0e0e0e", borderRadius: 12, padding: "12px 16px", marginBottom: 14 }}>
         <div style={{ fontSize: "0.7rem", opacity: 0.45, letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 8 }}>Outcome</div>
+        <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 10 }}>
+          <PoiIcon poiId={journeyPreview.poi.id} quality={journeyPreview.poi.quality} size={72} />
+          <div>
+            <div style={{ fontWeight: 700, fontSize: "1rem" }}>{prettyPoi(journeyPreview.poi.id).name}</div>
+            <div style={{ fontSize: "0.8rem", opacity: 0.5, marginTop: 2 }}>{journeyPreview.poi.quality}</div>
+          </div>
+        </div>
         <div className="kv">
-          <div>Destination</div><div>{prettyPoi(journeyPreview.poi.id).name} <span style={{ opacity: 0.5, fontSize: "0.85rem" }}>({journeyPreview.poi.quality})</span></div>
           {journeyPreview.estFoodConsumed.length > 0 && <>
             <div>Food chomped</div><div style={{ opacity: 0.8 }}>{chomperDisplay(journeyPreview.estFoodConsumed)}</div>
           </>}
@@ -1105,9 +1111,17 @@ export default function App() {
   const journeySummaryScreen = journeyResult && (
     <div className="card">
       <FadeIn delay={0}><h2>What happened out there</h2></FadeIn>
-      <FadeIn delay={60}>
+      <FadeIn delay={90}>
+        <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 12 }}>
+          <PoiIcon poiId={journeyResult.poi.id} quality={journeyResult.poi.quality} size={80} />
+          <div>
+            <div style={{ fontWeight: 700, fontSize: "1.1rem" }}>{prettyPoi(journeyResult.poi.id).name}</div>
+            <div style={{ fontSize: "0.8rem", opacity: 0.5, marginTop: 2 }}>{journeyResult.poi.quality}</div>
+          </div>
+        </div>
+      </FadeIn>
+      <FadeIn delay={180}>
         <div className="kv" style={{ marginBottom: 12 }}>
-          <div>Found</div><div><b>{prettyPoi(journeyResult.poi.id).name}</b> <span style={{opacity:0.6}}>({journeyResult.poi.quality})</span></div>
           <div>Steps taken</div><div>{journeyResult.steps}</div>
           <div>Satiety cost</div><div><SatietyLine raw={journeyResult.satietyDelta} restored={journeyResult.satietyRestoredByChomper} /></div>
           <div>Stamina cost</div><div><StaminaRecoveryLine raw={journeyResult.staminaDelta} recovery={journeyResult.staminaRecovery} /></div>
@@ -1115,7 +1129,7 @@ export default function App() {
       </FadeIn>
 
       {journeyResult.surfacedEvents.filter(e => !["ev_need_chomper","ev_need_scoop_for_rations"].includes(e)).length > 0 && (
-        <FadeIn delay={140}>
+        <FadeIn delay={270}>
           <div className="card">
             <h3>Events</h3>
             <EventList events={journeyResult.surfacedEvents} effects={journeyResult.eventEffects} />
@@ -1124,7 +1138,7 @@ export default function App() {
       )}
 
       {journeyResult.gained.length > 0 && (
-        <FadeIn delay={220}>
+        <FadeIn delay={360}>
           <div className="card">
             <h3>Collected along the way</h3>
             <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
@@ -1132,7 +1146,7 @@ export default function App() {
                 <div key={i} style={{ display: "flex", alignItems: "center", gap: 8 }}>
                   <div style={{ position: "relative" }}>
                     <ItemIcon id={g.id as string} size={22} />
-                    <FlyToInventory id={g.id as string} delay={400 + i * 80} />
+                    <FlyToInventory id={g.id as string} delay={500 + i * 80} />
                   </div>
                   <span className="small">
                     {(g.id as string).startsWith("food_") ? getFoodName(g.id as any) : getResourceName(g.id as any)} ×{g.qty}
@@ -1145,7 +1159,7 @@ export default function App() {
       )}
 
       {journeyResult.foodConsumed.length > 0 && (
-        <FadeIn delay={300}>
+        <FadeIn delay={450}>
           <div className="card">
             <h3>Chomper snacked</h3>
             <p className="small">{formatConsumed(journeyResult.foodConsumed)}</p>
@@ -1153,7 +1167,7 @@ export default function App() {
         </FadeIn>
       )}
 
-      <FadeIn delay={360}>
+      <FadeIn delay={540}>
         <div className="row">
           <button className="btn" style={{ background: "#1a2e1a", border: "1px solid #4caf50", color: "#7ecba1", fontWeight: 600, padding: "12px 22px" }} onClick={enterPoi} disabled={journeyResult.outcome !== "ok"}>Arrive</button>
         </div>

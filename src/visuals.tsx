@@ -631,3 +631,41 @@ export function PoiImage({ poiId, variant, width = 440, height = 140 }: PoiImage
     </div>
   );
 }
+
+// ─── PoiIcon component ────────────────────────────────────────────────────────
+interface PoiIconProps {
+  poiId: PoiId;
+  quality?: "common" | "uncommon";
+  size?: number;
+}
+
+export function PoiIcon({ poiId, quality = "common", size = 80 }: PoiIconProps) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const variant = quality === "uncommon" ? 3 : 0;
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    const drawFn = POI_DRAW[poiId];
+    if (!drawFn) return;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    drawFn(ctx, canvas.width, canvas.height, variant);
+  }, [poiId, variant]);
+
+  return (
+    <canvas
+      ref={canvasRef}
+      width={size * 2}
+      height={size * 2}
+      style={{
+        width: size,
+        height: size,
+        display: "block",
+        borderRadius: 10,
+        border: quality === "uncommon" ? "1px solid rgba(200,169,110,0.35)" : "1px solid rgba(255,255,255,0.07)",
+      }}
+    />
+  );
+}

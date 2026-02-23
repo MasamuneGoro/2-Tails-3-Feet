@@ -693,7 +693,9 @@ export default function App() {
   function doMove(moveId: import("./types").MoveId) {
     if (!battleState) return;
     if (moveId === "flee") {
-      const { result, updatedPlayer } = resolveBattle(battleState, "fled", player);
+      const fleeCost = MOVES["flee"].effect.staminaCost;
+      const stateWithFleeCost = { ...battleState, staminaCostAccrued: battleState.staminaCostAccrued + fleeCost };
+      const { result, updatedPlayer } = resolveBattle(stateWithFleeCost, "fled", player);
       setPlayer(updatedPlayer);
       setBattleResult(result);
       setBattleState(null);
@@ -2145,7 +2147,7 @@ export default function App() {
           {/* Hint if no harvesting tools equipped */}
           {availableMoveIds.filter(m => MOVES[m].tools.length > 0).length === 0 && (
             <div style={{ background: "#1a1208", border: "1px solid #5c4000", borderRadius: 10, padding: "10px 14px", marginBottom: 12, fontSize: "0.82rem", color: "#c8a96e", fontStyle: "italic" }}>
-              Your tails are empty. The harvesting tools you use out there — twig, comb, scoop — they work here too. Equip something before you hunt.
+              No harvesting tools equipped. The ones you use out there — twig, comb, scoop — they work here too. Equip something before you hunt.
             </div>
           )}
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
@@ -2217,6 +2219,8 @@ export default function App() {
         ? "You surprised yourself out there. The variety, the combos — something clicked. You feel more alive than tired."
         : battleResult.movesUsed.length >= 2
         ? "Keeping it interesting helped. You're not as worn out as you might've been."
+        : battleResult.endReason !== "fled"
+        ? "You did what worked and nothing else. Effective. Efficient. Exactly as exhausting as it sounds."
         : null;
 
     // Net stamina label — show gain if stamina refund exceeded cost
@@ -2244,19 +2248,31 @@ export default function App() {
             {battleResult.endReason === "fled" ? "You got out." : `${creature.name} — ${endLabels[battleResult.endReason]}`}
           </h2>
           <div style={{ fontSize: "0.8rem", opacity: 0.5 }}>
-            {battleResult.movesUsed.length} unique move{battleResult.movesUsed.length !== 1 ? "s" : ""}
-            {battleResult.doubleCombosLanded > 0 && ` · ${battleResult.doubleCombosLanded} combo${battleResult.doubleCombosLanded > 1 ? "s" : ""} landed`}
+            {noveltyRefundPct === 0 && battleResult.endReason !== "fled" && (
+              <>{battleResult.movesUsed.length} unique move{battleResult.movesUsed.length !== 1 ? "s" : ""}
+              {battleResult.doubleCombosLanded > 0 && ` · ${battleResult.doubleCombosLanded} combo${battleResult.doubleCombosLanded > 1 ? "s" : ""} landed`}</>
+            )}
           </div>
         </FadeIn>
 
         {/* Novelty flavour + stamina result */}
         {noveltyFlavour && (
           <FadeIn delay={60}>
-            <div style={{ background: "#120a1a", border: "1px solid #4a1e6a", borderRadius: 10, padding: "12px 16px", marginTop: 12, marginBottom: 4 }}>
-              <div style={{ fontStyle: "italic", fontSize: "0.85rem", color: "#ce93d8", marginBottom: 8 }}>{noveltyFlavour}</div>
-              <div style={{ fontSize: "0.78rem", color: "#ce93d8", opacity: 0.8 }}>
-                {noveltyRefundPct}% stamina refunded from novelty
+            <div style={{
+              background: noveltyRefundPct > 0 ? "#120a1a" : "#0e0e0e",
+              border: `1px solid ${noveltyRefundPct > 0 ? "#4a1e6a" : "#222"}`,
+              borderRadius: 10, padding: "12px 16px", marginTop: 12, marginBottom: 4
+            }}>
+              <div style={{ fontStyle: "italic", fontSize: "0.85rem", color: noveltyRefundPct > 0 ? "#ce93d8" : "#666", marginBottom: noveltyRefundPct > 0 ? 8 : 0 }}>
+                {noveltyFlavour}
               </div>
+              {noveltyRefundPct > 0 && (
+                <div style={{ fontSize: "0.78rem", color: "#ce93d8", opacity: 0.8, marginTop: 8 }}>
+                  {battleResult.movesUsed.length} unique move{battleResult.movesUsed.length !== 1 ? "s" : ""}
+                  {battleResult.doubleCombosLanded > 0 && ` · ${battleResult.doubleCombosLanded} combo${battleResult.doubleCombosLanded > 1 ? "s" : ""}`}
+                  {" · "}{noveltyRefundPct}% stamina refunded
+                </div>
+              )}
             </div>
           </FadeIn>
         )}
@@ -2282,8 +2298,11 @@ export default function App() {
         {/* Integrity body description */}
         {integrityFlavour && (
           <FadeIn delay={120}>
-            <div style={{ fontStyle: "italic", fontSize: "0.82rem", opacity: 0.65, marginBottom: 12, paddingLeft: 2 }}>
+            <div style={{ fontStyle: "italic", fontSize: "0.82rem", opacity: 0.65, marginBottom: 4, paddingLeft: 2 }}>
               {integrityFlavour}
+            </div>
+            <div style={{ fontSize: "0.75rem", opacity: 0.35, marginBottom: 12, paddingLeft: 2 }}>
+              Integrity {battleResult.finalIntegrity} / {creature.integrityMax}
             </div>
           </FadeIn>
         )}

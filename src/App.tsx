@@ -151,19 +151,21 @@ function StaminaRangeLine({ raw, recoveryRange }: { raw: [number, number]; recov
 
 function formatConsumedRange(consumed: { foodId: import("./types").FoodId; unitsRange: [number, number] }[]) {
   if (!consumed.length) return "";
-  return consumed.map((c) => `${FOODS[c.foodId].name} ×${c.unitsRange[0]} to ${c.unitsRange[1]}`).join(", ");
+  return consumed.map((c) => {
+    const [lo, hi] = c.unitsRange;
+    const qty = lo === hi ? `×${lo}` : `×${lo} to ${hi}`;
+    return `${FOODS[c.foodId].name} ${qty}`;
+  }).join(", ");
 }
 
 interface StatBarProps {
   value: number;
   max: number;
   kind: "satiety" | "stamina";
-  // Optional preview overlays
-  costRange?: [number, number];       // [min, max] cost (subtracted from value)
-  recoveryRange?: [number, number];   // [min, max] recovery (added back)
+  netRange?: [number, number]; // [worst-case remaining, best-case remaining]
 }
 
-function StatBar({ value, max, kind, costRange, recoveryRange }: StatBarProps) {
+function StatBar({ value, max, kind, netRange }: StatBarProps) {
   const ratio = value / max;
   let fillColor: string;
   if (kind === "satiety") {
@@ -172,97 +174,67 @@ function StatBar({ value, max, kind, costRange, recoveryRange }: StatBarProps) {
     fillColor = ratio > 0.5 ? "#c8a96e" : ratio > 0.25 ? "#cc6b1a" : "#8b2500";
   }
 
-  // Colour palette per kind — overlays sit ON TOP of the coloured fill
-  // Cost zone: dark overlay (dims the fill) with a brighter leading edge
-  const costGradientHi  = "rgba(0,0,0,0.55)";   // worst-case edge — darkens the bar strongly
-  const costGradientLo  = "rgba(0,0,0,0.08)";   // best-case edge — barely dims
-  const costGradientOOB = "rgba(180,20,20,0.75)"; // red tint if lethal
-  const tickColor       = kind === "satiety" ? "#7dff8a" : "#ffe566";
-  const recColor        = kind === "satiety" ? "rgba(180,255,180,0.22)" : "rgba(255,240,160,0.22)";
-  const recTickColor    = kind === "satiety" ? "#adffa0" : "#fff090";
+  const fillPct = Math.min(100, ratio * 100);
+  const netLo = netRange?.[0] ?? null;
+  const netHi = netRange?.[1] ?? null;
+  const netLoPct = netLo !== null ? Math.max(0, Math.min(100, (netLo / max) * 100)) : null;
+  const netHiPct = netHi !== null ? Math.max(0, Math.min(100, (netHi / max) * 100)) : null;
+  const wouldDie = netLo !== null && netLo <= 0;
+  const costZoneLeft = netLoPct !== null ? netLoPct : fillPct;
+  const costZoneWidth = fillPct - costZoneLeft;
+  const hasCost = costZoneWidth > 0.1;
+  const tickColor = kind === "satiety" ? "#7dff8a" : "#ffe566";
 
-  const fillPct   = Math.min(100, ratio * 100);
-  const costMin   = costRange?.[0] ?? 0;
-  const costMax   = costRange?.[1] ?? 0;
-  const recMin    = recoveryRange?.[0] ?? 0;
-  const recMax    = recoveryRange?.[1] ?? 0;
-
-  // Net positions as % of bar width
-  const costMaxPct = Math.min(100, (costMax / max) * 100);
-  const costMinPct = Math.min(100, (costMin / max) * 100);
-  const recMaxPct  = Math.min(100, (recMax  / max) * 100);
-
-  // Where the cost zone sits (left edge = worst case, right edge = best case)
-  // Cost eats leftward from the fill edge
-  const costZoneRight = fillPct;
-  const costZoneLeft  = Math.max(0, fillPct - costMaxPct);
-  const costZoneWidth = costZoneRight - costZoneLeft;
-
-  // Best-case net landing tick (fill - costMin + recMax)
-  const netBestPct  = Math.max(0, Math.min(100, fillPct - costMinPct + recMaxPct));
-  // Worst-case net (fill - costMax + recMin)
-  const netWorstPct = Math.max(0, Math.min(100, fillPct - costMaxPct + Math.min(100, (recMin / max) * 100)));
-
-  // Recovery zone extends rightward from fill edge (capped at max)
-  const recZoneLeft  = fillPct;
-  const recZoneWidth = Math.min(100 - fillPct, recMaxPct);
-
-  const wouldDie = (value - costMax) <= 0;
-
-  const hasCost     = costMax > 0;
-  const hasRecovery = recMax  > 0;
+  let rangeLabel: string | null = null;
+  if (netLo !== null && netHi !== null) {
+    const lo = Math.max(0, Math.round(netLo));
+    const hi = Math.max(0, Math.round(netHi));
+    rangeLabel = lo === hi ? `→ ${lo}` : `→ ${lo} to ${hi}`;
+  }
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 3, flex: 1, minWidth: 0 }}>
       <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.8rem", opacity: 0.7 }}>
         <span>{kind === "satiety" ? "Satiety" : "Stamina"}</span>
-        <span>{value}/{max}</span>
+        <span>
+          {value}/{max}
+          {rangeLabel && (
+            <span style={{ marginLeft: 8, color: wouldDie ? "#ff5252" : tickColor, opacity: 0.9 }}>
+              {rangeLabel}
+            </span>
+          )}
+        </span>
       </div>
       <div style={{ position: "relative", width: "100%", background: "#2a2a2a", borderRadius: 6, height: 14, overflow: "hidden" }}>
-        {/* Base fill */}
         <div style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: `${fillPct}%`, background: fillColor, borderRadius: 6, transition: "width 0.3s, background 0.3s" }} />
-
-        {/* Recovery zone — bright band right of fill */}
-        {hasRecovery && (
-          <div style={{
-            position: "absolute", top: 0, bottom: 0,
-            left: `${recZoneLeft}%`, width: `${recZoneWidth}%`,
-            background: recColor,
-          }} />
-        )}
-
-        {/* Cost zone — dark overlay gradient, strong on left (worst), fades right (best) */}
         {hasCost && (
           <div style={{
             position: "absolute", top: 0, bottom: 0,
             left: `${costZoneLeft}%`, width: `${costZoneWidth}%`,
             background: wouldDie
-              ? `linear-gradient(to right, ${costGradientOOB}, ${costGradientLo})`
-              : `linear-gradient(to right, ${costGradientHi}, ${costGradientLo})`,
+              ? "linear-gradient(to right, rgba(180,20,20,0.75), rgba(0,0,0,0.08))"
+              : "linear-gradient(to right, rgba(0,0,0,0.55), rgba(0,0,0,0.08))",
           }} />
         )}
-
-        {/* Recovery tick — right edge of recovery zone */}
-        {hasRecovery && (
+        {netLoPct !== null && (
           <div style={{
             position: "absolute", top: 0, bottom: 0, width: 2,
-            left: `calc(${recZoneLeft + recZoneWidth}% - 1px)`,
-            background: recTickColor, opacity: 0.85,
-          }} />
-        )}
-
-        {/* Net worst-case tick — where you'll land at most */}
-        {hasCost && (
-          <div style={{
-            position: "absolute", top: 0, bottom: 0, width: 2,
-            left: `calc(${netWorstPct}% - 1px)`,
+            left: `calc(${netLoPct}% - 1px)`,
             background: wouldDie ? "#ff5252" : tickColor, opacity: 0.9,
+          }} />
+        )}
+        {netHiPct !== null && netHiPct !== netLoPct && (
+          <div style={{
+            position: "absolute", top: 0, bottom: 0, width: 2,
+            left: `calc(${netHiPct}% - 1px)`,
+            background: tickColor, opacity: 0.4,
           }} />
         )}
       </div>
     </div>
   );
 }
+
 
 const START_PLAYER: PlayerState = {
   biomeLevelId: "sticky_l1",
@@ -821,40 +793,45 @@ export default function App() {
   // HUD — stat bars only
   // ─────────────────────────────────────────────────────────────────────────
   // Derive preview overlay values from active screen
+  // net = value - cost + recovery; [worst, best] = [value - costMax + recMin, value - costMin + recMax]
   const previewOverlay = (() => {
+    const sat = player.stats.satiety;
+    const sta = player.stats.stamina;
+
     if (screen === "PREVIEW_JOURNEY" && journeyPreview) {
       const pv = journeyPreview;
-      // staminaRecoveryPerPeriodRange is per-period; total = range * periods (approx with avg steps)
       const avgPeriods = Math.round((Math.floor(pv.stepsRange[0] / 5) + Math.floor(pv.stepsRange[1] / 5)) / 2);
-      const staminaRecovLo = pv.staminaRecoveryPerPeriodRange[0] * avgPeriods;
-      const staminaRecovHi = pv.staminaRecoveryPerPeriodRange[1] * avgPeriods;
+      const staRecovLo = pv.staminaRecoveryPerPeriodRange[0] * avgPeriods;
+      const staRecovHi = pv.staminaRecoveryPerPeriodRange[1] * avgPeriods;
       return {
-        satiety: { costRange: pv.satietyCostRange, recoveryRange: pv.satietyRestoredRange },
-        stamina: { costRange: pv.staminaCostRange, recoveryRange: [staminaRecovLo, staminaRecovHi] as [number, number] },
+        satiety: [sat - pv.satietyCostRange[1] + pv.satietyRestoredRange[0], sat - pv.satietyCostRange[0] + pv.satietyRestoredRange[1]] as [number, number],
+        stamina: [sta - pv.staminaCostRange[1] + staRecovLo, sta - pv.staminaCostRange[0] + staRecovHi] as [number, number],
       };
     }
     if (screen === "PREVIEW_HARVEST" && harvestPreview) {
       const pv = harvestPreview;
       const avgPeriods = (pv.periodsRange[0] + pv.periodsRange[1]) / 2;
-      const staminaRecovLo = pv.staminaRecoveryPerPeriodRange[0] * avgPeriods;
-      const staminaRecovHi = pv.staminaRecoveryPerPeriodRange[1] * avgPeriods;
+      const staRecovLo = pv.staminaRecoveryPerPeriodRange[0] * avgPeriods;
+      const staRecovHi = pv.staminaRecoveryPerPeriodRange[1] * avgPeriods;
       return {
-        satiety: { costRange: pv.satietyCostRange, recoveryRange: pv.satietyRestoredRange },
-        stamina: { costRange: pv.staminaCostRange, recoveryRange: [staminaRecovLo, staminaRecovHi] as [number, number] },
+        satiety: [sat - pv.satietyCostRange[1] + pv.satietyRestoredRange[0], sat - pv.satietyCostRange[0] + pv.satietyRestoredRange[1]] as [number, number],
+        stamina: [sta - pv.staminaCostRange[1] + staRecovLo, sta - pv.staminaCostRange[0] + staRecovHi] as [number, number],
       };
     }
     if (screen === "PREVIEW_CRAFT" && craftPreview) {
       const pv = craftPreview;
+      const satNet = sat - pv.satietyCost + pv.satietyRestoredRange[1];
+      const staNet = sta - pv.staminaCost + pv.staminaRecoveryTotal;
       return {
-        satiety: { costRange: [pv.satietyCost, pv.satietyCost] as [number, number], recoveryRange: pv.satietyRestoredRange },
-        stamina: { costRange: [pv.staminaCost, pv.staminaCost] as [number, number], recoveryRange: [pv.staminaRecoveryTotal, pv.staminaRecoveryTotal] as [number, number] },
+        satiety: [satNet, satNet] as [number, number],
+        stamina: [staNet, staNet] as [number, number],
       };
     }
     if (screen === "PREVIEW_RECOVER") {
       const pv = recoverPreview(player, chomperAutoEnabled);
       return {
-        satiety: { costRange: pv.satietyCostRange, recoveryRange: [0, 0] as [number, number] },
-        stamina: { costRange: [0, 0] as [number, number], recoveryRange: pv.staminaRecoveryRange },
+        satiety: [sat - pv.satietyCostRange[1], sat - pv.satietyCostRange[0]] as [number, number],
+        stamina: [sta + pv.staminaRecoveryRange[0], sta + pv.staminaRecoveryRange[1]] as [number, number],
       };
     }
     return null;
@@ -862,16 +839,8 @@ export default function App() {
 
   const hud = (
     <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 14, padding: "10px 0" }}>
-      <StatBar
-        value={player.stats.satiety} max={player.stats.maxSatiety} kind="satiety"
-        costRange={previewOverlay?.satiety.costRange}
-        recoveryRange={previewOverlay?.satiety.recoveryRange}
-      />
-      <StatBar
-        value={player.stats.stamina} max={player.stats.maxStamina} kind="stamina"
-        costRange={previewOverlay?.stamina.costRange}
-        recoveryRange={previewOverlay?.stamina.recoveryRange}
-      />
+      <StatBar value={player.stats.satiety} max={player.stats.maxSatiety} kind="satiety" netRange={previewOverlay?.satiety} />
+      <StatBar value={player.stats.stamina} max={player.stats.maxStamina} kind="stamina" netRange={previewOverlay?.stamina} />
       <span style={{ fontSize: "0.8rem", opacity: 0.45 }}>{BIOME_LEVEL.name}</span>
     </div>
   );

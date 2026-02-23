@@ -178,10 +178,12 @@ export function applyStaminaRecovery(player: PlayerState, periods: number, conte
     if (!itemId) continue;
     const item = ITEMS[itemId];
     const base = item.effects?.staminaRecoveryPerPeriod ?? 0;
-    if (base <= 0) continue;
-    const perPeriod = context === "resting" ? base * 1.5
-      : context === "working" ? (item.effects?.staminaRecoveryPerPeriodWorking ?? base)
-      : base;
+    if (base <= 0 && !item.effects?.staminaRecoveryPerPeriodWorking && !item.effects?.staminaRecoveryPerPeriodResting) continue;
+    const perPeriod = context === "resting"
+      ? (item.effects?.staminaRecoveryPerPeriodResting ?? base)
+      : context === "working"
+      ? (item.effects?.staminaRecoveryPerPeriodWorking ?? base)
+      : base; // "normal" = journey rate
     const total = perPeriod * periods;
     const before = player.stats.stamina;
     player.stats.stamina = clamp(player.stats.stamina + total, 0, player.stats.maxStamina);
@@ -602,8 +604,8 @@ export function recoverPreview(player: PlayerState, chomperAutoEnabled = true) {
   const periods = 8;
   const satietyCost = periods * 10;
   const curlerCount = countEquippedTail(player, "eq_tail_curler");
-  const baseRecovery = ITEMS.eq_tail_curler.effects?.staminaRecoveryPerPeriod ?? 0;
-  const staminaRecovered = curlerCount > 0 ? baseRecovery * 1.5 * curlerCount * periods : 0;
+  const restingRecovery = ITEMS.eq_tail_curler.effects?.staminaRecoveryPerPeriodResting ?? ITEMS.eq_tail_curler.effects?.staminaRecoveryPerPeriod ?? 0;
+  const staminaRecovered = curlerCount > 0 ? restingRecovery * curlerCount * periods : 0;
   const chomperCount = countEquippedTail(player, "eq_chomper");
   const estFoodConsumed: { foodId: FoodId; unitsRange: [number, number] }[] = [];
   if (chomperCount > 0 && chomperAutoEnabled) {

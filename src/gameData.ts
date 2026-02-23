@@ -248,6 +248,7 @@ export const ITEMS: Record<
     effects?: {
       staminaRecoveryPerPeriod?: number;
       staminaRecoveryPerPeriodWorking?: number;
+      staminaRecoveryPerPeriodResting?: number;
       chomper?: { enableImmediateFoodAtPoi: boolean; autoConsumeStorableFoodPerPeriod: boolean; biteSize?: number };
     };
     harvestingMethod?: HarvestMethodId;
@@ -259,8 +260,8 @@ export const ITEMS: Record<
     id: "eq_tail_curler",
     name: "Tail Curler",
     slot: "tail",
-    flavor: "A coiled attachment that hums faintly when you rest. Something about it helps.",
-    effects: { staminaRecoveryPerPeriod: 10, staminaRecoveryPerPeriodWorking: 5 },
+    flavor: "A coiled attachment that hums quietly no matter what you're doing. Something about it helps.",
+    effects: { staminaRecoveryPerPeriod: 2, staminaRecoveryPerPeriodWorking: 5, staminaRecoveryPerPeriodResting: 15 },
   },
   eq_chomper: {
     id: "eq_chomper",

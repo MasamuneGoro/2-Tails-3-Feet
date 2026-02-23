@@ -1470,7 +1470,7 @@ export default function App() {
               <ul className="small" style={{ lineHeight: 1.9, margin: 0, paddingLeft: 16, opacity: 0.85 }}>
                 <li>Carried food loses one freshness — it rots whether you eat it or not</li>
                 <li>The <b>Chomper</b> eats one unit from your stock first, before rot sets in</li>
-                <li>The <b>Tail Curler</b> recovers a little stamina (more at rest, less while working)</li>
+                <li>The <b>Tail Curler</b> recovers a little stamina each period — least while walking, more while working, most while napping</li>
                 <li>Satiety drains — journeys cost one per step, harvesting and crafting cost more</li>
               </ul>
             </div>

@@ -82,7 +82,7 @@ const START_PLAYER: PlayerState = {
     { id: "eq_tail_curler", qty: 1 },
     { id: "eq_chomper", qty: 1 },
     { id: "eq_pointed_twig", qty: 1 },
-    { id: "food_resin_chew", qty: 1, freshness: [3] },
+    { id: "food_resin_chew", qty: 1, freshness: [49] },
   ],
   xp: { poke: 0, smash: 0, tease: 0, drill: 0, scoop: 0 },
 };
@@ -201,12 +201,14 @@ export default function App() {
   }
 
   function gotoHub() {
+    setDecayedFoodAlert(null);
     if (dead) setScreen("DEAD");
     else if (exhausted) setScreen("EXHAUSTED");
     else setScreen("HUB");
   }
 
   function openMetaScreen(target: "INVENTORY" | "SKILLS") {
+    setDecayedFoodAlert(null);
     // Only store return point when first leaving main flow
     if (screen !== "INVENTORY" && screen !== "SKILLS") setReturnScreen(screen);
     setExpandedItem(null);
@@ -214,11 +216,13 @@ export default function App() {
   }
 
   function backFromMeta() {
+    setDecayedFoodAlert(null);
     setScreen(returnScreen);
   }
 
   // ── Journey ───────────────────────────────────────────────────────────────
   function genJourney(mode: "explore" | "findFood") {
+    setDecayedFoodAlert(null);
     const saved = mode === "explore" ? savedExploreRoll : savedFoodRoll;
     const pv = saved ?? makeJourneyPreview(player, mode, chomperAutoEnabled);
     if (!saved) {
@@ -243,6 +247,7 @@ export default function App() {
     setScreen("SUMMARY_JOURNEY");
   }
   function sniffAgain() {
+    setDecayedFoodAlert(null);
     if (!journeyPreview) return;
     const next = structuredClone(player);
     next.stats.satiety = clamp(next.stats.satiety - 20, 0, next.stats.maxSatiety);
@@ -254,6 +259,7 @@ export default function App() {
     setJourneyPreview(pv);
   }
   function enterPoi() {
+    setDecayedFoodAlert(null);
     if (!journeyResult) return;
     setActivePoi(journeyResult.poi);
     setActiveBlot(journeyResult.blot);
@@ -265,6 +271,7 @@ export default function App() {
 
   // ── Harvest ───────────────────────────────────────────────────────────────
   function chooseMethod(method: HarvestMethodId) {
+    setDecayedFoodAlert(null);
     if (!activePoi) return;
     setHarvestPreview(makeHarvestPreview(player, activePoi.id, method, chomperAutoEnabled));
     setHarvestResult(null);
@@ -305,6 +312,7 @@ export default function App() {
 
   // ── Food blot ─────────────────────────────────────────────────────────────
   function doEatSap() {
+    setDecayedFoodAlert(null);
     if (!activeBlot) return;
     const next = structuredClone(player);
     const blotCopy = structuredClone(activeBlot);
@@ -323,6 +331,7 @@ export default function App() {
 
   // ── Craft ─────────────────────────────────────────────────────────────────
   function openCraft() {
+    setDecayedFoodAlert(null);
     if (!canCraft(player)) { setScreen("EXHAUSTED"); return; }
     setScreen("CRAFT_MENU");
   }
@@ -343,6 +352,7 @@ export default function App() {
 
   // ── Recover ───────────────────────────────────────────────────────────────
   function previewRecover() {
+    setDecayedFoodAlert(null);
     const pv = recoverPreview(player, chomperAutoEnabled);
     setRecoverState({ periods: pv.periods });
     setRecoverSummary(null);

@@ -14,8 +14,8 @@ export const BIOME_LEVEL: {
   name: string;
   exploreStepsRange: [number, number];
   foodStepsRange: [number, number];
-  hungerPerStep: number;
-  fatiguePerStep: number;
+  satietyPerStep: number;
+  staminaPerStep: number;
   poiWeightsExplore: Record<PoiId, number>;
   poiWeightsFood: Record<PoiId, number>;
   eventProfile: {
@@ -31,8 +31,8 @@ export const BIOME_LEVEL: {
   name: "Sticky Biome (L1)",
   exploreStepsRange: [75, 125],
   foodStepsRange: [63, 100],
-  hungerPerStep: 1,
-  fatiguePerStep: 1,
+  satietyPerStep: 1,
+  staminaPerStep: 1,
   poiWeightsExplore: {
     poi_resin_node: 40,
     poi_fiber_patch: 35,
@@ -74,19 +74,19 @@ export const EVENTS: Record<EventId, {
   tag: "common" | "uncommon" | "rare";
   netEffect: string;
 }> = {
-  ev_sticky_drag:    { id: "ev_sticky_drag",    name: "Sticky Drag",       tag: "common",   text: "The ground wants to keep you. It's almost flattering.",                                             netEffect: "+20 steps (+20 hunger, +20 fatigue)" },
-  ev_resin_smear:    { id: "ev_resin_smear",    name: "Resin Smear",       tag: "common",   text: "Something warm and gloopy splashes your tails. It smells suspiciously edible.",                    netEffect: "hunger −30" },
-  ev_slow_going:     { id: "ev_slow_going",     name: "Slow Going",        tag: "common",   text: "Every step is a negotiation. The biome is winning.",                                               netEffect: "fatigue +20" },
+  ev_sticky_drag:    { id: "ev_sticky_drag",    name: "Sticky Drag",       tag: "common",   text: "The ground wants to keep you. It's almost flattering.",                                             netEffect: "+20 steps (−20 satiety, −20 stamina)" },
+  ev_resin_smear:    { id: "ev_resin_smear",    name: "Resin Smear",       tag: "common",   text: "Something warm and gloopy splashes your tails. It smells suspiciously edible.",                    netEffect: "+30 satiety" },
+  ev_slow_going:     { id: "ev_slow_going",     name: "Slow Going",        tag: "common",   text: "Every step is a negotiation. The biome is winning.",                                               netEffect: "−20 stamina" },
   ev_loose_fibers:   { id: "ev_loose_fibers",   name: "Loose Fibers",      tag: "common",   text: "Wispy strands snag on everything. Annoying now, useful later — maybe.",                            netEffect: "+1 Fiber Clump" },
-  ev_minor_recovery: { id: "ev_minor_recovery", name: "Micro-Second Wind", tag: "common",   text: "Your body finds a sneaky little rhythm. Don't question it.",                                       netEffect: "fatigue −20" },
+  ev_minor_recovery: { id: "ev_minor_recovery", name: "Micro-Second Wind", tag: "common",   text: "Your body finds a sneaky little rhythm. Don't question it.",                                       netEffect: "+20 stamina" },
   ev_rich_vein_hint: { id: "ev_rich_vein_hint", name: "Rich Vein Hint",    tag: "uncommon", text: "Something dense pulses underfoot. It knows you noticed.",                                          netEffect: "+1 Resin Glob" },
-  ev_sticky_snare:   { id: "ev_sticky_snare",   name: "Sticky Snare",      tag: "uncommon", text: "The ground grabs a tail and yanks. You pull free, but it costs you.",                             netEffect: "fatigue +30" },
-  ev_edible_scrap:   { id: "ev_edible_scrap",   name: "Edible Scrap",      tag: "uncommon", text: "A small mystery morsel. Probably fine. Definitely eaten.",                                         netEffect: "hunger −80" },
-  ev_efficient_path: { id: "ev_efficient_path", name: "Efficient Path",    tag: "uncommon", text: "A ribbon of firm ground. You glide through it like you planned this all along.",                   netEffect: "fatigue −30" },
-  ev_muscle_pull:    { id: "ev_muscle_pull",    name: "Muscle Pull",       tag: "uncommon", text: "Something twangs in a tail you didn't know you had. You keep moving, but slower.",                 netEffect: "fatigue +20, hunger +20" },
+  ev_sticky_snare:   { id: "ev_sticky_snare",   name: "Sticky Snare",      tag: "uncommon", text: "The ground grabs a tail and yanks. You pull free, but it costs you.",                             netEffect: "−30 stamina" },
+  ev_edible_scrap:   { id: "ev_edible_scrap",   name: "Edible Scrap",      tag: "uncommon", text: "A small mystery morsel. Probably fine. Definitely eaten.",                                         netEffect: "+80 satiety" },
+  ev_efficient_path: { id: "ev_efficient_path", name: "Efficient Path",    tag: "uncommon", text: "A ribbon of firm ground. You glide through it like you planned this all along.",                   netEffect: "+30 stamina" },
+  ev_muscle_pull:    { id: "ev_muscle_pull",    name: "Muscle Pull",       tag: "uncommon", text: "Something twangs in a tail you didn't know you had. You keep moving, but slower.",                 netEffect: "−20 stamina, −20 satiety" },
   ev_dense_find:     { id: "ev_dense_find",     name: "Dense Find",        tag: "rare",     text: "A pocket of material so concentrated it feels like a secret.",                                     netEffect: "+2 Resin Glob, +1 Brittle Stone" },
   ev_preserved_ration:{ id: "ev_preserved_ration", name: "Preserved Ration", tag: "rare",  text: "A wrapped lump that shouldn't exist here. You don't ask questions.",                               netEffect: "+1 Dense Ration" },
-  ev_second_wind:    { id: "ev_second_wind",    name: "Second Wind",       tag: "rare",     text: "Your body clicks into a higher gear entirely. Savour it — it won't last.",                        netEffect: "fatigue −60" },
+  ev_second_wind:    { id: "ev_second_wind",    name: "Second Wind",       tag: "rare",     text: "Your body clicks into a higher gear entirely. Savour it — it won't last.",                        netEffect: "+60 stamina" },
   ev_need_chomper: {
     id: "ev_need_chomper",
     name: "Missed Snack",
@@ -113,15 +113,15 @@ export const POIS: Record<
     kind: "harvest" | "food";
     resourceId?: ResourceId;
     baseYieldRange?: [number, number];
-    methodTuning?: Record<HarvestMethodId, { periodsRange: [number, number]; fatiguePerPeriod: number }>;
+    methodTuning?: Record<HarvestMethodId, { periodsRange: [number, number]; staminaPerPeriod: number }>;
     methodRank?: Record<HarvestMethodId, "best" | "good" | "ok" | "weak" | "veryWeak" | "wasteful">;
     efficiencyMultipliers?: Record<string, number>;
     foodSpec?: {
       sapQtyRange: [number, number];
       storableQtyRange: [number, number];
       storableFood: FoodId;
-      forageHungerPerPeriod: number;
-      forageFatiguePerPeriod: number;
+      forageSatietyCostPerPeriod: number;
+      forageStaminaCostPerPeriod: number;
     };
   }
 > = {
@@ -134,11 +134,11 @@ export const POIS: Record<
     resourceId: "resin_glob",
     baseYieldRange: [2, 4],
     methodTuning: {
-      scoop: { periodsRange: [6, 8], fatiguePerPeriod: 10 },
-      poke: { periodsRange: [7, 9], fatiguePerPeriod: 10 },
-      drill: { periodsRange: [8, 10], fatiguePerPeriod: 20 },
-      tease: { periodsRange: [10, 12], fatiguePerPeriod: 10 },
-      smash: { periodsRange: [4, 6], fatiguePerPeriod: 30 },
+      scoop: { periodsRange: [6, 8], staminaPerPeriod: 10 },
+      poke: { periodsRange: [7, 9], staminaPerPeriod: 10 },
+      drill: { periodsRange: [8, 10], staminaPerPeriod: 20 },
+      tease: { periodsRange: [10, 12], staminaPerPeriod: 10 },
+      smash: { periodsRange: [4, 6], staminaPerPeriod: 30 },
     },
     methodRank: { scoop: "best", poke: "good", drill: "ok", tease: "weak", smash: "wasteful" },
     efficiencyMultipliers: { best: 1.25, good: 1.0, ok: 0.85, weak: 0.6, veryWeak: 0.35, wasteful: 0.4 },
@@ -152,11 +152,11 @@ export const POIS: Record<
     resourceId: "fiber_clump",
     baseYieldRange: [2, 4],
     methodTuning: {
-      tease: { periodsRange: [6, 8], fatiguePerPeriod: 10 },
-      poke: { periodsRange: [7, 9], fatiguePerPeriod: 10 },
-      scoop: { periodsRange: [8, 10], fatiguePerPeriod: 10 },
-      drill: { periodsRange: [9, 11], fatiguePerPeriod: 20 },
-      smash: { periodsRange: [4, 6], fatiguePerPeriod: 30 },
+      tease: { periodsRange: [6, 8], staminaPerPeriod: 10 },
+      poke: { periodsRange: [7, 9], staminaPerPeriod: 10 },
+      scoop: { periodsRange: [8, 10], staminaPerPeriod: 10 },
+      drill: { periodsRange: [9, 11], staminaPerPeriod: 20 },
+      smash: { periodsRange: [4, 6], staminaPerPeriod: 30 },
     },
     methodRank: { tease: "best", poke: "good", scoop: "ok", drill: "weak", smash: "wasteful" },
     efficiencyMultipliers: { best: 1.25, good: 1.0, ok: 0.85, weak: 0.6, veryWeak: 0.35, wasteful: 0.4 },
@@ -170,11 +170,11 @@ export const POIS: Record<
     resourceId: "brittle_stone",
     baseYieldRange: [2, 3],
     methodTuning: {
-      smash: { periodsRange: [5, 7], fatiguePerPeriod: 30 },
-      drill: { periodsRange: [7, 9], fatiguePerPeriod: 20 },
-      poke: { periodsRange: [10, 12], fatiguePerPeriod: 10 },
-      tease: { periodsRange: [12, 14], fatiguePerPeriod: 10 },
-      scoop: { periodsRange: [12, 14], fatiguePerPeriod: 10 },
+      smash: { periodsRange: [5, 7], staminaPerPeriod: 30 },
+      drill: { periodsRange: [7, 9], staminaPerPeriod: 20 },
+      poke: { periodsRange: [10, 12], staminaPerPeriod: 10 },
+      tease: { periodsRange: [12, 14], staminaPerPeriod: 10 },
+      scoop: { periodsRange: [12, 14], staminaPerPeriod: 10 },
     },
     methodRank: { smash: "best", drill: "good", poke: "weak", tease: "veryWeak", scoop: "veryWeak" },
     efficiencyMultipliers: { best: 1.25, good: 1.0, ok: 0.85, weak: 0.6, veryWeak: 0.35, wasteful: 0.25 },
@@ -189,8 +189,8 @@ export const POIS: Record<
       sapQtyRange: [3, 6] as [number, number],
       storableQtyRange: [0, 4] as [number, number],
       storableFood: "food_resin_chew" as FoodId,
-      forageHungerPerPeriod: 10,
-      forageFatiguePerPeriod: 10,
+      forageSatietyCostPerPeriod: 10,
+      forageStaminaCostPerPeriod: 10,
     },
   },
   poi_resin_hollow: {
@@ -203,8 +203,8 @@ export const POIS: Record<
       sapQtyRange: [1, 3] as [number, number],
       storableQtyRange: [8, 16] as [number, number],
       storableFood: "food_resin_chew" as FoodId,
-      forageHungerPerPeriod: 10,
-      forageFatiguePerPeriod: 10,
+      forageSatietyCostPerPeriod: 10,
+      forageStaminaCostPerPeriod: 10,
     },
   },
   poi_dense_pocket: {
@@ -217,8 +217,8 @@ export const POIS: Record<
       sapQtyRange: [1, 2] as [number, number],
       storableQtyRange: [3, 9] as [number, number],
       storableFood: "food_dense_ration" as FoodId,
-      forageHungerPerPeriod: 10,
-      forageFatiguePerPeriod: 20,
+      forageSatietyCostPerPeriod: 10,
+      forageStaminaCostPerPeriod: 20,
     },
   },
 };
@@ -231,11 +231,11 @@ export const RESOURCES: Record<ResourceId, { id: ResourceId; name: string; flavo
 
 export const FOODS: Record<
   FoodId,
-  { id: FoodId; name: string; hungerReduction: number; storable: boolean; freshnessRange?: [number, number]; flavor: string }
+  { id: FoodId; name: string; satietyRestored: number; storable: boolean; freshnessRange?: [number, number]; flavor: string }
 > = {
-  food_soft_sap: { id: "food_soft_sap", name: "Soft Sap", hungerReduction: 150, storable: false, flavor: "Warm, gloopy, and barely qualifies as food. Your belly doesn't care." },
-  food_resin_chew: { id: "food_resin_chew", name: "Resin Chew", hungerReduction: 40, storable: true, freshnessRange: [35, 49], flavor: "Chewy in a way that makes you think. Not about what's in it, though." },
-  food_dense_ration: { id: "food_dense_ration", name: "Dense Ration", hungerReduction: 120, storable: true, freshnessRange: [56, 84], flavor: "Suspiciously well-preserved. You decide gratitude is the right response." },
+  food_soft_sap: { id: "food_soft_sap", name: "Soft Sap", satietyRestored: 150, storable: false, flavor: "Warm, gloopy, and barely qualifies as food. Your belly doesn't care." },
+  food_resin_chew: { id: "food_resin_chew", name: "Resin Chew", satietyRestored: 40, storable: true, freshnessRange: [35, 49], flavor: "Chewy in a way that makes you think. Not about what's in it, though." },
+  food_dense_ration: { id: "food_dense_ration", name: "Dense Ration", satietyRestored: 120, storable: true, freshnessRange: [56, 84], flavor: "Suspiciously well-preserved. You decide gratitude is the right response." },
 };
 
 export const ITEMS: Record<
@@ -246,8 +246,8 @@ export const ITEMS: Record<
     slot: "tail" | "shoe";
     flavor: string;
     effects?: {
-      fatigueRecoveryPerPeriod?: number;
-      fatigueRecoveryPerPeriodWorking?: number;
+      staminaRecoveryPerPeriod?: number;
+      staminaRecoveryPerPeriodWorking?: number;
       chomper?: { enableImmediateFoodAtPoi: boolean; autoConsumeStorableFoodPerPeriod: boolean; biteSize?: number };
     };
     harvestingMethod?: HarvestMethodId;
@@ -260,7 +260,7 @@ export const ITEMS: Record<
     name: "Tail Curler",
     slot: "tail",
     flavor: "A coiled attachment that hums faintly when you rest. Something about it helps.",
-    effects: { fatigueRecoveryPerPeriod: 10, fatigueRecoveryPerPeriodWorking: 5 },
+    effects: { staminaRecoveryPerPeriod: 10, staminaRecoveryPerPeriodWorking: 5 },
   },
   eq_chomper: {
     id: "eq_chomper",
@@ -300,8 +300,8 @@ export const RECIPES: Record<
     output: { itemId: ItemId; qty: number };
     inputs: { id: ResourceId; qty: number }[];
     craftPeriods: number;
-    hungerPerPeriod: number;
-    fatiguePerPeriod: number;
+    satietyPerPeriod: number;
+    staminaPerPeriod: number;
     requiresTinker: boolean;
   }
 > = {
@@ -311,8 +311,8 @@ export const RECIPES: Record<
     output: { itemId: "eq_fiber_comb", qty: 1 },
     inputs: [{ id: "fiber_clump", qty: 3 }, { id: "resin_glob", qty: 1 }],
     craftPeriods: 4,
-    hungerPerPeriod: 10,
-    fatiguePerPeriod: 20,
+    satietyPerPeriod: 10,
+    staminaPerPeriod: 20,
     requiresTinker: false,
   },
   rcp_sticky_scoop: {
@@ -321,8 +321,8 @@ export const RECIPES: Record<
     output: { itemId: "eq_sticky_scoop", qty: 1 },
     inputs: [{ id: "resin_glob", qty: 2 }, { id: "fiber_clump", qty: 1 }],
     craftPeriods: 4,
-    hungerPerPeriod: 10,
-    fatiguePerPeriod: 20,
+    satietyPerPeriod: 10,
+    staminaPerPeriod: 20,
     requiresTinker: false,
   },
   rcp_crude_hammerhead: {
@@ -331,8 +331,8 @@ export const RECIPES: Record<
     output: { itemId: "eq_crude_hammerhead", qty: 1 },
     inputs: [{ id: "brittle_stone", qty: 2 }, { id: "fiber_clump", qty: 2 }],
     craftPeriods: 8,
-    hungerPerPeriod: 10,
-    fatiguePerPeriod: 20,
+    satietyPerPeriod: 10,
+    staminaPerPeriod: 20,
     requiresTinker: true,
   },
   rcp_hand_drill: {
@@ -341,8 +341,8 @@ export const RECIPES: Record<
     output: { itemId: "eq_hand_drill", qty: 1 },
     inputs: [{ id: "brittle_stone", qty: 2 }, { id: "resin_glob", qty: 1 }, { id: "fiber_clump", qty: 1 }],
     craftPeriods: 8,
-    hungerPerPeriod: 10,
-    fatiguePerPeriod: 20,
+    satietyPerPeriod: 10,
+    staminaPerPeriod: 20,
     requiresTinker: true,
   },
   rcp_chomper: {
@@ -351,8 +351,8 @@ export const RECIPES: Record<
     output: { itemId: "eq_chomper", qty: 1 },
     inputs: [{ id: "resin_glob", qty: 3 }, { id: "fiber_clump", qty: 2 }, { id: "brittle_stone", qty: 2 }],
     craftPeriods: 10,
-    hungerPerPeriod: 10,
-    fatiguePerPeriod: 20,
+    satietyPerPeriod: 10,
+    staminaPerPeriod: 20,
     requiresTinker: true,
   },
   rcp_tail_curler: {
@@ -361,8 +361,8 @@ export const RECIPES: Record<
     output: { itemId: "eq_tail_curler", qty: 1 },
     inputs: [{ id: "fiber_clump", qty: 4 }, { id: "resin_glob", qty: 1 }, { id: "brittle_stone", qty: 2 }],
     craftPeriods: 10,
-    hungerPerPeriod: 10,
-    fatiguePerPeriod: 20,
+    satietyPerPeriod: 10,
+    staminaPerPeriod: 20,
     requiresTinker: true,
   },
 };

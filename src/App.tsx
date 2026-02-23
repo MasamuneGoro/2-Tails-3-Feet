@@ -19,32 +19,32 @@ function formatConsumed(consumed: { foodId: import("./types").FoodId; units: num
   return consumed.map((c) => `${FOODS[c.foodId].name} ×${c.units}`).join(", ");
 }
 
-function FatigueRecoveryLine({ raw, recovery }: { raw: number; recovery: import("./types").FatigueRecoveryEntry[] }) {
-  if (recovery.length === 0) return <>{+raw}</>;
+function StaminaRecoveryLine({ raw, recovery }: { raw: number; recovery: import("./types").StaminaRecoveryEntry[] }) {
+  if (recovery.length === 0) return <>−{raw}</>;
   const totalRecovered = recovery.reduce((s, e) => s + e.recovered, 0);
   const net = Math.max(0, raw - totalRecovered);
-  const parts = recovery.map(e => `−${e.recovered} ${e.name}`).join(", ");
-  return <span>+{raw} <span style={{ opacity: 0.6, fontSize: "0.85em" }}>({parts})</span> = {net}</span>;
+  const parts = recovery.map(e => `+${e.recovered} ${e.name}`).join(", ");
+  return <span>−{raw} <span style={{ opacity: 0.6, fontSize: "0.85em" }}>({parts})</span> = −{net}</span>;
 }
 
-function HungerChomperLine({ raw, restored }: { raw: number; restored: number }) {
-  if (restored === 0) return <>{+raw}</>;
+function SatietyLine({ raw, restored }: { raw: number; restored: number }) {
+  if (restored === 0) return <>−{raw}</>;
   const net = Math.max(0, raw - restored);
-  return <span>+{raw} <span style={{ opacity: 0.6, fontSize: "0.85em" }}>(−{restored} Chomper)</span> = {net}</span>;
+  return <span>−{raw} <span style={{ opacity: 0.6, fontSize: "0.85em" }}>(+{restored} Chomper)</span> = −{net}</span>;
 }
 
-function HungerChomperRangeLine({ raw, restoredRange }: { raw: [number, number]; restoredRange: [number, number] }) {
-  if (restoredRange[1] === 0) return <span>+{raw[0]}–{raw[1]}</span>;
+function SatietyRangeLine({ raw, restoredRange }: { raw: [number, number]; restoredRange: [number, number] }) {
+  if (restoredRange[1] === 0) return <span>−{raw[0]}–{raw[1]}</span>;
   const netLo = Math.max(0, raw[0] - restoredRange[1]);
   const netHi = Math.max(0, raw[1] - restoredRange[1]);
-  return <span>+{raw[0]}–{raw[1]} <span style={{ opacity: 0.6, fontSize: "0.85em" }}>(−up to {restoredRange[1]} Chomper)</span> = {netLo}–{netHi}</span>;
+  return <span>−{raw[0]}–{raw[1]} <span style={{ opacity: 0.6, fontSize: "0.85em" }}>(+up to {restoredRange[1]} Chomper)</span> = −{netLo}–{netHi}</span>;
 }
 
-function FatigueRangeLine({ raw, recoveryRange }: { raw: [number, number]; recoveryRange: [number, number] }) {
-  if (recoveryRange[1] === 0) return <span>+{raw[0]}–{raw[1]}</span>;
+function StaminaRangeLine({ raw, recoveryRange }: { raw: [number, number]; recoveryRange: [number, number] }) {
+  if (recoveryRange[1] === 0) return <span>−{raw[0]}–{raw[1]}</span>;
   const netLo = Math.max(0, raw[0] - recoveryRange[1]);
   const netHi = Math.max(0, raw[1] - recoveryRange[1]);
-  return <span>+{raw[0]}–{raw[1]} <span style={{ opacity: 0.6, fontSize: "0.85em" }}>(−up to {recoveryRange[1]} Tail Curler)</span> = {netLo}–{netHi}</span>;
+  return <span>−{raw[0]}–{raw[1]} <span style={{ opacity: 0.6, fontSize: "0.85em" }}>(+up to {recoveryRange[1]} Tail Curler)</span> = −{netLo}–{netHi}</span>;
 }
 
 function formatConsumedRange(consumed: { foodId: import("./types").FoodId; unitsRange: [number, number] }[]) {
@@ -52,19 +52,18 @@ function formatConsumedRange(consumed: { foodId: import("./types").FoodId; units
   return consumed.map((c) => `${FOODS[c.foodId].name} ×${c.unitsRange[0]}–${c.unitsRange[1]}`).join(", ");
 }
 
-function StatBar({ value, max, kind }: { value: number; max: number; kind: "hunger" | "fatigue" }) {
-  const ratio = value / max;
+function StatBar({ value, max, kind }: { value: number; max: number; kind: "satiety" | "stamina" }) {
+  const ratio = value / max;  // high = full = good
   let color: string;
-  if (kind === "hunger") {
-    color = ratio < 0.5 ? "#4caf50" : ratio < 0.75 ? "#f5c842" : "#e53935";
+  if (kind === "satiety") {
+    color = ratio > 0.5 ? "#4caf50" : ratio > 0.25 ? "#f5c842" : "#e53935";
   } else {
-    // fatigue: amber -> burnt orange -> deep sienna
-    color = ratio < 0.5 ? "#c8a96e" : ratio < 0.75 ? "#cc6b1a" : "#8b2500";
+    color = ratio > 0.5 ? "#c8a96e" : ratio > 0.25 ? "#cc6b1a" : "#8b2500";
   }
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 3, flex: 1, minWidth: 0 }}>
       <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.8rem", opacity: 0.7 }}>
-        <span>{kind === "hunger" ? "Hunger" : "Fatigue"}</span>
+        <span>{kind === "satiety" ? "Satiety" : "Stamina"}</span>
         <span>{value}/{max}</span>
       </div>
       <div style={{ width: "100%", background: "#2a2a2a", borderRadius: 6, height: 12 }}>
@@ -76,7 +75,7 @@ function StatBar({ value, max, kind }: { value: number; max: number; kind: "hung
 
 const START_PLAYER: PlayerState = {
   biomeLevelId: "sticky_l1",
-  stats: { hunger: 200, fatigue: 0, maxHunger: 1000, maxFatigue: 1000 },
+  stats: { satiety: 800, stamina: 1000, maxSatiety: 1000, maxStamina: 1000 },
   equipment: { tailSlots: [null, null], shoe: "eq_standard_shoe" },
   inventory: [
     { id: "eq_tinker_shaft", qty: 1 },
@@ -118,11 +117,11 @@ export default function App() {
   const [scoopExpanded, setScoopExpanded] = useState(false);
   const [chomperAutoEnabled, setChomperAutoEnabled] = useState(true);
 
-  const exhausted = player.stats.fatigue >= player.stats.maxFatigue;
-  const dead = player.stats.hunger >= player.stats.maxHunger;
+  const exhausted = player.stats.stamina <= 0;
+  const dead = player.stats.satiety <= 0;
 
-  const hungerRatio = player.stats.hunger / player.stats.maxHunger;
-  const fatigueRatio = player.stats.fatigue / player.stats.maxFatigue;
+  const satietyRatio = player.stats.satiety / player.stats.maxSatiety;
+  const staminaRatio = player.stats.stamina / player.stats.maxStamina;
   const chomperEquipped = countEquippedTail(player, "eq_chomper") > 0;
   const curlerCount = countEquippedTail(player, "eq_tail_curler");
 
@@ -220,8 +219,8 @@ export default function App() {
   function sniffAgain() {
     if (!journeyPreview) return;
     const next = structuredClone(player);
-    next.stats.hunger = clamp(next.stats.hunger + 20, 0, next.stats.maxHunger);
-    next.stats.fatigue = clamp(next.stats.fatigue + 20, 0, next.stats.maxFatigue);
+    next.stats.satiety = clamp(next.stats.satiety - 20, 0, next.stats.maxSatiety);
+    next.stats.stamina = clamp(next.stats.stamina - 20, 0, next.stats.maxStamina);
     setPlayer(next);
     const pv = makeJourneyPreview(next, journeyPreview.mode, chomperAutoEnabled);
     if (journeyPreview.mode === "explore") setSavedExploreRoll(pv);
@@ -263,7 +262,7 @@ export default function App() {
     const results: HarvestResult[] = [];
     for (const method of methods) {
       if (blotCopy.harvestCharges !== undefined && blotCopy.harvestCharges <= 0) break;
-      if (next.stats.hunger >= next.stats.maxHunger || next.stats.fatigue >= next.stats.maxFatigue) break;
+      if (next.stats.satiety <= 0 || next.stats.stamina <= 0) break;
       const pv = makeHarvestPreview(next, activePoi.id, method, chomperAutoEnabled);
       const res = resolveHarvest(next, pv, chomperAutoEnabled);
       results.push(res);
@@ -479,8 +478,8 @@ export default function App() {
   // ─────────────────────────────────────────────────────────────────────────
   const hud = (
     <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 14, padding: "10px 0" }}>
-      <StatBar value={player.stats.hunger} max={player.stats.maxHunger} kind="hunger" />
-      <StatBar value={player.stats.fatigue} max={player.stats.maxFatigue} kind="fatigue" />
+      <StatBar value={player.stats.satiety} max={player.stats.maxSatiety} kind="satiety" />
+      <StatBar value={player.stats.stamina} max={player.stats.maxStamina} kind="stamina" />
       <span style={{ fontSize: "0.8rem", opacity: 0.45 }}>{BIOME_LEVEL.name}</span>
     </div>
   );
@@ -491,19 +490,19 @@ export default function App() {
   function hubBtnStyle(kind: "explore" | "findFood" | "layDown" | "craft"): React.CSSProperties {
     const base: React.CSSProperties = { padding: "12px 18px", borderRadius: 12, border: "1px solid #2a2a2a", background: "#1a1a1a", color: "#eaeaea", cursor: "pointer", fontSize: "1rem", fontWeight: 400, transition: "all 0.2s" };
 
-    if (kind === "explore" && hungerRatio < 0.5 && fatigueRatio < 0.5) {
+    if (kind === "explore" && satietyRatio > 0.5 && staminaRatio > 0.5) {
       return { ...base, padding: "14px 24px", background: "#1a2e1a", border: "2px solid #4caf50", color: "#7ecba1", fontWeight: 700, fontSize: "1.1rem", boxShadow: "0 0 12px #4caf5044" };
     }
-    if (kind === "findFood" && hungerRatio >= 0.5 && hungerRatio < 0.75) {
+    if (kind === "findFood" && satietyRatio <= 0.5 && satietyRatio > 0.25) {
       return { ...base, background: "#2e2600", border: "1px solid #f5c842", color: "#f5e07a", fontWeight: 600 };
     }
-    if (kind === "findFood" && hungerRatio >= 0.75) {
+    if (kind === "findFood" && satietyRatio <= 0.25) {
       return { ...base, padding: "14px 22px", background: "#2e1010", border: "2px solid #e53935", color: "#ff8a80", fontWeight: 700, fontSize: "1.05rem", boxShadow: "0 0 10px #e5393544" };
     }
-    if (kind === "layDown" && fatigueRatio >= 0.5 && fatigueRatio < 0.75) {
+    if (kind === "layDown" && staminaRatio <= 0.5 && staminaRatio > 0.25) {
       return { ...base, background: "#2a1c0a", border: "1px solid #cc6b1a", color: "#e8a05a", fontWeight: 600 };
     }
-    if (kind === "layDown" && fatigueRatio >= 0.75) {
+    if (kind === "layDown" && staminaRatio <= 0.25) {
       return { ...base, padding: "14px 22px", background: "#1e1008", border: "2px solid #8b2500", color: "#ff8c60", fontWeight: 700, fontSize: "1.05rem", boxShadow: "0 0 10px #8b250044" };
     }
     return base;
@@ -646,8 +645,8 @@ export default function App() {
                   {lastEatResult && chomperEquipped && (
                     <p className="small" style={{ opacity: 0.8, margin: 0 }}>
                       Ate {lastEatResult.unitsEaten} unit{lastEatResult.unitsEaten !== 1 ? "s" : ""}.{" "}
-                      <b>−{lastEatResult.hungerRestored} hunger</b> • <b>+{lastEatResult.fatigueCost} fatigue</b>.
-                      {lastEatResult.hungerRestored === 0 ? " (Not hungry enough.)" : " Warm. Gloopy. Worth it."}
+                      <b>+{lastEatResult.satietyRestored} satiety</b> • <b>−{lastEatResult.staminaCost} stamina</b>.
+                      {lastEatResult.satietyRestored === 0 ? " (Already full.)" : " Warm. Gloopy. Worth it."}
                     </p>
                   )}
                 </div>
@@ -689,8 +688,8 @@ export default function App() {
                       {lastStorableResult && hasEquippedTail(player, "eq_sticky_scoop") && (
                         <p className="small" style={{ opacity: 0.8, margin: 0 }}>
                           Gathered 1 {FOODS[lastStorableResult.foodId].name}.{" "}
-                          <HungerChomperLine raw={lastStorableResult.hungerCost} restored={lastStorableResult.foodConsumed.reduce((s, c) => s + FOODS[c.foodId].hungerReduction * c.units, 0)} /> hunger •{" "}
-                          <FatigueRecoveryLine raw={lastStorableResult.fatigueCost} recovery={lastStorableResult.fatigueRecovery ?? []} /> fatigue.{" "}
+                          <SatietyLine raw={lastStorableResult.satietyCost} restored={lastStorableResult.foodConsumed.reduce((s, c) => s + FOODS[c.foodId].satietyRestored * c.units, 0)} /> satiety •{" "}
+                          <StaminaRecoveryLine raw={lastStorableResult.staminaCost} recovery={lastStorableResult.staminaRecovery ?? []} /> stamina.{" "}
                           {lastStorableResult.outcome !== "ok" ? <b>{lastStorableResult.outcome.toUpperCase()}</b> : "Stashed."}
                         </p>
                       )}
@@ -699,8 +698,8 @@ export default function App() {
                     <div style={{ background: "#141414", borderRadius: 10, padding: "12px 14px", width: "100%" }}>
                       <div style={{ fontSize: "0.7rem", opacity: 0.45, letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 10 }}>Scoop preview — {FOODS[activeBlot.storableFood].name}</div>
                       <div className="kv" style={{ marginBottom: 10 }}>
-                        <div>Hunger</div><div style={{ color: "#e8a05a" }}>+{POIS[activePoi.id].foodSpec?.forageHungerPerPeriod ?? 1} per unit</div>
-                        <div>Fatigue</div><div style={{ color: "#cc6b1a" }}><FatigueRangeLine raw={[POIS[activePoi.id].foodSpec?.forageFatiguePerPeriod ?? 1, POIS[activePoi.id].foodSpec?.forageFatiguePerPeriod ?? 1]} recoveryRange={[curlerCount * (ITEMS.eq_tail_curler.effects?.fatigueRecoveryPerPeriodWorking ?? 0), curlerCount * (ITEMS.eq_tail_curler.effects?.fatigueRecoveryPerPeriodWorking ?? 0)]} /></div>
+                        <div>Satiety</div><div style={{ color: "#e8a05a" }}>−{POIS[activePoi.id].foodSpec?.forageSatietyCostPerPeriod ?? 1} per unit</div>
+                        <div>Stamina</div><div style={{ color: "#cc6b1a" }}><StaminaRangeLine raw={[POIS[activePoi.id].foodSpec?.forageStaminaCostPerPeriod ?? 1, POIS[activePoi.id].foodSpec?.forageStaminaCostPerPeriod ?? 1]} recoveryRange={[curlerCount * (ITEMS.eq_tail_curler.effects?.staminaRecoveryPerPeriodWorking ?? 0), curlerCount * (ITEMS.eq_tail_curler.effects?.staminaRecoveryPerPeriodWorking ?? 0)]} /></div>
                         <div>Freshness on gather</div><div style={{ opacity: 0.8 }}>{FOODS[activeBlot.storableFood].freshnessRange?.[0]}–{FOODS[activeBlot.storableFood].freshnessRange?.[1]} periods</div>
                       </div>
                       <div className="row">
@@ -788,8 +787,8 @@ export default function App() {
       <div style={{ background: "#0e0e0e", borderRadius: 12, padding: "12px 16px", marginBottom: 10 }}>
         <div style={{ fontSize: "0.7rem", opacity: 0.45, letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 8 }}>Cost</div>
         <div className="kv">
-          <div>Hunger</div><div style={{ color: "#e8a05a" }}><HungerChomperRangeLine raw={journeyPreview.hungerIncreaseRange} restoredRange={journeyPreview.hungerRestoredRange} /></div>
-          <div>Fatigue</div><div style={{ color: "#cc6b1a" }}><FatigueRangeLine raw={journeyPreview.fatigueIncreaseRange} recoveryRange={journeyPreview.fatigueRecoveryPerPeriodRange} /></div>
+          <div>Satiety</div><div style={{ color: "#e8a05a" }}><SatietyRangeLine raw={journeyPreview.satietyCostRange} restoredRange={journeyPreview.satietyRestoredRange} /></div>
+          <div>Stamina</div><div style={{ color: "#cc6b1a" }}><StaminaRangeLine raw={journeyPreview.staminaCostRange} recoveryRange={journeyPreview.staminaRecoveryPerPeriodRange} /></div>
           <div>Steps</div><div style={{ opacity: 0.8 }}>{journeyPreview.stepsRange[0]}–{journeyPreview.stepsRange[1]}</div>
         </div>
       </div>
@@ -818,7 +817,7 @@ export default function App() {
         <button className="btn" style={{ opacity: 0.7 }} onClick={sniffAgain} disabled={dead || exhausted}>Sniff In Another Direction</button>
       </div>
       <div style={{ marginTop: 8, fontSize: "0.75rem", opacity: 0.4, textAlign: "center" }}>
-        Sniff Again costs −20 hunger, −20 fatigue
+        Sniff Again costs −20 satiety, −20 stamina
       </div>
     </div>
   );
@@ -830,8 +829,8 @@ export default function App() {
       <div className="kv" style={{ marginBottom: 12 }}>
         <div>Found</div><div><b>{prettyPoi(journeyResult.poi.id).name}</b> <span style={{opacity:0.6}}>({journeyResult.poi.quality})</span></div>
         <div>Steps taken</div><div>{journeyResult.steps}</div>
-        <div>Hunger cost</div><div><HungerChomperLine raw={journeyResult.hungerDelta} restored={journeyResult.hungerRestoredByChomper} /></div>
-        <div>Fatigue cost</div><div><FatigueRecoveryLine raw={journeyResult.fatigueDelta} recovery={journeyResult.fatigueRecovery} /></div>
+        <div>Satiety cost</div><div><SatietyLine raw={journeyResult.satietyDelta} restored={journeyResult.satietyRestoredByChomper} /></div>
+        <div>Stamina cost</div><div><StaminaRecoveryLine raw={journeyResult.staminaDelta} recovery={journeyResult.staminaRecovery} /></div>
       </div>
 
       {journeyResult.surfacedEvents.filter(e => !["ev_need_chomper","ev_need_scoop_for_rations"].includes(e)).length > 0 && (
@@ -868,7 +867,7 @@ export default function App() {
       {journeyResult.outcome !== "ok" && (
         <div className="notice">
           <b>Outcome:</b> {journeyResult.outcome.toUpperCase()}
-          <div className="small">{journeyResult.outcome === "exhausted" ? "Your tails have given up. Lay down." : "Hunger won. Reset to try again."}</div>
+          <div className="small">{journeyResult.outcome === "exhausted" ? "Your tails have given up. Lay down." : "Satiety hit zero. Reset to try again."}</div>
         </div>
       )}
     </div>
@@ -891,8 +890,8 @@ export default function App() {
       <div style={{ background: "#0e0e0e", borderRadius: 12, padding: "12px 16px", marginBottom: 10 }}>
         <div style={{ fontSize: "0.7rem", opacity: 0.45, letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 8 }}>Cost</div>
         <div className="kv">
-          <div>Hunger</div><div style={{ color: "#e8a05a" }}><HungerChomperRangeLine raw={harvestPreview.hungerIncreaseRange} restoredRange={harvestPreview.hungerRestoredRange} /></div>
-          <div>Fatigue</div><div style={{ color: "#cc6b1a" }}><FatigueRangeLine raw={harvestPreview.fatigueIncreaseRange} recoveryRange={harvestPreview.fatigueRecoveryPerPeriodRange} /></div>
+          <div>Satiety</div><div style={{ color: "#e8a05a" }}><SatietyRangeLine raw={harvestPreview.satietyCostRange} restoredRange={harvestPreview.satietyRestoredRange} /></div>
+          <div>Stamina</div><div style={{ color: "#cc6b1a" }}><StaminaRangeLine raw={harvestPreview.staminaCostRange} recoveryRange={harvestPreview.staminaRecoveryPerPeriodRange} /></div>
           <div>Time</div><div style={{ opacity: 0.8 }}>{harvestPreview.periodsRange[0]}–{harvestPreview.periodsRange[1]} periods</div>
         </div>
       </div>
@@ -932,7 +931,7 @@ export default function App() {
             <h3>{tool ? tool.name : res.method} pass</h3>
             <p className="small">{flavour[effLabel] ?? ""}</p>
             <ul>{res.gained.map((g, j) => <li key={j} className="small">{(g.id as string).startsWith("food_") ? getFoodName(g.id as any) : getResourceName(g.id as any)} ×{g.qty}</li>)}</ul>
-            <p className="small">→ <HungerChomperLine raw={res.hungerDelta} restored={res.hungerRestoredByChomper} /> hunger · <FatigueRecoveryLine raw={res.fatigueDelta} recovery={res.fatigueRecovery} /> fatigue · +{res.xpGained} XP</p>
+            <p className="small">→ <SatietyLine raw={res.satietyDelta} restored={res.satietyRestoredByChomper} /> satiety · <StaminaRecoveryLine raw={res.staminaDelta} recovery={res.staminaRecovery} /> stamina · +{res.xpGained} XP</p>
             {res.foodConsumed.length > 0 && <p className="small">Chomper snacked: {formatConsumed(res.foodConsumed)}</p>}
           </div>
         );
@@ -943,7 +942,7 @@ export default function App() {
       {multiHarvestResults[multiHarvestResults.length - 1]?.outcome !== "ok" && (
         <div className="notice">
           <b>Outcome:</b> {multiHarvestResults[multiHarvestResults.length - 1]?.outcome.toUpperCase()}
-          <div className="small">{multiHarvestResults[multiHarvestResults.length - 1]?.outcome === "exhausted" ? "Lay down." : "Hunger won."}</div>
+          <div className="small">{multiHarvestResults[multiHarvestResults.length - 1]?.outcome === "exhausted" ? "Lay down." : "Satiety hit zero."}</div>
         </div>
       )}
     </div>
@@ -1037,8 +1036,8 @@ export default function App() {
       <div style={{ background: "#0e0e0e", borderRadius: 12, padding: "12px 16px", marginBottom: 10 }}>
         <div style={{ fontSize: "0.7rem", opacity: 0.45, letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 8 }}>Cost</div>
         <div className="kv">
-          <div>Hunger</div><div style={{ color: "#e8a05a" }}><HungerChomperRangeLine raw={[craftPreview.hungerIncrease, craftPreview.hungerIncrease]} restoredRange={craftPreview.hungerRestoredRange} /></div>
-          <div>Fatigue</div><div style={{ color: "#cc6b1a" }}><FatigueRangeLine raw={[craftPreview.fatigueIncrease, craftPreview.fatigueIncrease]} recoveryRange={[craftPreview.fatigueRecoveryTotal, craftPreview.fatigueRecoveryTotal]} /></div>
+          <div>Satiety</div><div style={{ color: "#e8a05a" }}><SatietyRangeLine raw={[craftPreview.satietyCost, craftPreview.satietyCost]} restoredRange={craftPreview.satietyRestoredRange} /></div>
+          <div>Stamina</div><div style={{ color: "#cc6b1a" }}><StaminaRangeLine raw={[craftPreview.staminaCost, craftPreview.staminaCost]} recoveryRange={[craftPreview.staminaRecoveryTotal, craftPreview.staminaRecoveryTotal]} /></div>
           <div>Time</div><div style={{ opacity: 0.8 }}>{craftPreview.craftPeriods} periods</div>
         </div>
       </div>
@@ -1068,7 +1067,7 @@ export default function App() {
         {craftResult.success
           ? <p className="small">Crafted: <b>{getItemName(craftResult.crafted!.itemId)}</b> ×{craftResult.crafted!.qty}</p>
           : <p className="small">Failed: <b>{craftResult.failReason}</b></p>}
-        <p className="small" style={{ marginTop: 6 }}><HungerChomperLine raw={craftResult.hungerDelta} restored={craftResult.hungerRestoredByChomper} /> hunger · <FatigueRecoveryLine raw={craftResult.fatigueDelta} recovery={craftResult.fatigueRecovery} /> fatigue</p>
+        <p className="small" style={{ marginTop: 6 }}><SatietyLine raw={craftResult.satietyDelta} restored={craftResult.satietyRestoredByChomper} /> satiety · <StaminaRecoveryLine raw={craftResult.staminaDelta} recovery={craftResult.staminaRecovery} /> stamina</p>
       </div>
       {craftResult.foodConsumed.length > 0 && (
         <div className="card"><h3>Chomper Consumption</h3><p className="small">{formatConsumed(craftResult.foodConsumed)}</p></div>
@@ -1097,14 +1096,14 @@ export default function App() {
             <div style={{ background: "#0e0e0e", borderRadius: 12, padding: "12px 16px", marginBottom: 10 }}>
               <div style={{ fontSize: "0.7rem", opacity: 0.45, letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 8 }}>Cost</div>
               <div className="kv">
-                <div>Hunger</div><div style={{ color: "#e8a05a" }}>+{pv.hungerDeltaRange[0]}</div>
+                <div>Satiety</div><div style={{ color: "#e8a05a" }}>−{pv.satietyCostRange[0]}</div>
                 <div>Time</div><div style={{ opacity: 0.8 }}>{pv.periods} periods</div>
               </div>
             </div>
             <div style={{ background: "#0e0e0e", borderRadius: 12, padding: "12px 16px", marginBottom: 14 }}>
               <div style={{ fontSize: "0.7rem", opacity: 0.45, letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 8 }}>Outcome</div>
               <div className="kv">
-                <div>Fatigue</div><div style={{ color: "#7ecba1" }}>{curlerCount > 0 ? `−${Math.round(pv.fatigueRecoveredRange[1])} (est.)` : "No change"}</div>
+                <div>Stamina</div><div style={{ color: "#7ecba1" }}>{curlerCount > 0 ? `+${Math.round(pv.staminaRecoveryRange[1])} (est.)` : "No change"}</div>
               </div>
             </div>
           </>
@@ -1120,7 +1119,7 @@ export default function App() {
   const recoverSummaryScreen = recoverSummary && (
     <div className="card">
       <h2>Back on your feet (sort of)</h2>
-      <p className="small">You spent {recoverSummary.periods} periods horizontal. Fatigue recovered: <b>{Math.round(recoverSummary.fatigueRecovered)}</b>.</p>
+      <p className="small">You spent {recoverSummary.periods} periods horizontal. Stamina recovered: <b>{Math.round(recoverSummary.staminaRecovered)}</b>.</p>
       {recoverSummary.foodConsumed.length > 0 && (
         <div className="card"><h3>Chomper Snacked</h3><p className="small">{formatConsumed(recoverSummary.foodConsumed)}</p></div>
       )}
@@ -1288,7 +1287,7 @@ export default function App() {
             There are three things to gather out there: Resin Glob, Fiber Clump, Brittle Stone. Five ways to get them, each with its own proficiency that improves the more you use it.
           </p>
           <p className="small" style={{ lineHeight: 1.8, marginBottom: 10 }}>
-            Food comes in three forms. Soft Sap gets eaten on the spot — you need a Chomper equipped, and it costs fatigue to bite. Resin Chew and Dense Ration can be carried, but they rot whether you eat them or not. The Chomper handles those too: it'll chew through your stock automatically while you work or walk, one bite per period. Without it, what you carry just sits there getting older.
+            Food comes in three forms. Soft Sap gets eaten on the spot — you need a Chomper equipped, and it costs stamina to bite. Resin Chew and Dense Ration can be carried, but they rot whether you eat them or not. The Chomper handles those too: it'll chew through your stock automatically while you work or walk, one bite per period. Without it, what you carry just sits there getting older.
           </p>
           <p className="small" style={{ lineHeight: 1.8 }}>
             You can equip two of the same tool. The benefits stack as you'd expect.

@@ -45,7 +45,7 @@ export interface BlotState {
   storableFood?: FoodId;
 }
 
-export interface FatigueRecoveryEntry {
+export interface StaminaRecoveryEntry {
   itemId: ItemId;
   name: string;
   recovered: number;
@@ -68,10 +68,10 @@ export type Screen =
   | "SKILLS";
 
 export interface PlayerStats {
-  hunger: number;
-  fatigue: number;
-  maxHunger: number;
-  maxFatigue: number;
+  satiety: number;
+  stamina: number;
+  maxSatiety: number;
+  maxStamina: number;
 }
 
 export interface PlayerEquipmentState {
@@ -96,10 +96,10 @@ export interface PlayerState {
 export interface JourneyPreview {
   mode: "explore" | "findFood";
   stepsRange: [number, number];
-  hungerIncreaseRange: [number, number];
-  hungerRestoredRange: [number, number];
-  fatigueIncreaseRange: [number, number];
-  fatigueRecoveryPerPeriodRange: [number, number];
+  satietyCostRange: [number, number];
+  satietyRestoredRange: [number, number];
+  staminaCostRange: [number, number];
+  staminaRecoveryPerPeriodRange: [number, number];
   estFoodConsumed: { foodId: FoodId; unitsRange: [number, number] }[];
   poi: { id: PoiId; quality: Quality };
   surfacedEvents: EventId[];
@@ -110,15 +110,15 @@ export interface JourneyResult {
   mode: "explore" | "findFood";
   steps: number;
   surfacedEvents: EventId[];
-  eventEffects: Record<EventId, { hungerDelta: number; fatigueDelta: number; gained: { id: ResourceId | FoodId; qty: number }[] }>;
-  hungerDelta: number;
-  hungerRestoredByChomper: number;
-  fatigueDelta: number;
-  fatigueRecovery: FatigueRecoveryEntry[];
+  eventEffects: Record<EventId, { satietyDelta: number; staminaDelta: number; gained: { id: ResourceId | FoodId; qty: number }[] }>;
+  satietyDelta: number;
+  satietyRestoredByChomper: number;
+  staminaDelta: number;
+  staminaRecovery: StaminaRecoveryEntry[];
   poi: { id: PoiId; quality: Quality };
   gained: { id: ResourceId | FoodId; qty: number; freshness?: number[] }[];
   foodConsumed: { foodId: FoodId; units: number }[];
-  softSapEaten?: { hungerRestored: number; units: number };
+  softSapEaten?: { satietyRestored: number; units: number };
   blot: BlotState;
   outcome: "ok" | "exhausted" | "dead";
 }
@@ -127,10 +127,10 @@ export interface HarvestPreview {
   poiId: PoiId;
   method: HarvestMethodId;
   periodsRange: [number, number];
-  hungerIncreaseRange: [number, number];
-  hungerRestoredRange: [number, number];
-  fatigueIncreaseRange: [number, number];
-  fatigueRecoveryPerPeriodRange: [number, number];
+  satietyCostRange: [number, number];
+  satietyRestoredRange: [number, number];
+  staminaCostRange: [number, number];
+  staminaRecoveryPerPeriodRange: [number, number];
   yieldRange: [number, number];
   estFoodConsumed: { foodId: FoodId; unitsRange: [number, number] }[];
   efficiencyLabel: string;
@@ -140,10 +140,10 @@ export interface HarvestResult {
   poiId: PoiId;
   method: HarvestMethodId;
   periods: number;
-  hungerDelta: number;
-  hungerRestoredByChomper: number;
-  fatigueDelta: number;
-  fatigueRecovery: FatigueRecoveryEntry[];
+  satietyDelta: number;
+  satietyRestoredByChomper: number;
+  staminaDelta: number;
+  staminaRecovery: StaminaRecoveryEntry[];
   gained: { id: ResourceId | FoodId; qty: number; freshness?: number[] }[];
   xpGained: number;
   foodConsumed: { foodId: FoodId; units: number }[];
@@ -154,10 +154,10 @@ export interface HarvestResult {
 export interface CraftPreview {
   recipeId: string;
   craftPeriods: number;
-  hungerIncrease: number;
-  hungerRestoredRange: [number, number];
-  fatigueIncrease: number;
-  fatigueRecoveryTotal: number;
+  satietyCost: number;
+  satietyRestoredRange: [number, number];
+  staminaCost: number;
+  staminaRecoveryTotal: number;
   estFoodConsumed: { foodId: FoodId; unitsRange: [number, number] }[];
 }
 
@@ -165,18 +165,18 @@ export interface CraftResult {
   recipeId: string;
   success: boolean;
   failReason?: "missing_resources" | "exhausted" | "dead";
-  hungerDelta: number;
-  hungerRestoredByChomper: number;
-  fatigueDelta: number;
-  fatigueRecovery: FatigueRecoveryEntry[];
+  satietyDelta: number;
+  satietyRestoredByChomper: number;
+  staminaDelta: number;
+  staminaRecovery: StaminaRecoveryEntry[];
   foodConsumed: { foodId: FoodId; units: number }[];
   crafted?: { itemId: ItemId; qty: number };
 }
 
 export interface EatSapResult {
   unitsEaten: number;
-  hungerRestored: number;
-  fatigueCost: number;
+  satietyRestored: number;
+  staminaCost: number;
   outcome: "ok" | "exhausted" | "dead";
 }
 
@@ -184,9 +184,9 @@ export interface HarvestStorableResult {
   foodId: FoodId;
   qty: number;
   freshness: number[];
-  hungerCost: number;
-  fatigueCost: number;
-  fatigueRecovery: FatigueRecoveryEntry[];
+  satietyCost: number;
+  staminaCost: number;
+  staminaRecovery: StaminaRecoveryEntry[];
   foodConsumed: { foodId: FoodId; units: number }[];
   outcome: "ok" | "exhausted" | "dead";
 }

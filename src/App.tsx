@@ -4,7 +4,7 @@ import { playSfx, unlockAudio, preloadAll } from "./sound";
 import { startBattle, getAvailableMoves, executeMove, resolveBattle } from "./combat";
 import type { BattleState, BattleResult, CreatureId } from "./types";
 import { ItemIcon, PoiImage, PoiIcon } from "./visuals";
-import { BIOME_LEVEL, CREATURES, EVENTS, FOODS, ITEMS, MOVES, POIS, RECIPES, RESOURCES, SITUATION_TEXT } from "./gameData";
+import { BIOME_LEVEL, CREATURES, EVENTS, FOODS, ITEMS, MOVES, POIS, RECIPES, RESOURCES, SITUATION_TEXT, getSituationText } from "./gameData";
 import {
   canCraft, getFoodName, getItemName, getResourceName, listUnlockedRecipes,
   makeCraftPreview, makeHarvestPreview, makeJourneyPreview, methodsAvailableFromEquipment,
@@ -2113,7 +2113,7 @@ export default function App() {
         <FadeIn delay={120}>
           <div style={{ background: "#0e0e0e", border: "1px solid #2a2a2a", borderRadius: 10, padding: "12px 16px", marginBottom: 16 }}>
             <div style={{ fontSize: "0.68rem", opacity: 0.4, letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: 6 }}>Situation</div>
-            <div style={{ fontStyle: "italic", opacity: 0.85 }}>{SITUATION_TEXT[battleState.situation]}</div>
+            <div style={{ fontStyle: "italic", opacity: 0.85 }}>{getSituationText(battleState.situation, battleState.turn)}</div>
           </div>
         </FadeIn>
 
@@ -2142,6 +2142,12 @@ export default function App() {
         {/* Move buttons */}
         <FadeIn delay={180}>
           <div style={{ fontSize: "0.68rem", opacity: 0.4, letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: 10 }}>Your move</div>
+          {/* Hint if no harvesting tools equipped */}
+          {availableMoveIds.filter(m => MOVES[m].tools.length > 0).length === 0 && (
+            <div style={{ background: "#1a1208", border: "1px solid #5c4000", borderRadius: 10, padding: "10px 14px", marginBottom: 12, fontSize: "0.82rem", color: "#c8a96e", fontStyle: "italic" }}>
+              Your tails are empty. The harvesting tools you use out there — twig, comb, scoop — they work here too. Equip something before you hunt.
+            </div>
+          )}
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             {availableMoveIds.map((moveId) => {
               const move = MOVES[moveId];
@@ -2205,6 +2211,32 @@ export default function App() {
     const noveltyRefundPct = battleResult.doubleCombosLanded > 0 || battleResult.movesUsed.length >= 4 ? 60 : battleResult.movesUsed.length >= 2 ? 30 : 0;
     const endLabels: Record<string, string> = { collapsed: "Collapsed", disarmed: "Disarmed", fled: "You fled" };
 
+    // Novelty flavour — explains the stamina refund in-world
+    const noveltyFlavour =
+      (battleResult.doubleCombosLanded > 0 || battleResult.movesUsed.length >= 4)
+        ? "You surprised yourself out there. The variety, the combos — something clicked. You feel more alive than tired."
+        : battleResult.movesUsed.length >= 2
+        ? "Keeping it interesting helped. You're not as worn out as you might've been."
+        : null;
+
+    // Net stamina label — show gain if stamina refund exceeded cost
+    const staminaGain = battleResult.netStaminaCost <= 0;
+
+    // Integrity body description — hints at drop quality and what higher integrity would have given
+    const integ = battleResult.finalIntegrity;
+    const integrityFlavour =
+      battleResult.endReason === "fled"
+        ? null
+        : integ >= 80
+        ? "The body is remarkably intact. You were precise. Everything worth taking is still here."
+        : integ >= 60
+        ? "Mostly intact. A little rough around the edges, but the good parts survived."
+        : integ >= 40
+        ? "It's seen better moments. Some of what you could've taken is gone. More care might have kept it."
+        : integ >= 20
+        ? "Not much left to work with. The body took a beating — whatever was harvestable didn't make it. A gentler approach would have mattered."
+        : "Almost nothing salvageable. What was once harvestable is now just mess. The moth deserved better, and so did you.";
+
     return (
       <div className="card">
         <FadeIn delay={0}>
@@ -2214,33 +2246,49 @@ export default function App() {
           <div style={{ fontSize: "0.8rem", opacity: 0.5 }}>
             {battleResult.movesUsed.length} unique move{battleResult.movesUsed.length !== 1 ? "s" : ""}
             {battleResult.doubleCombosLanded > 0 && ` · ${battleResult.doubleCombosLanded} combo${battleResult.doubleCombosLanded > 1 ? "s" : ""} landed`}
-            {noveltyRefundPct > 0 && <span style={{ color: "#ce93d8", marginLeft: 6 }}>· {noveltyRefundPct}% stamina refunded</span>}
           </div>
         </FadeIn>
 
+        {/* Novelty flavour + stamina result */}
+        {noveltyFlavour && (
+          <FadeIn delay={60}>
+            <div style={{ background: "#120a1a", border: "1px solid #4a1e6a", borderRadius: 10, padding: "12px 16px", marginTop: 12, marginBottom: 4 }}>
+              <div style={{ fontStyle: "italic", fontSize: "0.85rem", color: "#ce93d8", marginBottom: 8 }}>{noveltyFlavour}</div>
+              <div style={{ fontSize: "0.78rem", color: "#ce93d8", opacity: 0.8 }}>
+                {noveltyRefundPct}% stamina refunded from novelty
+              </div>
+            </div>
+          </FadeIn>
+        )}
+
         {/* Final creature state */}
         <FadeIn delay={90}>
-          <div className="kv" style={{ marginBottom: 12, marginTop: 12 }}>
-            <div style={{ opacity: 0.6 }}>Final integrity</div>
-            <div>{battleResult.finalIntegrity} / {creature.integrityMax}</div>
-            <div style={{ opacity: 0.6 }}>Net stamina cost</div>
-            <div style={{ color: battleResult.netStaminaCost > 0 ? "#ff8a80" : "#81c784" }}>
-              {battleResult.netStaminaCost > 0 ? `−${battleResult.netStaminaCost}` : `+${Math.abs(battleResult.netStaminaCost)}`}
+          <div className="kv" style={{ marginBottom: 4, marginTop: 12 }}>
+            <div style={{ opacity: 0.6 }}>Net stamina</div>
+            <div style={{ color: staminaGain ? "#81c784" : "#ff8a80", fontWeight: 600 }}>
+              {staminaGain ? `+${Math.abs(battleResult.netStaminaCost)} recovered` : `−${battleResult.netStaminaCost}`}
             </div>
             {battleResult.satietyRestoredMidBattle > 0 && <>
-              <div style={{ opacity: 0.6 }}>Satiety restored</div>
+              <div style={{ opacity: 0.6 }}>Satiety mid-battle</div>
               <div style={{ color: "#7ecba1" }}>+{battleResult.satietyRestoredMidBattle}</div>
             </>}
             {battleResult.staminaRestoredMidBattle > 0 && <>
-              <div style={{ opacity: 0.6 }}>Stamina restored</div>
+              <div style={{ opacity: 0.6 }}>Stamina mid-battle</div>
               <div style={{ color: "#7ecba1" }}>+{battleResult.staminaRestoredMidBattle}</div>
             </>}
           </div>
         </FadeIn>
 
-        {/* Food contamination warning */}
-        {battleResult.foodContaminated && (
+        {/* Integrity body description */}
+        {integrityFlavour && (
           <FadeIn delay={120}>
+            <div style={{ fontStyle: "italic", fontSize: "0.82rem", opacity: 0.65, marginBottom: 12, paddingLeft: 2 }}>
+              {integrityFlavour}
+            </div>
+          </FadeIn>
+        )}
+        {battleResult.foodContaminated && (
+          <FadeIn delay={150}>
             <div style={{ background: "#1f0a0a", border: "1px solid #b71c1c", borderRadius: 10, padding: "10px 14px", marginBottom: 12, fontSize: "0.82rem", color: "#ff8a80" }}>
               Wax splattered on your food stores. Freshness reduced.
             </div>
@@ -2249,7 +2297,7 @@ export default function App() {
 
         {/* Mid-battle drops */}
         {battleResult.midBattleDrops.length > 0 && (
-          <FadeIn delay={180}>
+          <FadeIn delay={210}>
             <div className="card" style={{ marginBottom: 10 }}>
               <h3>Collected mid-battle</h3>
               <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
@@ -2271,7 +2319,7 @@ export default function App() {
 
         {/* Corpse drops */}
         {battleResult.corpseDrops.length > 0 && (
-          <FadeIn delay={270}>
+          <FadeIn delay={300}>
             <div className="card" style={{ marginBottom: 10 }}>
               <h3>From the corpse</h3>
               <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
@@ -2293,12 +2341,12 @@ export default function App() {
 
         {/* Nothing dropped */}
         {battleResult.midBattleDrops.length === 0 && battleResult.corpseDrops.length === 0 && (
-          <FadeIn delay={180}>
+          <FadeIn delay={210}>
             <div style={{ opacity: 0.5, fontStyle: "italic", fontSize: "0.85rem", marginBottom: 12 }}>Nothing to show for it.</div>
           </FadeIn>
         )}
 
-        <FadeIn delay={360}>
+        <FadeIn delay={400}>
           <div className="row">
             <button className="btn" style={{ background: "#1a2e1a", border: "1px solid #4caf50", color: "#7ecba1", fontWeight: 600, padding: "12px 22px" }} onClick={gotoHub}>Back to it</button>
           </div>

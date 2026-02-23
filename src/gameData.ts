@@ -379,14 +379,54 @@ export const RECIPES: Record<
 };
 
 // ─── Situation hint text ───────────────────────────────────────────────────────
-export const SITUATION_TEXT: Record<SituationId, string> = {
-  moth_hovering:    "It drifts above you, wax glands glistening. Something drips.",
-  moth_descending:  "It's coming lower. Wings slow. You could reach it.",
-  moth_startled:    "It lurches sideways — erratic, exposed, unpredictable.",
-  moth_wax_pooling: "Wax is collecting on the ground beneath it. Don't let it build up.",
-  moth_depleted:    "Its glands are dry. It seems lighter. Less threatening.",
-  moth_thrashing:   "It knows it's losing. Wings beat hard. Stay back or get close fast.",
+// Multiple variants per situation — picked based on turn count to avoid repetition
+// Situations where spamming is viable (hovering, thrashing, startled) get more variants
+export const SITUATION_VARIANTS: Record<SituationId, string[]> = {
+  moth_hovering: [
+    "It drifts above you, wax glands glistening. Something drips.",
+    "It circles slowly, wings barely moving. The air smells faintly sweet.",
+    "It hangs there, indifferent. Wax catches the light on its underside.",
+    "Still hovering. Patient. The dripping hasn't stopped.",
+  ],
+  moth_descending: [
+    "It's coming lower. Wings slow. You could reach it.",
+    "Descending now, almost within range. A brief window.",
+    "It drifts down, tilting slightly. Now or not at all.",
+  ],
+  moth_startled: [
+    "It lurches sideways — erratic, exposed, unpredictable.",
+    "Startled, it jerks back. For a moment it's wide open.",
+    "A sharp flinch. It scrambles to reorient. You have a second.",
+    "It staggers mid-air. Not flying properly. Make something of it.",
+  ],
+  moth_wax_pooling: [
+    "Wax is collecting on the ground beneath it. Don't let it build up.",
+    "A puddle of wax is forming below. It won't last.",
+    "The wax is pooling fast. Could be useful. Could be a problem.",
+  ],
+  moth_depleted: [
+    "Its glands are dry. It seems lighter. Less threatening.",
+    "Nothing left to secrete. It drifts differently now — unguarded.",
+    "Drained. The menace is mostly gone. Something else remains.",
+  ],
+  moth_thrashing: [
+    "It knows it's losing. Wings beat hard. Stay back or get close fast.",
+    "Erratic now, desperate. Hard to predict. Harder to ignore.",
+    "Thrashing. It's not going quietly. Be deliberate.",
+    "Still fighting. Composure nearly gone. One more good move.",
+  ],
 };
+
+// Pick variant based on turn to cycle through without repeating immediately
+export function getSituationText(situation: SituationId, turn: number): string {
+  const variants = SITUATION_VARIANTS[situation];
+  return variants[turn % variants.length];
+}
+
+// Keep single-text export for backward compat
+export const SITUATION_TEXT: Record<SituationId, string> = Object.fromEntries(
+  Object.entries(SITUATION_VARIANTS).map(([k, v]) => [k, v[0]])
+) as Record<SituationId, string>;
 
 // Situation transitions — what the creature does each turn independent of player
 // Maps current situation → next situation

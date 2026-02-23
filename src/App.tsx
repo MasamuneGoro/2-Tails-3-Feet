@@ -522,6 +522,11 @@ export default function App() {
                 </div>
               )}
             </div>
+            {isExpiring && !chomperEquipped && (
+              <div style={{ fontSize: "0.66rem", color: "#a05555", marginBottom: 7, lineHeight: 1.4 }}>
+                Equip a Chomper to auto-eat during the next period.
+              </div>
+            )}
 
             <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
               {foods.map(s => {
@@ -1155,7 +1160,24 @@ export default function App() {
           );
         })}
       </div>
-      <div className="row" style={{ marginTop: 14 }}><button className="btn" onClick={gotoHub}>Put it down</button></div>
+      <div className="row" style={{ marginTop: 14 }}>
+        {(() => {
+          const anyCraftable = unlockedRecipes.some(rid =>
+            RECIPES[rid].inputs.every(inp => (player.inventory.find(s => s.id === inp.id)?.qty ?? 0) >= inp.qty)
+          );
+          const nothingSelected = expandedItem === null || !unlockedRecipes.includes(expandedItem);
+          const accent = !anyCraftable || nothingSelected;
+          return (
+            <button
+              className="btn"
+              onClick={gotoHub}
+              style={accent ? { border: "1px solid #4a4a4a", color: "#aaa", background: "#1e1e1e" } : undefined}
+            >
+              Put it down
+            </button>
+          );
+        })()}
+      </div>
     </div>
   );
 
@@ -1437,19 +1459,38 @@ export default function App() {
       <div className="modal-content" onClick={(e) => e.stopPropagation()}>
         <div className="card">
           <h2>How it works</h2>
-          <p className="small" style={{ lineHeight: 1.8, marginBottom: 10 }}>
-            The world is sticky and doesn't hand things over easily. Equip tools in your tail slots to unlock what you can do — different tools open different tricks.
+
+          <p className="small" style={{ lineHeight: 1.8, marginBottom: 14 }}>
+            The world is sticky and doesn't hand things over easily. Everything you do — walking, harvesting, crafting, resting — takes <b>periods</b>. A period is the basic unit of time out here. Things happen once per period, whether you like it or not.
           </p>
-          <p className="small" style={{ lineHeight: 1.8, marginBottom: 10 }}>
-            There are three things to gather out there: Resin Glob, Fiber Clump, Brittle Stone. Five ways to get them, each with its own proficiency that improves the more you use it.
-          </p>
-          <p className="small" style={{ lineHeight: 1.8, marginBottom: 10 }}>
-            Food comes in three forms. Soft Sap gets eaten on the spot — you need a Chomper equipped, and it costs stamina to bite. Resin Chew and Dense Ration can be carried, but they rot whether you eat them or not. The Chomper handles those too: it'll chew through your stock automatically while you work or walk, one bite per period. Without it, what you carry just sits there getting older.
-          </p>
-          <p className="small" style={{ lineHeight: 1.8 }}>
-            You can equip two of the same tool. The benefits stack as you'd expect.
-          </p>
-          <div className="row" style={{ marginTop: 12 }}>
+
+          <div style={{ display: "flex", flexDirection: "column", gap: 12, marginBottom: 14 }}>
+            <div style={{ background: "#161616", borderRadius: 8, padding: "10px 14px", borderLeft: "3px solid #c8a96e" }}>
+              <div style={{ fontSize: "0.75rem", fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", opacity: 0.6, marginBottom: 5 }}>Each period that passes</div>
+              <ul className="small" style={{ lineHeight: 1.9, margin: 0, paddingLeft: 16, opacity: 0.85 }}>
+                <li>Carried food loses one freshness — it rots whether you eat it or not</li>
+                <li>The <b>Chomper</b> eats one unit from your stock first, before rot sets in</li>
+                <li>The <b>Tail Curler</b> recovers a little stamina (more at rest, less while working)</li>
+                <li>Satiety drains — journeys cost one per step, harvesting and crafting cost more</li>
+              </ul>
+            </div>
+
+            <div style={{ background: "#161616", borderRadius: 8, padding: "10px 14px", borderLeft: "3px solid #26c6da" }}>
+              <div style={{ fontSize: "0.75rem", fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", opacity: 0.6, marginBottom: 5 }}>Gathering</div>
+              <p className="small" style={{ lineHeight: 1.8, margin: 0, opacity: 0.85 }}>
+                Three things to find out there: <b>Resin Glob</b>, <b>Fiber Clump</b>, <b>Brittle Stone</b>. Five methods to get them — each tool in your tail unlocks one. Using a method builds proficiency in it, which improves yield over time. Equip two of the same tool and it swings twice.
+              </p>
+            </div>
+
+            <div style={{ background: "#161616", borderRadius: 8, padding: "10px 14px", borderLeft: "3px solid #7ecba1" }}>
+              <div style={{ fontSize: "0.75rem", fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", opacity: 0.6, marginBottom: 5 }}>Food</div>
+              <p className="small" style={{ lineHeight: 1.8, margin: 0, opacity: 0.85 }}>
+                <b>Soft Sap</b> is eaten on the spot with the Chomper — costs stamina to bite. <b>Resin Chew</b> and <b>Dense Ration</b> can be carried and stored, but both rot with time. Without a Chomper, they just get older. With one, they get eaten automatically each period before decay takes hold.
+              </p>
+            </div>
+          </div>
+
+          <div className="row" style={{ marginTop: 4 }}>
             <button className="btn" onClick={() => setHowItWorksOpen(false)}>Got it</button>
           </div>
         </div>

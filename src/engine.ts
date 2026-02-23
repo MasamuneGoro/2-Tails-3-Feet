@@ -143,7 +143,7 @@ export function autoConsumeStorableFood(player: PlayerState, periods: number, ch
   const consumed: { foodId: FoodId; units: number }[] = [];
   let satietyRestored = 0;
   for (let i = 0; i < periods; i++) {
-    rotStorableFoodOneCharge(player.inventory);
+    // Chomper eats first — food consumed this period doesn't decay
     for (let c = 0; c < chomperCount; c++) {
       if (player.stats.satiety >= player.stats.maxSatiety) break;
       const storable = player.inventory.find((s) => {
@@ -165,6 +165,8 @@ export function autoConsumeStorableFood(player: PlayerState, periods: number, ch
       if (rec) rec.units += 1;
       else consumed.push({ foodId, units: 1 });
     }
+    // Then remaining food ages
+    rotStorableFoodOneCharge(player.inventory);
   }
   return { consumed, satietyRestored };
 }

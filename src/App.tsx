@@ -1,5 +1,6 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import type { BlotState, CraftPreview, CraftResult, EatSapResult, HarvestMethodId, HarvestPreview, HarvestResult, HarvestStorableResult, JourneyPreview, JourneyResult, PlayerState, PoiId, Screen } from "./types";
+import { playSfx, unlockAudio, preloadAll } from "./sound";
 import { ItemIcon, PoiImage, PoiIcon } from "./visuals";
 import { BIOME_LEVEL, EVENTS, FOODS, ITEMS, POIS, RECIPES, RESOURCES } from "./gameData";
 import {
@@ -345,6 +346,103 @@ export default function App() {
   }
 
   /** Snapshot qty of each storable food stack before an action */
+
+  // Unlock audio on first interaction and preload all sounds
+  useEffect(() => {
+    const handler = (e: PointerEvent) => {
+      unlockAudio();
+      preloadAll();
+      // Play click sound for any button press
+      if ((e.target as HTMLElement)?.closest("button, select")) {
+        playSfx("sfx_click");
+      }
+    };
+    window.addEventListener("pointerdown", handler);
+    return () => window.removeEventListener("pointerdown", handler);
+  }, []);
+
+  // Hunger warning — fire once when satiety crosses below 25%
+  const satietyPct = player.stats.satiety / player.stats.maxSatiety;
+  const prevSatietyPctRef = React.useRef(satietyPct);
+  useEffect(() => {
+    if (prevSatietyPctRef.current >= 0.25 && satietyPct < 0.25) {
+      playSfx("sfx_hunger_warning");
+    }
+    prevSatietyPctRef.current = satietyPct;
+  }, [satietyPct]);
+
+  // Food expiring alert sound
+  const [prevDecayAlert, setPrevDecayAlert] = useState<string | null>(null);
+  useEffect(() => {
+    if (decayedFoodAlert && decayedFoodAlert !== prevDecayAlert) {
+      playSfx("sfx_food_expiring");
+      setPrevDecayAlert(decayedFoodAlert);
+    }
+  }, [decayedFoodAlert]);
+
+  // Journey summary: staggered event and item sounds
+  useEffect(() => {
+    if (!journeyResult || screen !== "SUMMARY_JOURNEY") return;
+    const displayable = journeyResult.surfacedEvents.filter(e => !["ev_need_chomper","ev_need_scoop_for_rations"].includes(e));
+    displayable.forEach((e, i) => {
+      const effects = journeyResult.eventEffects?.[e];
+      const net = effects ? (effects.satietyDelta + effects.staminaDelta) : 0;
+      playSfx(net >= 0 ? "sfx_event_good" : "sfx_event_bad", 270 + i * 200);
+    });
+    journeyResult.gained.forEach((_, i) => {
+      playSfx("sfx_item_pickup", 360 + i * 150);
+      playSfx("sfx_item_fly", 440 + i * 150);
+    });
+    if (journeyResult.foodConsumed.length > 0) {
+      playSfx("sfx_chomp", 450);
+    }
+    if (journeyResult.outcome === "exhausted") playSfx("sfx_exhausted", 600);
+    if (journeyResult.outcome === "dead") playSfx("sfx_dead", 600);
+  }, [journeyResult]);
+
+  // Harvest summary: tool sound + XP tick + level up + chomp
+  useEffect(() => {
+    if (!multiHarvestResults.length || screen !== "SUMMARY_HARVEST") return;
+    // XP tick fires when bar animates
+    playSfx("sfx_xp_tick", 180);
+    // Check if any method levelled up
+    multiHarvestResults.forEach((res) => {
+      const xpBefore = harvestXpBefore[res.method] ?? 0;
+      const levelBefore = Math.floor(xpBefore / 100);
+      const levelAfter = Math.floor((xpBefore + res.xpGained) / 100);
+      if (levelAfter > levelBefore) playSfx("sfx_level_up", 400);
+      if (res.foodConsumed.length > 0) playSfx("sfx_chomp", 300);
+      if (res.outcome === "exhausted") playSfx("sfx_exhausted", 500);
+      if (res.outcome === "dead") playSfx("sfx_dead", 500);
+    });
+  }, [multiHarvestResults]);
+
+  // Scoop storable: XP tick
+  useEffect(() => {
+    if (!lastStorableResult) return;
+    playSfx("sfx_xp_tick", 200);
+    if (lastStorableResult.foodConsumed?.length > 0) playSfx("sfx_chomp", 350);
+  }, [lastStorableResult]);
+
+  // Wake up sound on recover summary
+  useEffect(() => {
+    if (screen === "SUMMARY_RECOVER" && recoverSummary) {
+      playSfx("sfx_wake_up", 300);
+      if (recoverSummary.foodConsumed?.length > 0) playSfx("sfx_chomp", 600);
+    }
+  }, [recoverSummary]);
+
+  // Craft summary: level up if applicable
+  useEffect(() => {
+    if (!craftResult || screen !== "SUMMARY_CRAFT") return;
+    if (craftResult.foodConsumed?.length > 0) playSfx("sfx_chomp", 300);
+  }, [craftResult]);
+
+  // Death/exhaustion screens
+  useEffect(() => {
+    if (screen === "DEAD") playSfx("sfx_dead");
+    if (screen === "EXHAUSTED") playSfx("sfx_exhausted");
+  }, [screen]);
   function snapshotStorableQty(inv: typeof player.inventory): Record<string, number> {
     const snap: Record<string, number> = {};
     for (const s of inv) {
@@ -378,6 +476,8 @@ export default function App() {
 
   function openMetaScreen(target: "INVENTORY" | "SKILLS") {
     setDecayedFoodAlert(null);
+    if (target === "INVENTORY") playSfx("sfx_inventory_open");
+    else playSfx("sfx_transition");
     // Only store return point when first leaving main flow
     if (screen !== "INVENTORY" && screen !== "SKILLS") setReturnScreen(screen);
     setExpandedItem(null);
@@ -386,6 +486,7 @@ export default function App() {
 
   function backFromMeta() {
     setDecayedFoodAlert(null);
+    playSfx("sfx_transition");
     setScreen(returnScreen);
   }
 
@@ -403,6 +504,7 @@ export default function App() {
   }
   function proceedJourney() {
     if (!journeyPreview) return;
+    playSfx("sfx_journey_start");
     const snap = snapshotStorableQty(player.inventory);
     const next = structuredClone(player);
     const res = resolveJourney(next, journeyPreview, chomperAutoEnabled);
@@ -428,6 +530,7 @@ export default function App() {
     setJourneyPreview(pv);
   }
   function enterPoi() {
+    playSfx("sfx_journey_arrive");
     setDecayedFoodAlert(null);
     if (!journeyResult) return;
     setActivePoi(journeyResult.poi);
@@ -448,6 +551,11 @@ export default function App() {
   }
   function proceedHarvest() {
     if (!harvestPreview) return;
+    const methodSfx: Record<string, "sfx_harvest_poke"|"sfx_harvest_smash"|"sfx_harvest_tease"|"sfx_harvest_drill"|"sfx_harvest_scoop"> = {
+      poke: "sfx_harvest_poke", smash: "sfx_harvest_smash",
+      tease: "sfx_harvest_tease", drill: "sfx_harvest_drill", scoop: "sfx_harvest_scoop",
+    };
+    if (methodSfx[harvestPreview.method]) playSfx(methodSfx[harvestPreview.method]);
     const snap = snapshotStorableQty(player.inventory);
     const xpBefore = { [harvestPreview.method]: player.xp[harvestPreview.method] ?? 0 };
     const next = structuredClone(player);
@@ -463,6 +571,12 @@ export default function App() {
     if (!activePoi || !activeBlot) return;
     const methods = methodsAvailableFromEquipment(player);
     if (!methods.length) return;
+    // Play the first method's tool sound
+    const methodSfx: Record<string, "sfx_harvest_poke"|"sfx_harvest_smash"|"sfx_harvest_tease"|"sfx_harvest_drill"|"sfx_harvest_scoop"> = {
+      poke: "sfx_harvest_poke", smash: "sfx_harvest_smash",
+      tease: "sfx_harvest_tease", drill: "sfx_harvest_drill", scoop: "sfx_harvest_scoop",
+    };
+    if (methods[0] && methodSfx[methods[0]]) playSfx(methodSfx[methods[0]]);
     const snap = snapshotStorableQty(player.inventory);
     const xpBefore: Partial<Record<import("./types").HarvestMethodId, number>> = {};
     for (const m of methods) xpBefore[m] = player.xp[m] ?? 0;
@@ -489,6 +603,7 @@ export default function App() {
   function doEatSap() {
     setDecayedFoodAlert(null);
     if (!activeBlot) return;
+    playSfx("sfx_eat_sap");
     const next = structuredClone(player);
     const blotCopy = structuredClone(activeBlot);
     const result = eatSapAtBlot(next, blotCopy);
@@ -496,6 +611,7 @@ export default function App() {
   }
   function doHarvestStorable() {
     if (!activeBlot) return;
+    playSfx("sfx_harvest_scoop");
     const snap = snapshotStorableQty(player.inventory);
     const xpBefore = player.xp["scoop"] ?? 0;
     const next = structuredClone(player);
@@ -509,6 +625,7 @@ export default function App() {
   // ── Craft ─────────────────────────────────────────────────────────────────
   function openCraft() {
     setDecayedFoodAlert(null);
+    playSfx("sfx_craft_open");
     if (!canCraft(player)) { setScreen("EXHAUSTED"); return; }
     setScreen("CRAFT_MENU");
   }
@@ -519,15 +636,19 @@ export default function App() {
   }
   function proceedCraft() {
     if (!craftPreview) return;
+    playSfx("sfx_craft_start");
     const snap = snapshotStorableQty(player.inventory);
     const next = structuredClone(player);
     const res = resolveCraft(next, craftPreview, chomperAutoEnabled);
     setPlayer(next); setCraftResult(res);
     if (res.success && res.crafted) {
+      playSfx("sfx_craft_success", 300);
       const btn = craftButtonRef.current;
       const rect = btn?.getBoundingClientRect();
       setCraftFlashOrigin(rect ? { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 } : null);
       setCraftFlashItem(res.crafted.itemId);
+    } else {
+      playSfx("sfx_craft_fail", 200);
     }
     checkDecayAlert(snap, next.inventory, res.foodConsumed);
     setScreen("SUMMARY_CRAFT");
@@ -540,6 +661,7 @@ export default function App() {
     setScreen("PREVIEW_RECOVER");
   }
   function proceedRecover() {
+    playSfx("sfx_flop_down");
     const periods = 7 + Math.floor(Math.random() * 6); // 7–12
     const snap = snapshotStorableQty(player.inventory);
     const next = structuredClone(player);

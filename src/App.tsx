@@ -172,13 +172,14 @@ function StatBar({ value, max, kind, costRange, recoveryRange }: StatBarProps) {
     fillColor = ratio > 0.5 ? "#c8a96e" : ratio > 0.25 ? "#cc6b1a" : "#8b2500";
   }
 
-  // Colour palette per kind
-  const costColorLo  = kind === "satiety" ? "rgba(76,175,80,0.18)"  : "rgba(200,169,110,0.18)";
-  const costColorHi  = kind === "satiety" ? "rgba(76,175,80,0.55)"  : "rgba(200,169,110,0.55)";
-  const costColorOOB = "rgba(229,57,53,0.7)"; // red if bar would die
-  const recColor     = kind === "satiety" ? "rgba(160,230,160,0.35)" : "rgba(240,220,140,0.35)";
-  const tickColor    = kind === "satiety" ? "#a0e8a0"                 : "#f0e080";
-  const recTickColor = kind === "satiety" ? "#c8ffc8"                 : "#fff0a0";
+  // Colour palette per kind — overlays sit ON TOP of the coloured fill
+  // Cost zone: dark overlay (dims the fill) with a brighter leading edge
+  const costGradientHi  = "rgba(0,0,0,0.55)";   // worst-case edge — darkens the bar strongly
+  const costGradientLo  = "rgba(0,0,0,0.08)";   // best-case edge — barely dims
+  const costGradientOOB = "rgba(180,20,20,0.75)"; // red tint if lethal
+  const tickColor       = kind === "satiety" ? "#7dff8a" : "#ffe566";
+  const recColor        = kind === "satiety" ? "rgba(180,255,180,0.22)" : "rgba(255,240,160,0.22)";
+  const recTickColor    = kind === "satiety" ? "#adffa0" : "#fff090";
 
   const fillPct   = Math.min(100, ratio * 100);
   const costMin   = costRange?.[0] ?? 0;
@@ -217,7 +218,7 @@ function StatBar({ value, max, kind, costRange, recoveryRange }: StatBarProps) {
         <span>{kind === "satiety" ? "Satiety" : "Stamina"}</span>
         <span>{value}/{max}</span>
       </div>
-      <div style={{ position: "relative", width: "100%", background: "#2a2a2a", borderRadius: 6, height: 12, overflow: "hidden" }}>
+      <div style={{ position: "relative", width: "100%", background: "#2a2a2a", borderRadius: 6, height: 14, overflow: "hidden" }}>
         {/* Base fill */}
         <div style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: `${fillPct}%`, background: fillColor, borderRadius: 6, transition: "width 0.3s, background 0.3s" }} />
 
@@ -230,14 +231,14 @@ function StatBar({ value, max, kind, costRange, recoveryRange }: StatBarProps) {
           }} />
         )}
 
-        {/* Cost zone — gradient from light (best case, right) to dark (worst case, left) */}
+        {/* Cost zone — dark overlay gradient, strong on left (worst), fades right (best) */}
         {hasCost && (
           <div style={{
             position: "absolute", top: 0, bottom: 0,
             left: `${costZoneLeft}%`, width: `${costZoneWidth}%`,
             background: wouldDie
-              ? `linear-gradient(to right, ${costColorOOB}, ${costColorHi})`
-              : `linear-gradient(to right, ${costColorHi}, ${costColorLo})`,
+              ? `linear-gradient(to right, ${costGradientOOB}, ${costGradientLo})`
+              : `linear-gradient(to right, ${costGradientHi}, ${costGradientLo})`,
           }} />
         )}
 

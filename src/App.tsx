@@ -1471,7 +1471,7 @@ export default function App() {
         <p className="small" style={{ textAlign: "center", marginBottom: 14, opacity: 0.7 }}>
           {curlerCount > 0
             ? `The Tail Curler${curlerCount === 2 ? "s tick" : " ticks"} faster while you're horizontal — napping gives the best recovery rate${curlerCount === 2 ? ", and two curlers stack" : ""}. You'll unwind faster lying still.`
-            : "No Tail Curler equipped. You'll lie there, get hungrier, and wake up exactly as tired. Equip one if you want this to do anything."}
+            : null}
         </p>
         <div style={{ background: "#0e0e0e", borderRadius: 12, padding: "12px 16px", marginBottom: 10 }}>
           <div style={{ fontSize: "0.7rem", opacity: 0.45, letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 8 }}>Cost</div>
@@ -1483,11 +1483,16 @@ export default function App() {
         <div style={{ background: "#0e0e0e", borderRadius: 12, padding: "12px 16px", marginBottom: 14 }}>
           <div style={{ fontSize: "0.7rem", opacity: 0.45, letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 8 }}>Outcome</div>
           <div className="kv">
-            <div>Stamina</div><div style={{ color: "#7ecba1" }}>
+            <div>Stamina</div><div style={{ color: curlerCount > 0 ? "#7ecba1" : "#c0504a" }}>
               {curlerCount > 0
                 ? `+${pv.staminaRecoveryRange[0]} to +${pv.staminaRecoveryRange[1]} (est.)`
-                : "No change"}
+                : <><b style={{ color: "#e05a54" }}>No Tail Curler equipped.</b> Stamina: no change.</>}
             </div>
+            {curlerCount === 0 && (
+              <><div style={{ gridColumn: "1 / -1", fontSize: "0.78rem", color: "#a05050", marginTop: 4, lineHeight: 1.5 }}>
+                You'll just lie there getting hungrier. Equip one if you'd like this to do anything at all.
+              </div></>
+            )}
             {pv.estFoodConsumed.length > 0 && <>
               <div>Food chomped</div><div style={{ opacity: 0.8 }}>{chomperDisplay(pv.estFoodConsumed)}</div>
             </>}
@@ -1506,6 +1511,11 @@ export default function App() {
       <FadeIn delay={0}><h2>Back on your feet (sort of)</h2></FadeIn>
       <FadeIn delay={80}>
         <p className="small">You spent {recoverSummary.periods} periods horizontal. Stamina recovered: <b>{Math.round(recoverSummary.staminaRecovered)}</b>.</p>
+        {Math.round(recoverSummary.staminaRecovered) === 0 && (
+          <p className="small" style={{ marginTop: 6, color: "#a06060", fontStyle: "italic" }}>
+            That accomplished nothing except making you hungrier. A Tail Curler would help. Just saying.
+          </p>
+        )}
       </FadeIn>
       {recoverSummary.foodConsumed.length > 0 && (
         <FadeIn delay={160}>

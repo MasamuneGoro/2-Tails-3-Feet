@@ -456,7 +456,14 @@ export function makeHarvestPreview(player: PlayerState, poiId: PoiId, method: Ha
   const effLabel = poi.methodRank[method];
   const eff = poi.efficiencyMultipliers[effLabel] ?? 1;
   const base = poi.baseYieldRange;
-  const yieldRange: [number, number] = [Math.max(1, Math.floor(base[0] * eff)), Math.max(1, Math.floor(base[1] * eff + 0.5))];
+  // Count how many tools providing this method are equipped
+  const toolIds = Object.keys(ITEMS) as ItemId[];
+  const toolForMethod = toolIds.find(id => ITEMS[id].harvestingMethod === method);
+  const toolCount = toolForMethod ? countEquippedTail(player, toolForMethod) : 1;
+  const yieldRange: [number, number] = [
+    Math.max(1, Math.floor(base[0] * eff)) * Math.max(1, toolCount),
+    Math.max(1, Math.floor(base[1] * eff + 0.5)) * Math.max(1, toolCount),
+  ];
 
   const chomperCount = countEquippedTail(player, "eq_chomper");
   const estFoodConsumed: { foodId: FoodId; unitsRange: [number, number] }[] = [];
@@ -504,7 +511,12 @@ export function resolveHarvest(player: PlayerState, preview: HarvestPreview, cho
   const base = poi.baseYieldRange!;
   const raw = randInt(base[0], base[1]);
   const skill = 1 + (skillLevel(player.xp[preview.method] ?? 0) - 1) * 0.08;
-  const qty = Math.max(1, Math.floor(raw * eff * skill));
+
+  // Count how many tools providing this method are equipped — each swings independently
+  const toolIds = Object.keys(ITEMS) as ItemId[];
+  const toolForMethod = toolIds.find(id => ITEMS[id].harvestingMethod === preview.method);
+  const toolCount = toolForMethod ? countEquippedTail(player, toolForMethod) : 1;
+  const qty = Math.max(1, Math.floor(raw * eff * skill)) * Math.max(1, toolCount);
 
   invAdd(player.inventory, poi.resourceId, qty);
   const gained = [{ id: poi.resourceId, qty }];
@@ -649,11 +661,16 @@ export function harvestStorableAtBlot(player: PlayerState, blot: BlotState): Har
   const staminaRecovery = applyStaminaRecovery(player, 1, "working");
   const { consumed: foodConsumed } = autoConsumeStorableFood(player, 1);
   const fr = FOODS[food].freshnessRange!;
-  const freshness = [randInt(fr[0], fr[1])];
-  invAdd(player.inventory, food, 1, freshness);
-  blot.storableRemaining = (blot.storableRemaining ?? 1) - 1;
+  // Each equipped sticky scoop harvests one unit — cap at what's remaining
+  const scoopCount = countEquippedTail(player, "eq_sticky_scoop");
+  const available = blot.storableRemaining ?? 1;
+  const qty = Math.min(scoopCount, available);
+  const freshness: number[] = [];
+  for (let i = 0; i < qty; i++) freshness.push(randInt(fr[0], fr[1]));
+  invAdd(player.inventory, food, qty, freshness);
+  blot.storableRemaining = available - qty;
   const outcome = player.stats.satiety <= 0 ? "dead" : player.stats.stamina <= 0 ? "exhausted" : "ok";
-  return { foodId: food, qty: 1, freshness, satietyCost, staminaCost, staminaRecovery, foodConsumed, outcome };
+  return { foodId: food, qty, freshness, satietyCost, staminaCost, staminaRecovery, foodConsumed, outcome };
 }
 
 export function prettyEvent(e: EventId) { return EVENTS[e]; }

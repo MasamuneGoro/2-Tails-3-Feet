@@ -287,7 +287,7 @@ export const ITEMS: Record<
   eq_pointed_twig: { id: "eq_pointed_twig", name: "Pointed Twig", slot: "tail", flavor: "A stick you sharpened with another stick. Humble origins, honest results.", harvestingMethod: "poke" },
   eq_crude_hammerhead: { id: "eq_crude_hammerhead", name: "Crude Hammerhead", slot: "tail", flavor: "Heavy, blunt, and enthusiastic. It doesn't ask questions.", harvestingMethod: "smash" },
   eq_fiber_comb: { id: "eq_fiber_comb", name: "Fiber Comb", slot: "tail", flavor: "Teeth that coax rather than force. The fibers respect it, mostly.", harvestingMethod: "tease" },
-  eq_hand_drill: { id: "eq_hand_drill", name: "Hand Drill", slot: "tail", flavor: "Slow, deliberate, and quietly unstoppable. It enjoys the process.", harvestingMethod: "drill" },
+  eq_hand_drill: { id: "eq_hand_drill", name: "Tail Drill", slot: "tail", flavor: "Slow, deliberate, and quietly unstoppable. It enjoys the process.", harvestingMethod: "drill" },
   eq_sticky_scoop: { id: "eq_sticky_scoop", name: "Sticky Scoop", slot: "tail", flavor: "A shallow cup that gathers soft things before they escape. Very dedicated.", harvestingMethod: "scoop" },
   eq_standard_shoe: { id: "eq_standard_shoe", name: "Standard Grip Shoe", slot: "shoe", flavor: "Three feet, one shoe each. Nothing fancy — just enough to keep you upright." },
 };
@@ -337,7 +337,7 @@ export const RECIPES: Record<
   },
   rcp_hand_drill: {
     id: "rcp_hand_drill",
-    name: "Hand Drill",
+    name: "Tail Drill",
     output: { itemId: "eq_hand_drill", qty: 1 },
     inputs: [{ id: "brittle_stone", qty: 2 }, { id: "resin_glob", qty: 1 }, { id: "fiber_clump", qty: 1 }],
     craftPeriods: 8,

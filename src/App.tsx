@@ -116,6 +116,7 @@ export default function App() {
   const [howItWorksOpen, setHowItWorksOpen] = useState(false);
   const [scoopExpanded, setScoopExpanded] = useState(false);
   const [chomperAutoEnabled, setChomperAutoEnabled] = useState(true);
+  const [decayedFoodAlert, setDecayedFoodAlert] = useState<string | null>(null); // food name that just fully rotted
 
   const exhausted = player.stats.stamina <= 0;
   const dead = player.stats.satiety <= 0;
@@ -172,6 +173,31 @@ export default function App() {
     setRecoverState(null); setRecoverSummary(null);
     setScoopExpanded(false);
     setChomperAutoEnabled(true);
+    setDecayedFoodAlert(null);
+  }
+
+  /** Snapshot qty of each storable food stack before an action */
+  function snapshotStorableQty(inv: typeof player.inventory): Record<string, number> {
+    const snap: Record<string, number> = {};
+    for (const s of inv) {
+      if (typeof s.id === "string" && s.id.startsWith("food_") && FOODS[s.id as import("./types").FoodId]?.storable) {
+        snap[s.id as string] = s.qty;
+      }
+    }
+    return snap;
+  }
+
+  /** After an action, compare snapshot to current inv; alert if any storable food qty dropped to 0 */
+  function checkDecayAlert(before: Record<string, number>, afterInv: typeof player.inventory) {
+    const afterQty: Record<string, number> = {};
+    for (const s of afterInv) afterQty[s.id as string] = s.qty;
+    for (const [id, qty] of Object.entries(before)) {
+      if (qty > 0 && (afterQty[id] ?? 0) === 0) {
+        const name = FOODS[id as import("./types").FoodId]?.name ?? id;
+        setDecayedFoodAlert(name);
+        return;
+      }
+    }
   }
 
   function gotoHub() {
@@ -204,14 +230,14 @@ export default function App() {
   }
   function proceedJourney() {
     if (!journeyPreview) return;
+    const snap = snapshotStorableQty(player.inventory);
     const next = structuredClone(player);
     const res = resolveJourney(next, journeyPreview, chomperAutoEnabled);
     setPlayer(next); setJourneyResult(res);
-    // Clear current location — you've left
+    checkDecayAlert(snap, next.inventory);
     setActivePoi(null); setActiveBlot(null);
     setLastEatResult(null); setLastStorableResult(null);
     setScoopExpanded(false);
-    // Clear the saved roll for this mode now that it's been used
     if (journeyPreview.mode === "explore") setSavedExploreRoll(null);
     else setSavedFoodRoll(null);
     setScreen("SUMMARY_JOURNEY");
@@ -246,9 +272,11 @@ export default function App() {
   }
   function proceedHarvest() {
     if (!harvestPreview) return;
+    const snap = snapshotStorableQty(player.inventory);
     const next = structuredClone(player);
     const res = resolveHarvest(next, harvestPreview, chomperAutoEnabled);
     setPlayer(next); setHarvestResult(res);
+    checkDecayAlert(snap, next.inventory);
     if (activeBlot && activeBlot.harvestCharges !== undefined)
       setActiveBlot({ ...activeBlot, harvestCharges: Math.max(0, activeBlot.harvestCharges - 1) });
     setScreen("SUMMARY_HARVEST");
@@ -257,6 +285,7 @@ export default function App() {
     if (!activePoi || !activeBlot) return;
     const methods = methodsAvailableFromEquipment(player);
     if (!methods.length) return;
+    const snap = snapshotStorableQty(player.inventory);
     let next = structuredClone(player);
     let blotCopy = structuredClone(activeBlot);
     const results: HarvestResult[] = [];
@@ -270,6 +299,7 @@ export default function App() {
       if (res.outcome !== "ok") break;
     }
     setPlayer(next); setActiveBlot(blotCopy); setMultiHarvestResults(results);
+    checkDecayAlert(snap, next.inventory);
     setScreen("SUMMARY_HARVEST");
   }
 
@@ -283,10 +313,12 @@ export default function App() {
   }
   function doHarvestStorable() {
     if (!activeBlot) return;
+    const snap = snapshotStorableQty(player.inventory);
     const next = structuredClone(player);
     const blotCopy = structuredClone(activeBlot);
     const result = harvestStorableAtBlot(next, blotCopy);
     setPlayer(next); setActiveBlot(blotCopy); setLastStorableResult(result);
+    checkDecayAlert(snap, next.inventory);
   }
 
   // ── Craft ─────────────────────────────────────────────────────────────────
@@ -301,9 +333,11 @@ export default function App() {
   }
   function proceedCraft() {
     if (!craftPreview) return;
+    const snap = snapshotStorableQty(player.inventory);
     const next = structuredClone(player);
     const res = resolveCraft(next, craftPreview, chomperAutoEnabled);
     setPlayer(next); setCraftResult(res);
+    checkDecayAlert(snap, next.inventory);
     setScreen("SUMMARY_CRAFT");
   }
 
@@ -316,16 +350,20 @@ export default function App() {
   }
   function proceedRecover() {
     const periods = recoverState?.periods ?? 8;
+    const snap = snapshotStorableQty(player.inventory);
     const next = structuredClone(player);
     const res = resolveRecover(next, periods, chomperAutoEnabled);
     setPlayer(next); setRecoverSummary(res);
+    checkDecayAlert(snap, next.inventory);
     setScreen("SUMMARY_RECOVER");
   }
   function keepFlopping() {
     const periods = recoverState?.periods ?? 8;
+    const snap = snapshotStorableQty(player.inventory);
     const next = structuredClone(player);
     const res = resolveRecover(next, periods, chomperAutoEnabled);
     setPlayer(next); setRecoverSummary(res);
+    checkDecayAlert(snap, next.inventory);
     // stay on SUMMARY_RECOVER
   }
 
@@ -442,6 +480,88 @@ export default function App() {
           </button>
         </div>
       )}
+
+      {/* ── Storable food panel ── */}
+      {(() => {
+        const foods = player.inventory.filter(
+          s => typeof s.id === "string" && s.id.startsWith("food_") && FOODS[s.id as import("./types").FoodId]?.storable && s.qty > 0
+        );
+        if (!foods.length) return null;
+
+        // Find the worst (lowest) freshness value across all units of all stacks
+        const allFreshness = foods.flatMap(s => s.freshness ?? []);
+        const minFresh = allFreshness.length ? Math.min(...allFreshness) : Infinity;
+        const WARNING_THRESHOLD = 4; // periods
+        const isExpiring = minFresh <= WARNING_THRESHOLD;
+
+        return (
+          <div style={{ borderTop: "1px solid #2a2a2a", paddingTop: 10 }}>
+            <div style={{
+              display: "flex", alignItems: "center", justifyContent: "space-between",
+              marginBottom: 7,
+            }}>
+              <div style={{ fontSize: "0.7rem", opacity: 0.4, letterSpacing: "0.12em", textTransform: "uppercase" }}>
+                Food
+              </div>
+              {isExpiring && (
+                <div style={{
+                  fontSize: "0.65rem", fontWeight: 700, letterSpacing: "0.08em",
+                  color: "#e53935", textTransform: "uppercase", animation: "pulse 1.4s ease-in-out infinite",
+                }}>
+                  ⚠ Spoiling
+                </div>
+              )}
+            </div>
+
+            <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+              {foods.map(s => {
+                const id = s.id as import("./types").FoodId;
+                const food = FOODS[id];
+                const freshness = s.freshness ?? [];
+                const maxFresh = food.freshnessRange?.[1] ?? 1;
+                const worstUnit = freshness.length ? Math.min(...freshness) : maxFresh;
+                const ratio = worstUnit / maxFresh;
+                const unitExpiring = worstUnit <= WARNING_THRESHOLD;
+
+                // freshness bar: shows worst unit's ratio as a thin bar
+                const barCol = ratio > 0.5 ? "#26c6da" : ratio > 0.2 ? "#f5c842" : "#e53935";
+
+                return (
+                  <div key={id} style={{
+                    display: "flex", alignItems: "center", gap: 8,
+                    padding: "5px 7px", borderRadius: 7,
+                    background: unitExpiring ? "#1f0e0e" : "#161616",
+                    border: `1px solid ${unitExpiring ? "#5a1a1a" : "#2a2a2a"}`,
+                  }}>
+                    <ItemIcon id={id} size={18} />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                        <span style={{ fontSize: "0.78rem", opacity: 0.85, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                          {food.name}
+                        </span>
+                        <span style={{ fontSize: "0.82rem", fontWeight: 700, opacity: 0.9, marginLeft: 6, flexShrink: 0 }}>
+                          ×{s.qty}
+                        </span>
+                      </div>
+                      {/* freshness bar — only shown when expiring */}
+                      {unitExpiring && (
+                        <div style={{ marginTop: 4 }}>
+                          <div style={{ height: 3, borderRadius: 2, background: "#2a2a2a", overflow: "hidden" }}>
+                            <div style={{ height: "100%", width: `${ratio * 100}%`, background: barCol, borderRadius: 2, transition: "width 0.3s" }} />
+                          </div>
+                          <div style={{ fontSize: "0.65rem", color: barCol, marginTop: 2, opacity: 0.85 }}>
+                            {worstUnit} period{worstUnit !== 1 ? "s" : ""} left
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })()}
 
       <div style={{ borderTop: "1px solid #2a2a2a", paddingTop: 10, display: "flex", flexDirection: "column", gap: 8 }}>
         <button className="btn" style={{ width: "100%", fontSize: "0.88rem", background: screen === "INVENTORY" ? "#1a2e1a" : undefined, border: screen === "INVENTORY" ? "1px solid #4caf50" : undefined, color: screen === "INVENTORY" ? "#7ecba1" : undefined }} onClick={() => openMetaScreen("INVENTORY")}>
@@ -1142,10 +1262,37 @@ export default function App() {
     </div>
   );
   const deadScreen = (
-    <div className="card">
-      <h2>Very Dead</h2>
-      <p>Hunger won. Dust yourself off.</p>
-      <div className="row"><button className="btn" onClick={reset}>Reset Run</button></div>
+    <div style={{
+      position: "fixed", inset: 0, zIndex: 999,
+      background: "radial-gradient(ellipse at center, #2a0a0a 0%, #0c0000 70%)",
+      display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+      gap: 24,
+    }}>
+      <div style={{ fontSize: "0.8rem", letterSpacing: "0.3em", textTransform: "uppercase", color: "#8b2020", opacity: 0.8 }}>
+        — satiety depleted —
+      </div>
+      <h1 style={{
+        fontSize: "clamp(2.8rem, 8vw, 5rem)", fontWeight: 900, letterSpacing: "0.04em",
+        color: "#e53935", textShadow: "0 0 60px #e5393588, 0 0 120px #e5393533",
+        margin: 0, lineHeight: 1,
+      }}>
+        Very Dead
+      </h1>
+      <p style={{ fontSize: "1.1rem", opacity: 0.55, margin: 0, letterSpacing: "0.05em" }}>
+        Hunger won. Dust yourself off.
+      </p>
+      <button
+        onClick={reset}
+        style={{
+          marginTop: 12, padding: "14px 36px", borderRadius: 12,
+          background: "#1a0505", border: "2px solid #e53935",
+          color: "#ff8a80", fontSize: "1rem", fontWeight: 700,
+          cursor: "pointer", letterSpacing: "0.08em", textTransform: "uppercase",
+          boxShadow: "0 0 20px #e5393544",
+        }}
+      >
+        Reset Run
+      </button>
     </div>
   );
 
@@ -1379,6 +1526,22 @@ export default function App() {
         <h1 style={{ letterSpacing: "0.08em", marginBottom: 4 }}>2 Tails 3 Feet</h1>
         <div style={{ opacity: 0.5, fontSize: 13, marginBottom: 12 }}>Sticky Survival Prototype</div>
         {hud}
+        {decayedFoodAlert && (
+          <div style={{
+            marginBottom: 12, padding: "10px 14px", borderRadius: 10,
+            background: "#1f0505", border: "1px solid #c62828",
+            display: "flex", alignItems: "center", gap: 10,
+          }}>
+            <span style={{ fontSize: "1rem" }}>💀</span>
+            <span style={{ flex: 1, fontSize: "0.88rem", color: "#ff8a80" }}>
+              <b>{decayedFoodAlert}</b> fully rotted and was lost.
+            </span>
+            <button
+              onClick={() => setDecayedFoodAlert(null)}
+              style={{ background: "none", border: "none", color: "#ff8a80", cursor: "pointer", fontSize: "1rem", opacity: 0.7, padding: "0 4px" }}
+            >✕</button>
+          </div>
+        )}
         {body}
         {howItWorksModal}
       </div>

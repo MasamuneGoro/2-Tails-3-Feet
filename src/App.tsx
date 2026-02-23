@@ -82,7 +82,7 @@ const START_PLAYER: PlayerState = {
     { id: "eq_tail_curler", qty: 1 },
     { id: "eq_chomper", qty: 1 },
     { id: "eq_pointed_twig", qty: 1 },
-    { id: "food_resin_chew", qty: 1, freshness: [34] },
+    { id: "food_resin_chew", qty: 30, freshness: Array.from({ length: 30 }, () => 136) },
   ],
   xp: { poke: 0, smash: 0, tease: 0, drill: 0, scoop: 0 },
 };
@@ -501,7 +501,7 @@ export default function App() {
         // Find the worst (lowest) freshness value across all units of all stacks
         const allFreshness = foods.flatMap(s => s.freshness ?? []);
         const minFresh = allFreshness.length ? Math.min(...allFreshness) : Infinity;
-        const WARNING_THRESHOLD = 4; // periods
+        const WARNING_THRESHOLD = 25; // periods
         const isExpiring = minFresh <= WARNING_THRESHOLD;
 
         return (

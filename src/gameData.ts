@@ -187,7 +187,7 @@ export const POIS: Record<
     kind: "food",
     foodSpec: {
       sapQtyRange: [3, 6] as [number, number],
-      storableQtyRange: [0, 4] as [number, number],
+      storableQtyRange: [0, 40] as [number, number],
       storableFood: "food_resin_chew" as FoodId,
       forageSatietyCostPerPeriod: 10,
       forageStaminaCostPerPeriod: 10,
@@ -201,7 +201,7 @@ export const POIS: Record<
     kind: "food",
     foodSpec: {
       sapQtyRange: [1, 3] as [number, number],
-      storableQtyRange: [8, 16] as [number, number],
+      storableQtyRange: [80, 160] as [number, number],
       storableFood: "food_resin_chew" as FoodId,
       forageSatietyCostPerPeriod: 10,
       forageStaminaCostPerPeriod: 10,
@@ -215,7 +215,7 @@ export const POIS: Record<
     kind: "food",
     foodSpec: {
       sapQtyRange: [1, 2] as [number, number],
-      storableQtyRange: [3, 9] as [number, number],
+      storableQtyRange: [30, 90] as [number, number],
       storableFood: "food_dense_ration" as FoodId,
       forageSatietyCostPerPeriod: 10,
       forageStaminaCostPerPeriod: 20,
@@ -234,8 +234,8 @@ export const FOODS: Record<
   { id: FoodId; name: string; satietyRestored: number; storable: boolean; freshnessRange?: [number, number]; flavor: string }
 > = {
   food_soft_sap: { id: "food_soft_sap", name: "Soft Sap", satietyRestored: 150, storable: false, flavor: "Warm, gloopy, and barely qualifies as food. Your belly doesn't care." },
-  food_resin_chew: { id: "food_resin_chew", name: "Resin Chew", satietyRestored: 40, storable: true, freshnessRange: [25, 34], flavor: "Chewy in a way that makes you think. Not about what's in it, though." },
-  food_dense_ration: { id: "food_dense_ration", name: "Dense Ration", satietyRestored: 120, storable: true, freshnessRange: [39, 59], flavor: "Suspiciously well-preserved. You decide gratitude is the right response." },
+  food_resin_chew: { id: "food_resin_chew", name: "Resin Chew", satietyRestored: 1, storable: true, freshnessRange: [100, 136], flavor: "Chewy in a way that makes you think. Not about what's in it, though." },
+  food_dense_ration: { id: "food_dense_ration", name: "Dense Ration", satietyRestored: 4, storable: true, freshnessRange: [156, 236], flavor: "Suspiciously well-preserved. You decide gratitude is the right response." },
 };
 
 export const ITEMS: Record<

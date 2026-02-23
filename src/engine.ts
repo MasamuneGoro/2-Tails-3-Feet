@@ -213,11 +213,11 @@ export function makeJourneyPreview(player: PlayerState, mode: "explore" | "findF
   const events = rollEvents(mode);
 
   const baseSatietyCostRange: [number, number] = [stepsRange[0] * BIOME_LEVEL.satietyPerStep, stepsRange[1] * BIOME_LEVEL.satietyPerStep];
-  const baseStaminaCostRange: [number, number] = [Math.floor(stepsRange[0] / 10) * BIOME_LEVEL.staminaPerStep, Math.floor(stepsRange[1] / 10) * BIOME_LEVEL.staminaPerStep];
+  const baseStaminaCostRange: [number, number] = [Math.floor(stepsRange[0] / 5) * BIOME_LEVEL.staminaPerStep, Math.floor(stepsRange[1] / 5) * BIOME_LEVEL.staminaPerStep];
 
   const curlerCount = countEquippedTail(player, "eq_tail_curler");
   const tailCurlerRecoveryPerPeriod = curlerCount * (ITEMS.eq_tail_curler.effects?.staminaRecoveryPerPeriod ?? 0);
-  const journeyPeriods = (n: number) => Math.floor(n / 10);
+  const journeyPeriods = (n: number) => Math.floor(n / 5);
 
   const satietyCostRange = baseSatietyCostRange;
   const staminaCostRange = baseStaminaCostRange;
@@ -230,7 +230,7 @@ export function makeJourneyPreview(player: PlayerState, mode: "explore" | "findF
   const chomperCount = countEquippedTail(player, "eq_chomper");
   const estFoodConsumed: { foodId: FoodId; unitsRange: [number, number] }[] = [];
   let satietyRestoredRange: [number, number] = [0, 0];
-  const totalPeriodsUpper = Math.floor(stepsRange[1] / 10);
+  const totalPeriodsUpper = Math.floor(stepsRange[1] / 5);
 
   if (chomperCount > 0 && chomperAutoEnabled) {
     const storableIds = Array.from(new Set(
@@ -362,7 +362,7 @@ export function resolveJourney(player: PlayerState, preview: JourneyPreview, cho
   const eventsOut: EventId[] = [...preview.surfacedEvents];
 
   const satietyDelta = steps * BIOME_LEVEL.satietyPerStep;
-  const periods = Math.floor(steps / 10);
+  const periods = Math.floor(steps / 5);
   const staminaDelta = periods * BIOME_LEVEL.staminaPerStep;
 
   player.stats.satiety = clamp(player.stats.satiety - satietyDelta, 0, player.stats.maxSatiety);
@@ -664,10 +664,10 @@ export function harvestStorableAtBlot(player: PlayerState, blot: BlotState): Har
   const staminaRecovery = applyStaminaRecovery(player, 1, "working");
   const { consumed: foodConsumed } = autoConsumeStorableFood(player, 1);
   const fr = FOODS[food].freshnessRange!;
-  // Each equipped sticky scoop harvests one unit — cap at what's remaining
+  // Each equipped sticky scoop harvests up to 10 units — cap at what's remaining
   const scoopCount = countEquippedTail(player, "eq_sticky_scoop");
   const available = blot.storableRemaining ?? 1;
-  const qty = Math.min(scoopCount, available);
+  const qty = Math.min(scoopCount * 10, available);
   const freshness: number[] = [];
   for (let i = 0; i < qty; i++) freshness.push(randInt(fr[0], fr[1]));
   invAdd(player.inventory, food, qty, freshness);

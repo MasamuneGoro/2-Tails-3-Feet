@@ -157,7 +157,69 @@ const ICON_DEFS: Record<string, { color: string; paths: string }> = {
     `,
   },
 
-  // ── Foods ─────────────────────────────────────────────────────────────────
+  // ── Combat materials ──────────────────────────────────────────────────────
+  mat_wing_membrane: {
+    color: "#8ecfde",   // translucent blue-grey
+    paths: `
+      <path d="M12 20 C5 18 2 12 3 6 C6 4 10 5 12 8 C14 5 18 4 21 6 C22 12 19 18 12 20Z" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linejoin="round"/>
+      <path d="M12 8 L12 20" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" opacity="0.4"/>
+      <path d="M3 6 C6 9 9 10 12 10 C15 10 18 9 21 6" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" fill="none" opacity="0.35"/>
+      <path d="M4 11 C7 13 10 13.5 12 13.5 C14 13.5 17 13 20 11" stroke="currentColor" stroke-width="1" stroke-linecap="round" fill="none" opacity="0.25"/>
+      <ellipse cx="9" cy="9" rx="2" ry="1.2" fill="currentColor" opacity="0.18" transform="rotate(-20 9 9)"/>
+      <ellipse cx="15" cy="9" rx="2" ry="1.2" fill="currentColor" opacity="0.18" transform="rotate(20 15 9)"/>
+    `,
+  },
+  mat_crystallised_wax: {
+    color: "#c0d8f0",   // cold white-blue
+    paths: `
+      <polygon points="12,2 17,7.5 15,14 9,14 7,7.5" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linejoin="round"/>
+      <polygon points="12,2 17,7.5 15,14 9,14 7,7.5" fill="currentColor" opacity="0.08"/>
+      <path d="M12 2 L12 14" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" opacity="0.4"/>
+      <path d="M7 7.5 L17 7.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" opacity="0.4"/>
+      <path d="M9 14 L11 20 L13 20 L15 14" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none" opacity="0.7"/>
+      <circle cx="12" cy="8" r="1.5" fill="currentColor" opacity="0.6"/>
+      <circle cx="10" cy="5" r="0.8" fill="currentColor" opacity="0.45"/>
+      <circle cx="14.5" cy="5.5" r="0.7" fill="currentColor" opacity="0.35"/>
+    `,
+  },
+
+  // ── Combat foods ──────────────────────────────────────────────────────────
+  food_moth_flesh: {
+    color: "#d4c4a8",   // pale off-white with warm tinge
+    paths: `
+      <ellipse cx="12" cy="13" rx="8" ry="7" fill="none" stroke="currentColor" stroke-width="2.5"/>
+      <ellipse cx="12" cy="13" rx="8" ry="7" fill="currentColor" opacity="0.08"/>
+      <ellipse cx="9.5" cy="10.5" rx="3" ry="2" fill="currentColor" opacity="0.2" transform="rotate(-15 9.5 10.5)"/>
+      <path d="M6.5 14 C8 16 11 17 14 16.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" fill="none" opacity="0.45"/>
+      <path d="M9 11 C10.5 12 13.5 12 15 11" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" fill="none" opacity="0.35"/>
+      <circle cx="14" cy="10" r="1" fill="currentColor" opacity="0.3"/>
+      <circle cx="10" cy="15" r="0.8" fill="currentColor" opacity="0.25"/>
+    `,
+  },
+  food_moth_paste: {
+    color: "#a09480",   // dull grey-beige, murkier than flesh
+    paths: `
+      <ellipse cx="12" cy="14" rx="8.5" ry="5.5" fill="none" stroke="currentColor" stroke-width="2.5"/>
+      <ellipse cx="12" cy="14" rx="8.5" ry="5.5" fill="currentColor" opacity="0.1"/>
+      <path d="M5 12 C7 10.5 10 10 12 10 C14 10 17 10.5 19 12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" fill="none" opacity="0.35"/>
+      <path d="M6 15 C8 16.5 10.5 17 13 16.5 C15.5 16 17.5 15 18 14" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" fill="none" opacity="0.3"/>
+      <circle cx="9" cy="13.5" r="1.2" fill="currentColor" opacity="0.25"/>
+      <circle cx="14" cy="14.5" r="0.9" fill="currentColor" opacity="0.2"/>
+      <circle cx="12" cy="12.5" r="0.7" fill="currentColor" opacity="0.2"/>
+    `,
+  },
+  food_gloop_wax: {
+    color: "#d4920a",   // warm amber, softer than resin_glob
+    paths: `
+      <ellipse cx="12" cy="15" rx="7" ry="5.5" fill="none" stroke="currentColor" stroke-width="2.5"/>
+      <ellipse cx="12" cy="15" rx="7" ry="5.5" fill="currentColor" opacity="0.12"/>
+      <path d="M12 9.5 C12 9.5 10 6 12 4 C14 6 12 9.5 12 9.5Z" fill="currentColor" opacity="0.7"/>
+      <path d="M12 9.5 L12 15" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
+      <path d="M10 13 C11 14.5 13 14.5 14 13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" fill="none" opacity="0.5"/>
+      <circle cx="9.5" cy="16" r="1" fill="currentColor" opacity="0.4"/>
+      <circle cx="14.5" cy="15" r="0.8" fill="currentColor" opacity="0.35"/>
+    `,
+  },
   food_soft_sap: {
     color: "#4cba55",   // green
     paths: `

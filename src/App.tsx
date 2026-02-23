@@ -1,8 +1,10 @@
 import React, { useEffect, useMemo, useState } from "react";
 import type { BlotState, CraftPreview, CraftResult, EatSapResult, HarvestMethodId, HarvestPreview, HarvestResult, HarvestStorableResult, JourneyPreview, JourneyResult, PlayerState, PoiId, Screen } from "./types";
 import { playSfx, unlockAudio, preloadAll } from "./sound";
+import { startBattle, getAvailableMoves, executeMove, resolveBattle } from "./combat";
+import type { BattleState, BattleResult, CreatureId } from "./types";
 import { ItemIcon, PoiImage, PoiIcon } from "./visuals";
-import { BIOME_LEVEL, EVENTS, FOODS, ITEMS, POIS, RECIPES, RESOURCES } from "./gameData";
+import { BIOME_LEVEL, CREATURES, EVENTS, FOODS, ITEMS, MOVES, POIS, RECIPES, RESOURCES, SITUATION_TEXT } from "./gameData";
 import {
   canCraft, getFoodName, getItemName, getResourceName, listUnlockedRecipes,
   makeCraftPreview, makeHarvestPreview, makeJourneyPreview, methodsAvailableFromEquipment,
@@ -279,6 +281,10 @@ export default function App() {
 
   const [recoverState, setRecoverState] = useState<{ periods: number } | null>(null);
   const [recoverSummary, setRecoverSummary] = useState<any>(null);
+
+  const [battleState, setBattleState] = useState<BattleState | null>(null);
+  const [battleResult, setBattleResult] = useState<BattleResult | null>(null);
+  const [battleLog, setBattleLog] = useState<string[]>([]);  // last move's log lines
 
   const [returnScreen, setReturnScreen] = useState<Screen>("HUB");
   const [expandedItem, setExpandedItem] = useState<string | null>(null);
@@ -675,6 +681,42 @@ export default function App() {
     // stay on SUMMARY_RECOVER
   }
 
+  // ── Combat ────────────────────────────────────────────────────────────────
+  function enterBattle(creatureId: CreatureId) {
+    const state = startBattle(creatureId);
+    setBattleState(state);
+    setBattleResult(null);
+    setBattleLog([]);
+    setScreen("BATTLE");
+  }
+
+  function doMove(moveId: import("./types").MoveId) {
+    if (!battleState) return;
+    if (moveId === "flee") {
+      const { result, updatedPlayer } = resolveBattle(battleState, "fled", player);
+      setPlayer(updatedPlayer);
+      setBattleResult(result);
+      setBattleState(null);
+      setScreen("SUMMARY_BATTLE");
+      return;
+    }
+    const { nextState, log } = executeMove(battleState, moveId, player);
+    setBattleLog(log);
+    if (nextState.composure <= 0) {
+      // Determine end reason: if mostly precision moves, disarmed; else collapsed
+      const precisionMoves: import("./types").MoveId[] = ["comb_glands", "laced_jab", "drill_resonance", "eat_wax_raw", "eat_soft_tissue"];
+      const precisionCount = nextState.movesUsed.filter(m => precisionMoves.includes(m)).length;
+      const endReason = precisionCount >= 2 ? "disarmed" : "collapsed";
+      const { result, updatedPlayer } = resolveBattle(nextState, endReason, player);
+      setPlayer(updatedPlayer);
+      setBattleResult(result);
+      setBattleState(null);
+      setScreen("SUMMARY_BATTLE");
+    } else {
+      setBattleState(nextState);
+    }
+  }
+
   // ── Chomper toggle ────────────────────────────────────────────────────────
   function toggleChomper() {
     const newVal = !chomperAutoEnabled;
@@ -961,7 +1003,7 @@ export default function App() {
   // ─────────────────────────────────────────────────────────────────────────
   // HUB — context-sensitive accented buttons
   // ─────────────────────────────────────────────────────────────────────────
-  function hubBtnStyle(kind: "explore" | "findFood" | "layDown" | "craft"): React.CSSProperties {
+  function hubBtnStyle(kind: "explore" | "findFood" | "layDown" | "craft" | "fight"): React.CSSProperties {
     const base: React.CSSProperties = { padding: "12px 18px", borderRadius: 12, border: "1px solid #2a2a2a", background: "#1a1a1a", color: "#eaeaea", cursor: "pointer", fontSize: "1rem", fontWeight: 400, transition: "all 0.2s" };
 
     if (kind === "explore" && satietyRatio > 0.5 && staminaRatio > 0.5) {
@@ -978,6 +1020,9 @@ export default function App() {
     }
     if (kind === "layDown" && staminaRatio <= 0.25) {
       return { ...base, padding: "14px 22px", background: "#1e1008", border: "2px solid #8b2500", color: "#ff8c60", fontWeight: 700, fontSize: "1.05rem", boxShadow: "0 0 10px #8b250044" };
+    }
+    if (kind === "fight") {
+      return { ...base, background: "#1a0a1a", border: "1px solid #9c27b0", color: "#ce93d8" };
     }
     return base;
   }
@@ -1226,6 +1271,7 @@ export default function App() {
         <button style={hubBtnStyle("findFood")} onClick={() => genJourney("findFood")} disabled={dead || exhausted}>Find Food</button>
         <button style={hubBtnStyle("craft")} onClick={openCraft} disabled={dead || exhausted}>Craft</button>
         <button style={hubBtnStyle("layDown")} onClick={previewRecover} disabled={dead}>Lay Down</button>
+        <button style={hubBtnStyle("fight")} onClick={() => enterBattle("creature_gloop_moth")} disabled={dead || exhausted}>Hunt Moth</button>
       </div>
       <div className="notice" style={{ marginTop: 12 }}>
         <span className="small">Hunger ends you. Fatigue stops you. The sticky world clings on.</span>
@@ -2021,10 +2067,250 @@ export default function App() {
     </div>
   );
 
+  // ── Battle screen ─────────────────────────────────────────────────────────
+  const battleScreen = battleState && (() => {
+    const creature = CREATURES[battleState.creatureId];
+    const availableMoveIds = getAvailableMoves(battleState, player);
+    const composurePct = (battleState.composure / creature.composureMax) * 100;
+    const integrityPct = (battleState.integrity / creature.integrityMax) * 100;
+
+    return (
+      <div className="card">
+        <FadeIn delay={0}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16 }}>
+            <div>
+              <h2 style={{ margin: 0 }}>{creature.name}</h2>
+              <div style={{ fontSize: "0.8rem", opacity: 0.5, marginTop: 2 }}>Turn {battleState.turn}</div>
+            </div>
+            <div style={{ fontSize: "0.75rem", opacity: 0.4 }}>
+              Moves used: {battleState.movesUsed.length} unique
+              {battleState.doubleCombosLanded > 0 && <span style={{ color: "#ce93d8", marginLeft: 8 }}>✦ {battleState.doubleCombosLanded} combo</span>}
+            </div>
+          </div>
+        </FadeIn>
+
+        {/* Creature status bars */}
+        <FadeIn delay={60}>
+          <div style={{ marginBottom: 16 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.78rem", marginBottom: 4 }}>
+              <span style={{ opacity: 0.6 }}>Composure</span>
+              <span>{battleState.composure} / {creature.composureMax}</span>
+            </div>
+            <div style={{ height: 10, background: "#111", borderRadius: 5, overflow: "hidden", marginBottom: 8 }}>
+              <div style={{ height: "100%", width: `${composurePct}%`, background: composurePct > 50 ? "#7c4dff" : composurePct > 25 ? "#ff9800" : "#f44336", borderRadius: 5, transition: "width 0.4s ease" }} />
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.78rem", marginBottom: 4 }}>
+              <span style={{ opacity: 0.6 }}>Integrity</span>
+              <span>{battleState.integrity} / {creature.integrityMax}</span>
+            </div>
+            <div style={{ height: 6, background: "#111", borderRadius: 3, overflow: "hidden" }}>
+              <div style={{ height: "100%", width: `${integrityPct}%`, background: integrityPct > 60 ? "#4caf50" : integrityPct > 30 ? "#ff9800" : "#f44336", borderRadius: 3, transition: "width 0.4s ease" }} />
+            </div>
+          </div>
+        </FadeIn>
+
+        {/* Situation hint */}
+        <FadeIn delay={120}>
+          <div style={{ background: "#0e0e0e", border: "1px solid #2a2a2a", borderRadius: 10, padding: "12px 16px", marginBottom: 16 }}>
+            <div style={{ fontSize: "0.68rem", opacity: 0.4, letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: 6 }}>Situation</div>
+            <div style={{ fontStyle: "italic", opacity: 0.85 }}>{SITUATION_TEXT[battleState.situation]}</div>
+          </div>
+        </FadeIn>
+
+        {/* Active flags */}
+        {battleState.flags.filter(f => f !== "wax_intact").length > 0 && (
+          <FadeIn delay={150}>
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 14 }}>
+              {battleState.flags.filter(f => f !== "wax_intact").map(f => (
+                <span key={f} style={{ fontSize: "0.7rem", padding: "3px 8px", background: "#1a1020", border: "1px solid #4a2060", borderRadius: 20, color: "#ce93d8", opacity: 0.85 }}>
+                  {f.replace(/_/g, " ")}
+                </span>
+              ))}
+            </div>
+          </FadeIn>
+        )}
+
+        {/* Last move log */}
+        {battleLog.length > 0 && (
+          <FadeIn delay={100}>
+            <div style={{ fontSize: "0.78rem", opacity: 0.55, marginBottom: 12, fontStyle: "italic" }}>
+              {battleLog.join(" · ")}
+            </div>
+          </FadeIn>
+        )}
+
+        {/* Move buttons */}
+        <FadeIn delay={180}>
+          <div style={{ fontSize: "0.68rem", opacity: 0.4, letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: 10 }}>Your move</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {availableMoveIds.map((moveId) => {
+              const move = MOVES[moveId];
+              const isDouble = move.tools.length === 2;
+              const isFlee = moveId === "flee";
+              const isConsume = moveId === "eat_wax_raw" || moveId === "eat_soft_tissue";
+              const borderColor = isFlee ? "#555" : isDouble ? "#9c27b0" : isConsume ? "#2e7d32" : "#2a2a2a";
+              const bgColor = isFlee ? "#111" : isDouble ? "#1a0a1a" : isConsume ? "#0a1a0a" : "#161616";
+              const textColor = isFlee ? "#888" : isDouble ? "#ce93d8" : isConsume ? "#81c784" : "#eaeaea";
+              return (
+                <button
+                  key={moveId}
+                  onClick={() => doMove(moveId)}
+                  style={{ background: bgColor, border: `1px solid ${borderColor}`, borderRadius: 10, color: textColor, padding: "10px 14px", cursor: "pointer", textAlign: "left", fontSize: "0.9rem" }}
+                >
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <span>{move.label}</span>
+                    <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                      {move.tools.map((t, i) => <ItemIcon key={i} id={t} size={16} />)}
+                      {isDouble && <span style={{ fontSize: "0.65rem", color: "#9c27b0", marginLeft: 2 }}>COMBO</span>}
+                    </div>
+                  </div>
+                  <div style={{ fontSize: "0.72rem", opacity: 0.5, marginTop: 3 }}>
+                    {move.effect.staminaRestore ? `+${move.effect.staminaRestore} stamina` :
+                     move.effect.satietyRestore ? `+${move.effect.satietyRestore} satiety` :
+                     move.effect.staminaCost > 0 ? `−${move.effect.staminaCost} stamina` : "no stamina cost"}
+                    {move.effect.composureDelta[0] > 0 && ` · −${move.effect.composureDelta[0]}–${move.effect.composureDelta[1]} composure`}
+                    {move.effect.integrityDelta < 0 && ` · ${move.effect.integrityDelta} integrity`}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </FadeIn>
+
+        {/* Mid-battle drops so far */}
+        {battleState.midBattleDrops.length > 0 && (
+          <FadeIn delay={240}>
+            <div style={{ marginTop: 16, background: "#0a120a", border: "1px solid #1e3a1e", borderRadius: 10, padding: "10px 14px" }}>
+              <div style={{ fontSize: "0.68rem", opacity: 0.5, letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 8 }}>Collected so far</div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
+                {battleState.midBattleDrops.map((d, i) => (
+                  <div key={i} style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                    <ItemIcon id={d.id} size={18} />
+                    <span style={{ fontSize: "0.82rem" }}>
+                      {d.id.startsWith("food_") ? FOODS[d.id as import("./types").FoodId]?.name : RESOURCES[d.id as import("./types").ResourceId]?.name} ×{d.qty}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </FadeIn>
+        )}
+      </div>
+    );
+  })();
+
+  // ── Battle summary screen ──────────────────────────────────────────────────
+  const battleSummaryScreen = battleResult && (() => {
+    const creature = CREATURES[battleResult.creatureId];
+    const noveltyRefundPct = battleResult.doubleCombosLanded > 0 || battleResult.movesUsed.length >= 4 ? 60 : battleResult.movesUsed.length >= 2 ? 30 : 0;
+    const endLabels: Record<string, string> = { collapsed: "Collapsed", disarmed: "Disarmed", fled: "You fled" };
+
+    return (
+      <div className="card">
+        <FadeIn delay={0}>
+          <h2 style={{ marginBottom: 4 }}>
+            {battleResult.endReason === "fled" ? "You got out." : `${creature.name} — ${endLabels[battleResult.endReason]}`}
+          </h2>
+          <div style={{ fontSize: "0.8rem", opacity: 0.5 }}>
+            {battleResult.movesUsed.length} unique move{battleResult.movesUsed.length !== 1 ? "s" : ""}
+            {battleResult.doubleCombosLanded > 0 && ` · ${battleResult.doubleCombosLanded} combo${battleResult.doubleCombosLanded > 1 ? "s" : ""} landed`}
+            {noveltyRefundPct > 0 && <span style={{ color: "#ce93d8", marginLeft: 6 }}>· {noveltyRefundPct}% stamina refunded</span>}
+          </div>
+        </FadeIn>
+
+        {/* Final creature state */}
+        <FadeIn delay={90}>
+          <div className="kv" style={{ marginBottom: 12, marginTop: 12 }}>
+            <div style={{ opacity: 0.6 }}>Final integrity</div>
+            <div>{battleResult.finalIntegrity} / {creature.integrityMax}</div>
+            <div style={{ opacity: 0.6 }}>Net stamina cost</div>
+            <div style={{ color: battleResult.netStaminaCost > 0 ? "#ff8a80" : "#81c784" }}>
+              {battleResult.netStaminaCost > 0 ? `−${battleResult.netStaminaCost}` : `+${Math.abs(battleResult.netStaminaCost)}`}
+            </div>
+            {battleResult.satietyRestoredMidBattle > 0 && <>
+              <div style={{ opacity: 0.6 }}>Satiety restored</div>
+              <div style={{ color: "#7ecba1" }}>+{battleResult.satietyRestoredMidBattle}</div>
+            </>}
+            {battleResult.staminaRestoredMidBattle > 0 && <>
+              <div style={{ opacity: 0.6 }}>Stamina restored</div>
+              <div style={{ color: "#7ecba1" }}>+{battleResult.staminaRestoredMidBattle}</div>
+            </>}
+          </div>
+        </FadeIn>
+
+        {/* Food contamination warning */}
+        {battleResult.foodContaminated && (
+          <FadeIn delay={120}>
+            <div style={{ background: "#1f0a0a", border: "1px solid #b71c1c", borderRadius: 10, padding: "10px 14px", marginBottom: 12, fontSize: "0.82rem", color: "#ff8a80" }}>
+              Wax splattered on your food stores. Freshness reduced.
+            </div>
+          </FadeIn>
+        )}
+
+        {/* Mid-battle drops */}
+        {battleResult.midBattleDrops.length > 0 && (
+          <FadeIn delay={180}>
+            <div className="card" style={{ marginBottom: 10 }}>
+              <h3>Collected mid-battle</h3>
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                {battleResult.midBattleDrops.map((d, i) => (
+                  <div key={i} style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <div style={{ position: "relative" }}>
+                      <ItemIcon id={d.id} size={22} />
+                      <FlyToInventory id={d.id} delay={300 + i * 100} />
+                    </div>
+                    <span className="small">
+                      {d.id.startsWith("food_") ? FOODS[d.id as import("./types").FoodId]?.name : RESOURCES[d.id as import("./types").ResourceId]?.name} ×{d.qty}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </FadeIn>
+        )}
+
+        {/* Corpse drops */}
+        {battleResult.corpseDrops.length > 0 && (
+          <FadeIn delay={270}>
+            <div className="card" style={{ marginBottom: 10 }}>
+              <h3>From the corpse</h3>
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                {battleResult.corpseDrops.map((d, i) => (
+                  <div key={i} style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <div style={{ position: "relative" }}>
+                      <ItemIcon id={d.id} size={22} />
+                      <FlyToInventory id={d.id} delay={500 + i * 100} />
+                    </div>
+                    <span className="small">
+                      {d.id.startsWith("food_") ? FOODS[d.id as import("./types").FoodId]?.name : RESOURCES[d.id as import("./types").ResourceId]?.name} ×{d.qty}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </FadeIn>
+        )}
+
+        {/* Nothing dropped */}
+        {battleResult.midBattleDrops.length === 0 && battleResult.corpseDrops.length === 0 && (
+          <FadeIn delay={180}>
+            <div style={{ opacity: 0.5, fontStyle: "italic", fontSize: "0.85rem", marginBottom: 12 }}>Nothing to show for it.</div>
+          </FadeIn>
+        )}
+
+        <FadeIn delay={360}>
+          <div className="row">
+            <button className="btn" style={{ background: "#1a2e1a", border: "1px solid #4caf50", color: "#7ecba1", fontWeight: 600, padding: "12px 22px" }} onClick={gotoHub}>Back to it</button>
+          </div>
+        </FadeIn>
+      </div>
+    );
+  })();
+
   // ── Screen routing ────────────────────────────────────────────────────────
   let body: React.ReactNode = null;
   if (dead) body = deadScreen;
-  else if (exhausted && !["SUMMARY_JOURNEY","SUMMARY_HARVEST","SUMMARY_CRAFT","SUMMARY_RECOVER","PREVIEW_RECOVER"].includes(screen))
+  else if (exhausted && !["SUMMARY_JOURNEY","SUMMARY_HARVEST","SUMMARY_CRAFT","SUMMARY_RECOVER","PREVIEW_RECOVER","BATTLE","SUMMARY_BATTLE"].includes(screen))
     body = exhaustedScreen;
 
   if (!body) {
@@ -2043,6 +2329,8 @@ export default function App() {
       case "SUMMARY_RECOVER": body = recoverSummaryScreen; break;
       case "INVENTORY": body = inventoryScreen; break;
       case "SKILLS": body = skillsScreen; break;
+      case "BATTLE": body = battleScreen; break;
+      case "SUMMARY_BATTLE": body = battleSummaryScreen; break;
       default: body = hub;
     }
   }

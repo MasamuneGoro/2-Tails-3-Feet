@@ -17,8 +17,106 @@ export type EventId =
   | "ev_need_chomper"
   | "ev_need_scoop_for_rations";
 
-export type ResourceId = "resin_glob" | "fiber_clump" | "brittle_stone";
-export type FoodId = "food_soft_sap" | "food_resin_chew" | "food_dense_ration";
+export type ResourceId = "resin_glob" | "fiber_clump" | "brittle_stone" | "mat_wing_membrane" | "mat_crystallised_wax";
+export type FoodId = "food_soft_sap" | "food_resin_chew" | "food_dense_ration" | "food_moth_flesh" | "food_moth_paste" | "food_gloop_wax";
+
+// ─── Combat ───────────────────────────────────────────────────────────────────
+
+export type CreatureId = "creature_gloop_moth";
+
+export type SituationId =
+  | "moth_hovering"
+  | "moth_descending"
+  | "moth_startled"
+  | "moth_wax_pooling"
+  | "moth_depleted"
+  | "moth_thrashing";
+
+export type MoveId =
+  | "jab_wing"
+  | "comb_glands"
+  | "scoop_pooled"
+  | "smash_body"
+  | "drill_thorax"
+  | "lace_twig"
+  | "laced_jab"
+  | "expose_and_strike"
+  | "drill_resonance"
+  | "eat_wax_raw"
+  | "eat_soft_tissue"
+  | "flee";
+
+export type BattleFlag =
+  | "wax_intact"     // wax has NOT been drained — default at battle start
+  | "wax_drained"    // comb_glands used
+  | "wax_laced"      // twig coated, ready for laced_jab
+  | "wax_consumed"   // raw wax eaten mid-battle
+  | "wing_torn"      // jab_wing or expose_and_strike used
+  | "thorax_open";   // drill_thorax used
+
+export type BattleEndReason = "collapsed" | "disarmed" | "fled";
+
+export interface CounterattackDef {
+  triggerFlag: BattleFlag;   // counterattack fires if this flag is set when move resolves
+  staminaPenalty: number;
+  contaminatesFood: boolean;
+  flavor: string;
+}
+
+export interface MoveEffect {
+  composureDelta: [number, number];    // [min, max] — scaled by proficiency
+  integrityDelta: number;              // fixed
+  staminaCost: number;                 // positive = costs stamina
+  staminaRestore?: number;             // mid-battle stamina restore
+  satietyRestore?: number;             // mid-battle satiety restore
+  setsFlags?: BattleFlag[];
+  clearsFlags?: BattleFlag[];
+  midBattleDrop?: { id: ResourceId | FoodId; qty: number };
+  counterattack?: CounterattackDef;
+  situationNext: SituationId | null;   // null = stays in current situation
+  proficiencyMethod?: HarvestMethodId; // which XP scales composure damage
+}
+
+export interface PlayerMove {
+  id: MoveId;
+  label: string;                          // flavourful button text
+  tools: [] | [ItemId] | [ItemId, ItemId];// empty = no tool needed
+  requiredFlags?: BattleFlag[];
+  forbiddenFlags?: BattleFlag[];
+  requiredSituation?: SituationId;        // if set, only available in this situation
+  effect: MoveEffect;
+}
+
+export interface BattleState {
+  creatureId: CreatureId;
+  composure: number;
+  integrity: number;
+  flags: BattleFlag[];
+  situation: SituationId;
+  turn: number;
+  movesUsed: MoveId[];                    // for novelty tracking
+  doubleCombosLanded: number;
+  staminaCostAccrued: number;
+  midBattleDrops: { id: ResourceId | FoodId; qty: number }[];
+  midBattleSatietyRestored: number;
+  midBattleStaminaRestored: number;
+}
+
+export interface BattleResult {
+  creatureId: CreatureId;
+  endReason: BattleEndReason;
+  finalComposure: number;
+  finalIntegrity: number;
+  flags: BattleFlag[];
+  movesUsed: MoveId[];
+  doubleCombosLanded: number;
+  netStaminaCost: number;                 // after novelty refund
+  satietyRestoredMidBattle: number;
+  staminaRestoredMidBattle: number;
+  midBattleDrops: { id: ResourceId | FoodId; qty: number }[];
+  corpseDrops: { id: ResourceId | FoodId; qty: number; freshness?: number[] }[];
+  foodContaminated: boolean;
+}
 export type HarvestMethodId = "poke" | "smash" | "tease" | "drill" | "scoop";
 
 export type ItemId =
@@ -65,7 +163,9 @@ export type Screen =
   | "SUMMARY_RECOVER"
   | "DEAD"
   | "INVENTORY"
-  | "SKILLS";
+  | "SKILLS"
+  | "BATTLE"
+  | "SUMMARY_BATTLE";
 
 export interface PlayerStats {
   satiety: number;

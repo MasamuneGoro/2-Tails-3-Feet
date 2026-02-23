@@ -1,12 +1,17 @@
 import type {
   BiomeLevelId,
+  BattleFlag,
+  CreatureId,
   EventId,
   FoodId,
   HarvestMethodId,
   ItemId,
+  MoveId,
+  PlayerMove,
   PoiId,
   Quality,
   ResourceId,
+  SituationId,
 } from "./types";
 
 export const BIOME_LEVEL: {
@@ -227,6 +232,8 @@ export const RESOURCES: Record<ResourceId, { id: ResourceId; name: string; flavo
   resin_glob: { id: "resin_glob", name: "Resin Glob", flavor: "Sticky, clingy, and oddly proud of it." },
   fiber_clump: { id: "fiber_clump", name: "Fiber Clump", flavor: "Tough little strands that lash, bind, and occasionally tickle." },
   brittle_stone: { id: "brittle_stone", name: "Brittle Stone", flavor: "Cracks if you look at it wrong, but holds a surprisingly mean edge." },
+  mat_wing_membrane: { id: "mat_wing_membrane", name: "Wing Membrane", flavor: "Translucent and surprisingly tough. Catches the light strangely. You sense it has uses you haven't discovered yet." },
+  mat_crystallised_wax: { id: "mat_crystallised_wax", name: "Crystallised Wax", flavor: "Something happened inside the moth that shouldn't have. Cold, rigid, almost humming. You're not sure what it's for yet." },
 };
 
 export const FOODS: Record<
@@ -236,6 +243,9 @@ export const FOODS: Record<
   food_soft_sap: { id: "food_soft_sap", name: "Soft Sap", satietyRestored: 150, storable: false, flavor: "Warm, gloopy, and barely qualifies as food. Your belly doesn't care." },
   food_resin_chew: { id: "food_resin_chew", name: "Resin Chew", satietyRestored: 1, storable: true, freshnessRange: [100, 136], flavor: "Chewy in a way that makes you think. Not about what's in it, though." },
   food_dense_ration: { id: "food_dense_ration", name: "Dense Ration", satietyRestored: 4, storable: true, freshnessRange: [156, 236], flavor: "Suspiciously well-preserved. You decide gratitude is the right response." },
+  food_moth_flesh: { id: "food_moth_flesh", name: "Moth Flesh", satietyRestored: 35, storable: true, freshnessRange: [40, 70], flavor: "Pale and dense. Faintly waxy aftertaste. Surprisingly filling." },
+  food_moth_paste: { id: "food_moth_paste", name: "Moth Paste", satietyRestored: 14, storable: true, freshnessRange: [25, 45], flavor: "You'd rather not think about what this used to be. You eat it anyway." },
+  food_gloop_wax: { id: "food_gloop_wax", name: "Gloop Wax", satietyRestored: 18, storable: true, freshnessRange: [80, 140], flavor: "Thick and faintly sweet. Numbs the tongue slightly. You eat it anyway." },
 };
 
 export const ITEMS: Record<
@@ -365,5 +375,257 @@ export const RECIPES: Record<
     satietyPerPeriod: 10,
     staminaPerPeriod: 20,
     requiresTinker: true,
+  },
+};
+
+// ─── Situation hint text ───────────────────────────────────────────────────────
+export const SITUATION_TEXT: Record<SituationId, string> = {
+  moth_hovering:    "It drifts above you, wax glands glistening. Something drips.",
+  moth_descending:  "It's coming lower. Wings slow. You could reach it.",
+  moth_startled:    "It lurches sideways — erratic, exposed, unpredictable.",
+  moth_wax_pooling: "Wax is collecting on the ground beneath it. Don't let it build up.",
+  moth_depleted:    "Its glands are dry. It seems lighter. Less threatening.",
+  moth_thrashing:   "It knows it's losing. Wings beat hard. Stay back or get close fast.",
+};
+
+// Situation transitions — what the creature does each turn independent of player
+// Maps current situation → next situation
+export const SITUATION_TRANSITIONS: Record<SituationId, SituationId> = {
+  moth_hovering:    "moth_descending",
+  moth_descending:  "moth_wax_pooling",
+  moth_wax_pooling: "moth_startled",
+  moth_startled:    "moth_hovering",
+  moth_depleted:    "moth_thrashing",
+  moth_thrashing:   "moth_thrashing",
+};
+
+// ─── Player moves ──────────────────────────────────────────────────────────────
+export const MOVES: Record<MoveId, PlayerMove> = {
+  jab_wing: {
+    id: "jab_wing",
+    label: "Jab at the wing joint",
+    tools: ["eq_pointed_twig"],
+    effect: {
+      composureDelta: [15, 25],
+      integrityDelta: -8,
+      staminaCost: 12,
+      setsFlags: ["wing_torn"],
+      situationNext: "moth_startled",
+      proficiencyMethod: "poke",
+    },
+  },
+  comb_glands: {
+    id: "comb_glands",
+    label: "Comb the wax glands",
+    tools: ["eq_fiber_comb"],
+    forbiddenFlags: ["wax_laced"],
+    effect: {
+      composureDelta: [5, 5],
+      integrityDelta: 0,
+      staminaCost: 8,
+      setsFlags: ["wax_drained"],
+      clearsFlags: ["wax_intact"],
+      midBattleDrop: { id: "food_gloop_wax", qty: 2 },
+      situationNext: "moth_depleted",
+      proficiencyMethod: "tease",
+    },
+  },
+  scoop_pooled: {
+    id: "scoop_pooled",
+    label: "Scoop the wax off the ground",
+    tools: ["eq_sticky_scoop"],
+    requiredSituation: "moth_wax_pooling",
+    effect: {
+      composureDelta: [0, 0],
+      integrityDelta: 0,
+      staminaCost: 6,
+      midBattleDrop: { id: "food_gloop_wax", qty: 3 },
+      situationNext: "moth_hovering",
+      proficiencyMethod: "scoop",
+    },
+  },
+  smash_body: {
+    id: "smash_body",
+    label: "Bring it down hard",
+    tools: ["eq_crude_hammerhead"],
+    effect: {
+      composureDelta: [35, 45],
+      integrityDelta: -30,
+      staminaCost: 18,
+      counterattack: {
+        triggerFlag: "wax_intact",
+        staminaPenalty: 20,
+        contaminatesFood: true,
+        flavor: "Wax splatters across you and your food stores.",
+      },
+      situationNext: "moth_thrashing",
+      proficiencyMethod: "smash",
+    },
+  },
+  drill_thorax: {
+    id: "drill_thorax",
+    label: "Find the hollow and bore in",
+    tools: ["eq_hand_drill"],
+    requiredSituation: "moth_descending",
+    effect: {
+      composureDelta: [25, 35],
+      integrityDelta: -20,
+      staminaCost: 15,
+      setsFlags: ["thorax_open"],
+      situationNext: "moth_startled",
+      proficiencyMethod: "drill",
+    },
+  },
+  lace_twig: {
+    id: "lace_twig",
+    label: "Coat your twig in the wax",
+    tools: ["eq_sticky_scoop", "eq_pointed_twig"],
+    requiredFlags: ["wax_drained"],
+    forbiddenFlags: ["wax_laced"],
+    effect: {
+      composureDelta: [0, 0],
+      integrityDelta: 0,
+      staminaCost: 5,
+      setsFlags: ["wax_laced"],
+      situationNext: null,
+    },
+  },
+  laced_jab: {
+    id: "laced_jab",
+    label: "Strike with the laced twig",
+    tools: ["eq_pointed_twig"],
+    requiredFlags: ["wax_laced"],
+    effect: {
+      composureDelta: [40, 55],
+      integrityDelta: -8,
+      staminaCost: 10,
+      clearsFlags: ["wax_laced"],
+      situationNext: "moth_thrashing",
+      proficiencyMethod: "poke",
+    },
+  },
+  expose_and_strike: {
+    id: "expose_and_strike",
+    label: "Comb wings open, then hit",
+    tools: ["eq_fiber_comb", "eq_crude_hammerhead"],
+    effect: {
+      composureDelta: [45, 60],
+      integrityDelta: -12,
+      staminaCost: 20,
+      setsFlags: ["wing_torn"],
+      midBattleDrop: { id: "mat_wing_membrane", qty: 1 },
+      situationNext: "moth_thrashing",
+      proficiencyMethod: "smash",
+    },
+  },
+  drill_resonance: {
+    id: "drill_resonance",
+    label: "Pierce then drill the cavity",
+    tools: ["eq_pointed_twig", "eq_hand_drill"],
+    requiredFlags: ["thorax_open"],
+    effect: {
+      composureDelta: [50, 70],
+      integrityDelta: -25,
+      staminaCost: 22,
+      midBattleDrop: { id: "mat_crystallised_wax", qty: 1 },
+      situationNext: "moth_thrashing",
+      proficiencyMethod: "drill",
+    },
+  },
+  eat_wax_raw: {
+    id: "eat_wax_raw",
+    label: "Lick the raw wax off your tool",
+    tools: [],
+    requiredFlags: ["wax_drained"],
+    forbiddenFlags: ["wax_consumed"],
+    effect: {
+      composureDelta: [0, 0],
+      integrityDelta: 0,
+      staminaCost: 0,
+      staminaRestore: 25,
+      setsFlags: ["wax_consumed"],
+      situationNext: null,
+    },
+  },
+  eat_soft_tissue: {
+    id: "eat_soft_tissue",
+    label: "Tear into the exposed abdomen",
+    tools: [],
+    requiredFlags: ["thorax_open"],
+    effect: {
+      composureDelta: [10, 10],
+      integrityDelta: -20,
+      staminaCost: 0,
+      satietyRestore: 40,
+      situationNext: "moth_startled",
+    },
+  },
+  flee: {
+    id: "flee",
+    label: "Back away quickly",
+    tools: [],
+    effect: {
+      composureDelta: [0, 0],
+      integrityDelta: 0,
+      staminaCost: 15,
+      situationNext: null,
+    },
+  },
+};
+
+// ─── Creature definitions ──────────────────────────────────────────────────────
+export interface CreatureDef {
+  id: CreatureId;
+  name: string;
+  flavor: string;
+  composureMax: number;
+  integrityMax: number;
+  initialSituation: SituationId;
+  initialFlags: BattleFlag[];
+  availableMoves: MoveId[];  // full list — engine filters by flags/situation
+  dropTable: DropCondition[];
+}
+
+export interface DropCondition {
+  id: ResourceId | FoodId;
+  qtyRange: [number, number];
+  integrityMin?: number;
+  integrityMax?: number;
+  requiredFlags?: BattleFlag[];
+  endReasons?: ("collapsed" | "disarmed" | "fled")[];
+  freshnessRange?: [number, number];
+}
+
+export const CREATURES: Record<CreatureId, CreatureDef> = {
+  creature_gloop_moth: {
+    id: "creature_gloop_moth",
+    name: "Gloop Moth",
+    flavor: "A large, slow moth that secretes a paralysing wax from its wing-glands. Docile until threatened. The wax smells faintly of something you used to like.",
+    composureMax: 100,
+    integrityMax: 100,
+    initialSituation: "moth_hovering",
+    initialFlags: ["wax_intact"],
+    availableMoves: [
+      "jab_wing", "comb_glands", "scoop_pooled", "smash_body",
+      "drill_thorax", "lace_twig", "laced_jab", "expose_and_strike",
+      "drill_resonance", "eat_wax_raw", "eat_soft_tissue", "flee",
+    ],
+    dropTable: [
+      // Gloop Wax — requires wax_drained, scales with integrity
+      { id: "food_gloop_wax", qtyRange: [4, 5], integrityMin: 80, requiredFlags: ["wax_drained"], freshnessRange: [80, 140] },
+      { id: "food_gloop_wax", qtyRange: [3, 4], integrityMin: 60, integrityMax: 79, requiredFlags: ["wax_drained"], freshnessRange: [80, 140] },
+      { id: "food_gloop_wax", qtyRange: [1, 2], integrityMin: 40, integrityMax: 59, requiredFlags: ["wax_drained"], freshnessRange: [80, 140] },
+      // Wing Membrane — requires wing_torn and sufficient integrity
+      { id: "mat_wing_membrane", qtyRange: [1, 2], integrityMin: 80, requiredFlags: ["wing_torn"] },
+      { id: "mat_wing_membrane", qtyRange: [1, 1], integrityMin: 50, integrityMax: 79, requiredFlags: ["wing_torn"] },
+      // Moth Flesh — good integrity, corpse present
+      { id: "food_moth_flesh", qtyRange: [3, 4], integrityMin: 80, endReasons: ["collapsed", "disarmed"], freshnessRange: [40, 70] },
+      { id: "food_moth_flesh", qtyRange: [2, 3], integrityMin: 60, integrityMax: 79, endReasons: ["collapsed", "disarmed"], freshnessRange: [40, 70] },
+      { id: "food_moth_flesh", qtyRange: [2, 2], integrityMin: 40, integrityMax: 59, endReasons: ["collapsed", "disarmed"], freshnessRange: [40, 70] },
+      // Moth Paste — degraded body
+      { id: "food_moth_paste", qtyRange: [1, 2], integrityMin: 20, integrityMax: 39, endReasons: ["collapsed", "disarmed"], freshnessRange: [25, 45] },
+      // Crystallised Wax — flag-triggered by drill_resonance move (mid-battle), always drops regardless of integrity
+      // (handled as mid-battle drop directly in the move, not in drop table)
+    ],
   },
 };

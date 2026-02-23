@@ -175,8 +175,8 @@ function StatBar({ value, max, kind, netRange }: StatBarProps) {
   }
 
   const fillPct = Math.min(100, ratio * 100);
-  const netLo = netRange?.[0] ?? null;
-  const netHi = netRange?.[1] ?? null;
+  const netLo = netRange ? Math.max(0, Math.min(max, netRange[0])) : null;
+  const netHi = netRange ? Math.max(0, Math.min(max, netRange[1])) : null;
   const netLoPct = netLo !== null ? Math.max(0, Math.min(100, (netLo / max) * 100)) : null;
   const netHiPct = netHi !== null ? Math.max(0, Math.min(100, (netHi / max) * 100)) : null;
   const wouldDie = netLo !== null && netLo <= 0;
@@ -800,22 +800,18 @@ export default function App() {
 
     if (screen === "PREVIEW_JOURNEY" && journeyPreview) {
       const pv = journeyPreview;
-      const avgPeriods = Math.round((Math.floor(pv.stepsRange[0] / 5) + Math.floor(pv.stepsRange[1] / 5)) / 2);
-      const staRecovLo = pv.staminaRecoveryPerPeriodRange[0] * avgPeriods;
-      const staRecovHi = pv.staminaRecoveryPerPeriodRange[1] * avgPeriods;
+      // staminaRecoveryPerPeriodRange is already total recovery (rate × periods computed in engine)
       return {
         satiety: [sat - pv.satietyCostRange[1] + pv.satietyRestoredRange[0], sat - pv.satietyCostRange[0] + pv.satietyRestoredRange[1]] as [number, number],
-        stamina: [sta - pv.staminaCostRange[1] + staRecovLo, sta - pv.staminaCostRange[0] + staRecovHi] as [number, number],
+        stamina: [sta - pv.staminaCostRange[1] + pv.staminaRecoveryPerPeriodRange[0], sta - pv.staminaCostRange[0] + pv.staminaRecoveryPerPeriodRange[1]] as [number, number],
       };
     }
     if (screen === "PREVIEW_HARVEST" && harvestPreview) {
       const pv = harvestPreview;
-      const avgPeriods = (pv.periodsRange[0] + pv.periodsRange[1]) / 2;
-      const staRecovLo = pv.staminaRecoveryPerPeriodRange[0] * avgPeriods;
-      const staRecovHi = pv.staminaRecoveryPerPeriodRange[1] * avgPeriods;
+      // staminaRecoveryPerPeriodRange is already total recovery (rate × periods computed in engine)
       return {
         satiety: [sat - pv.satietyCostRange[1] + pv.satietyRestoredRange[0], sat - pv.satietyCostRange[0] + pv.satietyRestoredRange[1]] as [number, number],
-        stamina: [sta - pv.staminaCostRange[1] + staRecovLo, sta - pv.staminaCostRange[0] + staRecovHi] as [number, number],
+        stamina: [sta - pv.staminaCostRange[1] + pv.staminaRecoveryPerPeriodRange[0], sta - pv.staminaCostRange[0] + pv.staminaRecoveryPerPeriodRange[1]] as [number, number],
       };
     }
     if (screen === "PREVIEW_CRAFT" && craftPreview) {

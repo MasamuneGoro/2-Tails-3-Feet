@@ -132,9 +132,15 @@ export function playSfx(id: SfxId, delayMs = 0) {
 }
 
 // ─── BGM Manager ──────────────────────────────────────────────────────────────
-// Design: one looping track at a time. Tracks cross-fade on change.
-// bgmCurrent is set synchronously when a track is requested, acting as a
-// mutex — this prevents the async play() promise from causing double-starts.
+// One looping track at a time.
+//
+// State machine:
+//   bgmCurrent  — the track we want playing (mutex: set synchronously)
+//   bgmElement  — the ACTIVE element that IS playing (always kept up to date)
+//   bgmFadingEl — an element currently fading out (may coexist briefly)
+//
+// setBgmVolume affects bgmElement. bgmFadingEl fades on its own fixed schedule
+// and is discarded when done. This means volume slider always hits the right element.
 
 export type BgmTrack = "hub" | "journey" | "battle";
 
@@ -142,6 +148,7 @@ const BATTLE_VARIANTS = ["battle_1", "battle_2", "battle_3", "battle_4"] as cons
 
 let bgmCurrent: BgmTrack | null = null;
 let bgmElement: HTMLAudioElement | null = null;
+let bgmFadingEl: HTMLAudioElement | null = null;
 let bgmVolume = 0.35;
 
 function getBgmSrc(track: BgmTrack): string {
@@ -153,28 +160,25 @@ function getBgmSrc(track: BgmTrack): string {
   return `/bgm/${filename}.mp3`;
 }
 
-function fadeOutAndStop(el: HTMLAudioElement, onDone?: () => void) {
-  // If already at 0 or nearly so, just stop immediately
-  if (el.volume < 0.02) {
-    el.pause();
-    onDone?.();
-    return;
-  }
+function fadeOutAndDiscard(el: HTMLAudioElement) {
+  if (el.paused) return;
   const startVol = el.volume;
+  if (startVol < 0.02) { el.pause(); return; }
   const step = startVol / 20;
   const interval = setInterval(() => {
     el.volume = Math.max(0, el.volume - step);
     if (el.volume < 0.02) {
       el.pause();
-      el.volume = 0;
       clearInterval(interval);
-      onDone?.();
+      // Clean up reference if it's still us
+      if (bgmFadingEl === el) bgmFadingEl = null;
     }
   }, 25);
 }
 
 export function setBgmVolume(v: number) {
   bgmVolume = Math.max(0, Math.min(1, v));
+  // Only affect the active element — fading element is on its own schedule
   if (bgmElement) bgmElement.volume = bgmVolume;
 }
 
@@ -186,43 +190,44 @@ export function playBgm(track: BgmTrack) {
   // bgmCurrent is the mutex — set synchronously before any async work
   if (bgmCurrent === track) return;
 
-  const prevEl = bgmElement;
-  bgmCurrent = track;
-  bgmElement = null;
-
-  const startNew = () => {
-    const el = new Audio(getBgmSrc(track));
-    el.loop = true;
-    el.volume = bgmVolume; // start at full volume, no fade-in complexity
-    bgmElement = el;
-
-    el.play().then(() => {
-      // Confirm we're still the active element (haven't been superseded)
-      if (bgmElement !== el) {
-        el.pause();
-      }
-    }).catch((err) => {
-      console.warn("[BGM] play() failed:", err);
-      if (bgmElement === el) {
-        bgmElement = null;
-        bgmCurrent = null;
-      }
-    });
-  };
-
-  if (prevEl && !prevEl.paused) {
-    fadeOutAndStop(prevEl, startNew);
-  } else {
-    if (prevEl) prevEl.pause();
-    startNew();
+  // Kick out previous fading element if still going (superseded)
+  if (bgmFadingEl) {
+    bgmFadingEl.pause();
+    bgmFadingEl = null;
   }
+
+  // Move current active element to fading
+  if (bgmElement) {
+    bgmFadingEl = bgmElement;
+    bgmElement = null;
+    fadeOutAndDiscard(bgmFadingEl);
+  }
+
+  bgmCurrent = track;
+
+  const el = new Audio(getBgmSrc(track));
+  el.loop = true;
+  el.volume = bgmVolume;
+  bgmElement = el;
+
+  el.play().then(() => {
+    // If we've been superseded by the time play() resolves, stop immediately
+    if (bgmElement !== el) {
+      el.pause();
+    }
+  }).catch((err) => {
+    console.warn("[BGM] play() failed:", err);
+    if (bgmElement === el) {
+      bgmElement = null;
+      bgmCurrent = null;
+    }
+  });
 }
 
 export function stopBgm() {
-  const el = bgmElement;
-  bgmElement = null;
+  if (bgmFadingEl) { bgmFadingEl.pause(); bgmFadingEl = null; }
+  if (bgmElement)  { fadeOutAndDiscard(bgmElement); bgmElement = null; }
   bgmCurrent = null;
-  if (el) fadeOutAndStop(el);
 }
 
 // ─── SFX Volumes ──────────────────────────────────────────────────────────────

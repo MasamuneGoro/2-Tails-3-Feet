@@ -8,7 +8,7 @@ import { BIOME_LEVEL, CREATURES, EVENTS, FOODS, ITEMS, MOVES, POIS, RECIPES, RES
 import {
   canCraft, getFoodName, getItemName, getResourceName, listUnlockedRecipes,
   makeCraftPreview, makeHarvestPreview, makeJourneyPreview, methodsAvailableFromEquipment,
-  prettyEvent, prettyPoi, prettyRecipe, recommendedMethod,
+  prettyEvent, prettyPoi, prettyRecipe,
   resolveCraft, resolveHarvest, resolveJourney, recoverPreview, resolveRecover,
   invAdd, invGet, invRemove, clamp,
   skillLevel, skillXpToNextLevel, skillXpForLevel, SKILL_MAX_LEVEL, SKILL_XP_PER_LEVEL,
@@ -651,6 +651,7 @@ const START_PLAYER: PlayerState = {
     { id: "food_resin_chew", qty: 30, freshness: Array.from({ length: 30 }, () => 136) },
   ],
   xp: { poke: 0, smash: 0, tease: 0, drill: 0, scoop: 0 },
+  toolDiscovery: {},
 };
 
 export default function App() {
@@ -1151,6 +1152,15 @@ export default function App() {
     }
     setPlayer(next); setActiveBlot(blotCopy); setMultiHarvestResults(results);
     setHarvestXpBefore(xpBefore);
+    // Record which methods were used at this POI
+    const poiId = activePoi.id;
+    setPlayer(prev => {
+      const disc = { ...prev.toolDiscovery };
+      const existing = new Set(disc[poiId] ?? []);
+      for (const res of results) existing.add(res.method);
+      disc[poiId] = Array.from(existing);
+      return { ...prev, toolDiscovery: disc };
+    });
     const allConsumed = results.flatMap(r => r.foodConsumed);
     checkDecayAlert(snap, next.inventory, allConsumed);
 
@@ -1743,14 +1753,43 @@ export default function App() {
                   : "The blot looks untouched. Rich, heavy, ready to give.";
                 const methods = methodsAvailableFromEquipment(player);
                 const tools = methods.map(m => Object.values(ITEMS).find(it => it.harvestingMethod === m)).filter(Boolean);
-                const recMethod = recommendedMethod(activePoi.id);
-                const recTool = recMethod ? Object.values(ITEMS).find(it => it.harvestingMethod === recMethod) : null;
+                // Tool ranking display
+                const poiMethodRank = POIS[activePoi.id].methodRank ?? {};
+                const tierOrder = ["best", "good", "ok", "weak", "veryWeak", "wasteful"];
+                const tierLabels: Record<string, string> = { best: "Best", good: "Good", ok: "Ok", weak: "Weak", veryWeak: "Very Weak", wasteful: "Wasteful" };
+                const tierColors: Record<string, string> = { best: "#7ecba1", good: "#a8d4a8", ok: "#c8c8a0", weak: "#c8a96e", veryWeak: "#c87850", wasteful: "#a05040" };
+                const discoveredMethods = new Set(player.toolDiscovery[activePoi.id] ?? []);
+                // All tiers that exist at this POI, sorted by tier order
+                const rankedEntries = tierOrder
+                  .map(tier => {
+                    const entry = (Object.entries(poiMethodRank) as [HarvestMethodId, string][]).find(([, v]) => v === tier);
+                    if (!entry) return null;
+                    const [method] = entry;
+                    const tool = Object.values(ITEMS).find(it => it.harvestingMethod === method);
+                    const discovered = discoveredMethods.has(method);
+                    return { tier, method, tool, discovered };
+                  })
+                  .filter(Boolean) as { tier: string; method: HarvestMethodId; tool: { name: string; id: string } | undefined; discovered: boolean }[];
                 return (
                   <>
                     <p className="small" style={{ marginBottom: 8, fontStyle: "italic" }}>{depletionFlavour}</p>
                     {charges > 0 && (
                       <>
-                        <p className="small">Best tool here: <b>{recTool ? recTool.name : "—"}</b></p>
+                        {rankedEntries.length > 0 && (
+                          <div style={{ marginBottom: 10, display: "flex", flexDirection: "column", gap: 3 }}>
+                            {rankedEntries.map(({ tier, tool, discovered }) => (
+                              <div key={tier} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: "0.78rem" }}>
+                                <span style={{ width: 64, textAlign: "right", opacity: discovered ? 1 : 0.35, color: discovered ? tierColors[tier] : "#888", fontWeight: 600 }}>
+                                  {discovered ? tierLabels[tier] : "???"}
+                                </span>
+                                <span style={{ opacity: 0.25, fontSize: "0.65rem" }}>▸</span>
+                                <span style={{ opacity: discovered ? 0.85 : 0.3, fontStyle: discovered ? "normal" : "italic" }}>
+                                  {discovered ? (tool?.name ?? "—") : "not yet tried"}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
                         {(() => {
                           const methodVerbs: Record<string, string> = {
                             poke:  "Poke at it",

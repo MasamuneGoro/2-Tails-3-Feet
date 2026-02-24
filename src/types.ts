@@ -248,6 +248,8 @@ export interface PlayerState {
   equipment: PlayerEquipmentState;
   inventory: InventoryStack[];
   xp: Record<HarvestMethodId, number>;
+  /** Which harvest methods have been tried at each POI — keyed by PoiId */
+  toolDiscovery: Record<string, HarvestMethodId[]>;
 }
 
 export interface JourneyPreview {

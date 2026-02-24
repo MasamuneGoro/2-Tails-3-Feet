@@ -958,6 +958,12 @@ export default function App() {
 
   function openMetaScreen(target: "INVENTORY" | "SKILLS" | "MARKS") {
     setDecayedFoodAlert(null);
+    // Re-clicking the active screen closes it
+    if (screen === target) {
+      playSfx("sfx_transition");
+      setScreen(returnScreen);
+      return;
+    }
     if (target === "INVENTORY") playSfx("sfx_inventory_open");
     else playSfx("sfx_transition");
     // Only store return point when first leaving main flow

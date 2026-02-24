@@ -165,7 +165,8 @@ export type Screen =
   | "INVENTORY"
   | "SKILLS"
   | "BATTLE"
-  | "SUMMARY_BATTLE";
+  | "SUMMARY_BATTLE"
+  | "MARKS";
 
 export interface PlayerStats {
   satiety: number;
@@ -183,6 +184,62 @@ export interface InventoryStack {
   id: ItemId | ResourceId | FoodId;
   qty: number;
   freshness?: number[];
+}
+
+// ─── Blot Marks (achievements) ────────────────────────────────────────────────
+
+export type BlotMarkId =
+  // Exploration
+  | "mark_first_journey"
+  | "mark_first_find_food"
+  | "mark_visit_all_poi"
+  // Harvesting
+  | "mark_first_harvest"
+  | "mark_all_methods"
+  | "mark_harvest_proficiency"
+  | "mark_all_proficiency"
+  // Crafting
+  | "mark_first_craft"
+  | "mark_craft_all_tools"
+  | "mark_craft_equipment"
+  // Survival
+  | "mark_first_recover"
+  | "mark_low_satiety_survive"
+  | "mark_eat_on_site"
+  // Combat
+  | "mark_first_encounter"
+  | "mark_first_hunt"
+  | "mark_first_win"
+  | "mark_use_combo"
+  | "mark_novelty_2"
+  | "mark_novelty_4"
+  | "mark_drill_resonance"
+  | "mark_high_integrity_win"
+  | "mark_avoid_moth"
+  // Loot
+  | "mark_first_wing_membrane"
+  | "mark_first_crystallised_wax"
+  | "mark_full_corpse";
+
+export type BlotMarkCategory = "Exploration" | "Harvesting" | "Crafting" | "Survival" | "Combat" | "Loot";
+
+export interface BlotMark {
+  id: BlotMarkId;
+  category: BlotMarkCategory;
+  title: string;
+  flavour: string;
+}
+
+/** Per-run tracking state for marks */
+export interface BlotMarkState {
+  earned: Partial<Record<BlotMarkId, true>>;
+  revealed: Partial<Record<BlotMarkId, true>>;
+  // Condition tracking
+  poisVisited: Set<PoiId>;
+  distinctMethodsUsed: Set<HarvestMethodId>;
+  lowestSatietySeen: number;
+  hasSeenLowSatiety: boolean; // crossed 30% at least once
+  toolsCrafted: Set<string>; // ItemIds of harvesting tools crafted
 }
 
 export interface PlayerState {

@@ -206,3 +206,23 @@ hr {
   from { width: var(--xp-before); }
   to   { width: var(--xp-after); }
 }
+
+@keyframes markToastIn {
+  0%   { opacity: 0; transform: translateX(-50%) translateY(20px); }
+  100% { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
+
+@keyframes markBtnPulse {
+  0%, 100% { box-shadow: 0 0 0 2px #ce93d8, 0 0 12px 2px #ce93d840; }
+  50%       { box-shadow: 0 0 0 3px #ce93d8, 0 0 18px 4px #ce93d860; }
+}
+
+@keyframes markBtnPulseSubtle {
+  0%, 100% { box-shadow: 0 0 0 1px #7ecba140, 0 0 6px 1px #7ecba115; }
+  50%       { box-shadow: 0 0 0 2px #7ecba170, 0 0 12px 2px #7ecba130; }
+}
+
+@keyframes markRevealFadeIn {
+  0%   { opacity: 0; transform: translateY(6px); }
+  100% { opacity: 1; transform: translateY(0); }
+}

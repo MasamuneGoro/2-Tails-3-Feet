@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import type { BlotState, CraftPreview, CraftResult, EatSapResult, HarvestMethodId, HarvestPreview, HarvestResult, HarvestStorableResult, JourneyPreview, JourneyResult, PlayerState, PoiId, Screen } from "./types";
+import type { BlotMarkCategory, BlotMarkId, BlotMarkState, BlotState, CraftPreview, CraftResult, EatSapResult, HarvestMethodId, HarvestPreview, HarvestResult, HarvestStorableResult, JourneyPreview, JourneyResult, PlayerState, PoiId, Screen } from "./types";
 import { playSfx, unlockAudio, preloadAll } from "./sound";
 import { startBattle, getAvailableMoves, executeMove, resolveBattle } from "./combat";
 import type { BattleState, BattleResult, CreatureId } from "./types";
@@ -16,6 +16,251 @@ import {
 } from "./engine";
 
 function pct(n: number, d: number) { return Math.round((n / d) * 100); }
+
+// ─── Blot Marks ──────────────────────────────────────────────────────────────
+
+import type { BlotMark } from "./types";
+
+const BLOT_MARKS: Record<BlotMarkId, BlotMark> = {
+  mark_first_journey:      { id: "mark_first_journey",      category: "Exploration", title: "First Steps Out",       flavour: "You left the hub. That counts for something." },
+  mark_first_find_food:    { id: "mark_first_find_food",    category: "Exploration", title: "Belly Before Pride",    flavour: "You went looking for something edible. Smart." },
+  mark_visit_all_poi:      { id: "mark_visit_all_poi",      category: "Exploration", title: "Full Survey",           flavour: "Every corner of the resin field, mapped in your head." },
+  mark_first_harvest:      { id: "mark_first_harvest",      category: "Harvesting",  title: "First Poke",            flavour: "You touched the world and it gave something back." },
+  mark_all_methods:        { id: "mark_all_methods",        category: "Harvesting",  title: "Five Ways In",          flavour: "Every surface gives eventually, if you know how to ask." },
+  mark_harvest_proficiency:{ id: "mark_harvest_proficiency",category: "Harvesting",  title: "Getting Good at This",  flavour: "The motion is starting to feel like yours." },
+  mark_all_proficiency:    { id: "mark_all_proficiency",    category: "Harvesting",  title: "Nothing Stumps You",    flavour: "You've stopped guessing." },
+  mark_first_craft:        { id: "mark_first_craft",        category: "Crafting",    title: "Tinkered",              flavour: "You made something. It probably works." },
+  mark_craft_all_tools:    { id: "mark_craft_all_tools",    category: "Crafting",    title: "Full Kit",              flavour: "You don't need to improvise anymore." },
+  mark_craft_equipment:    { id: "mark_craft_equipment",    category: "Crafting",    title: "Quality of Life",       flavour: "You stopped just surviving and started planning." },
+  mark_first_recover:      { id: "mark_first_recover",      category: "Survival",    title: "Knew Your Limits",      flavour: "Resting isn't giving up." },
+  mark_low_satiety_survive:{ id: "mark_low_satiety_survive",category: "Survival",    title: "Running on Nothing",    flavour: "You were close. You didn't need to be, but here you are." },
+  mark_eat_on_site:        { id: "mark_eat_on_site",        category: "Survival",    title: "Straight from the Source", flavour: "Why carry it when you can just eat it there?" },
+  mark_first_encounter:    { id: "mark_first_encounter",    category: "Combat",      title: "Something Out There",   flavour: "You spotted it before it spotted you. Maybe." },
+  mark_first_hunt:         { id: "mark_first_hunt",         category: "Combat",      title: "Didn't Run",            flavour: "You could have walked away. You didn't." },
+  mark_first_win:          { id: "mark_first_win",          category: "Combat",      title: "It Went Down",          flavour: "You stood your ground and it worked." },
+  mark_use_combo:          { id: "mark_use_combo",          category: "Combat",      title: "Double-Handed",         flavour: "Two tools, one move. That takes practice." },
+  mark_novelty_2:          { id: "mark_novelty_2",          category: "Combat",      title: "Kept It Interesting",   flavour: "You surprised the moth. A little." },
+  mark_novelty_4:          { id: "mark_novelty_4",          category: "Combat",      title: "Unpredictable",         flavour: "Even you didn't know what you'd do next." },
+  mark_drill_resonance:    { id: "mark_drill_resonance",    category: "Combat",      title: "Resonance",             flavour: "The sound it made. You'll remember it." },
+  mark_high_integrity_win: { id: "mark_high_integrity_win", category: "Combat",      title: "Careful Hands",         flavour: "You took what you needed without breaking everything else." },
+  mark_avoid_moth:         { id: "mark_avoid_moth",         category: "Combat",      title: "Not Today",             flavour: "Wisdom, or just stamina math. Either way, smart." },
+  mark_first_wing_membrane:{ id: "mark_first_wing_membrane",category: "Loot",        title: "Delicate Thing",        flavour: "Light. Strange. You're not sure what it's for yet." },
+  mark_first_crystallised_wax:{ id: "mark_first_crystallised_wax", category: "Loot", title: "Something Crystallised", flavour: "It's solid. Warm. You'll figure out what it does." },
+  mark_full_corpse:        { id: "mark_full_corpse",        category: "Loot",        title: "Clean Harvest",         flavour: "Nothing wasted. Every part counted." },
+};
+
+const BLOT_MARK_ORDER: BlotMarkId[] = [
+  "mark_first_journey","mark_first_find_food","mark_visit_all_poi",
+  "mark_first_harvest","mark_all_methods","mark_harvest_proficiency","mark_all_proficiency",
+  "mark_first_craft","mark_craft_all_tools","mark_craft_equipment",
+  "mark_first_recover","mark_low_satiety_survive","mark_eat_on_site",
+  "mark_first_encounter","mark_first_hunt","mark_first_win","mark_use_combo",
+  "mark_novelty_2","mark_novelty_4","mark_drill_resonance","mark_high_integrity_win","mark_avoid_moth",
+  "mark_first_wing_membrane","mark_first_crystallised_wax","mark_full_corpse",
+];
+
+const HARVESTING_TOOLS: string[] = ["eq_pointed_twig","eq_crude_hammerhead","eq_fiber_comb","eq_hand_drill","eq_sticky_scoop"];
+
+function makeInitialMarkState(): BlotMarkState {
+  return {
+    earned: {},
+    revealed: {},
+    poisVisited: new Set(),
+    distinctMethodsUsed: new Set(),
+    lowestSatietySeen: Infinity,
+    hasSeenLowSatiety: false,
+    toolsCrafted: new Set(),
+  };
+}
+
+/** Returns which marks should now be revealed given current tracking state */
+function computeRevealedMarks(ms: BlotMarkState, player: PlayerState): Set<BlotMarkId> {
+  const e = ms.earned;
+  const revealed = new Set<BlotMarkId>();
+
+  // Always visible
+  revealed.add("mark_first_journey");
+  revealed.add("mark_first_harvest");
+  revealed.add("mark_first_craft");
+  revealed.add("mark_first_recover");
+  revealed.add("mark_first_encounter");
+
+  if (e.mark_first_journey) revealed.add("mark_first_find_food");
+  if (ms.poisVisited.size >= 3) revealed.add("mark_visit_all_poi");
+  if (ms.distinctMethodsUsed.size >= 2) revealed.add("mark_all_methods");
+  if (Object.values(player.xp).some(x => x >= 200)) revealed.add("mark_harvest_proficiency"); // level 2
+  if (e.mark_harvest_proficiency) revealed.add("mark_all_proficiency");
+  if (ms.toolsCrafted.size >= 2) revealed.add("mark_craft_all_tools");
+  if (e.mark_craft_all_tools) revealed.add("mark_craft_equipment");
+  if (ms.hasSeenLowSatiety) revealed.add("mark_low_satiety_survive"); // satiety dropped below 30% (300)
+  if (ms.poisVisited.has("poi_sap_weep")) revealed.add("mark_eat_on_site");
+  if (e.mark_first_encounter) {
+    revealed.add("mark_first_hunt");
+    revealed.add("mark_avoid_moth");
+  }
+  if (e.mark_first_hunt) revealed.add("mark_first_win");
+  if (e.mark_first_win) {
+    revealed.add("mark_use_combo");
+    revealed.add("mark_novelty_2");
+    revealed.add("mark_high_integrity_win");
+  }
+  if (e.mark_novelty_2) revealed.add("mark_novelty_4");
+  if (e.mark_use_combo) revealed.add("mark_drill_resonance");
+  if (e.mark_drill_resonance) revealed.add("mark_first_crystallised_wax");
+  // Loot
+  if (e.mark_first_win) revealed.add("mark_first_wing_membrane");
+  if (e.mark_first_win) revealed.add("mark_full_corpse");
+
+  return revealed;
+}
+
+/** Compute which marks should now be earned */
+function computeEarnedMarks(ms: BlotMarkState, player: PlayerState, context: {
+  justJourneyed?: "explore" | "findFood";
+  justHarvested?: { methods: HarvestMethodId[] };
+  justCrafted?: { itemId: string };
+  justRecovered?: boolean;
+  justEncountered?: boolean;
+  justHunted?: boolean;
+  justWon?: { integrity: number; movesUsed: import("./types").MoveId[]; combos: number; uniqueMoves: number };
+  justAvoided?: boolean;
+  justAte?: { onSite: boolean };
+  justDropped?: { ids: string[] };
+}): BlotMarkId[] {
+  const { earned } = ms;
+  const newlyEarned: BlotMarkId[] = [];
+
+  function tryEarn(id: BlotMarkId, condition: boolean) {
+    if (!earned[id] && condition) newlyEarned.push(id);
+  }
+
+  if (context.justJourneyed) {
+    tryEarn("mark_first_journey", true);
+    tryEarn("mark_first_find_food", context.justJourneyed === "findFood");
+    tryEarn("mark_visit_all_poi", ms.poisVisited.size >= 6);
+  }
+
+  if (context.justHarvested) {
+    tryEarn("mark_first_harvest", true);
+    tryEarn("mark_all_methods", ms.distinctMethodsUsed.size >= 5);
+    const level3Methods = Object.values(player.xp).filter(x => x >= 300).length; // level 3 = 300xp
+    tryEarn("mark_harvest_proficiency", level3Methods >= 1);
+    tryEarn("mark_all_proficiency", level3Methods >= 5);
+  }
+
+  if (context.justCrafted) {
+    tryEarn("mark_first_craft", true);
+    tryEarn("mark_craft_all_tools", ms.toolsCrafted.size >= 5);
+    const isEquipment = context.justCrafted.itemId === "eq_chomper" || context.justCrafted.itemId === "eq_tail_curler";
+    tryEarn("mark_craft_equipment", isEquipment);
+  }
+
+  if (context.justRecovered) {
+    tryEarn("mark_first_recover", true);
+  }
+
+  if (player.stats.satiety <= 120 && ms.hasSeenLowSatiety) {
+    tryEarn("mark_low_satiety_survive", true);
+  }
+
+  if (context.justAte?.onSite) {
+    tryEarn("mark_eat_on_site", true);
+  }
+
+  if (context.justEncountered) {
+    tryEarn("mark_first_encounter", true);
+  }
+
+  if (context.justHunted) {
+    tryEarn("mark_first_hunt", true);
+  }
+
+  if (context.justAvoided) {
+    tryEarn("mark_avoid_moth", true);
+  }
+
+  if (context.justWon) {
+    const { integrity, movesUsed, combos, uniqueMoves } = context.justWon;
+    tryEarn("mark_first_win", true);
+    tryEarn("mark_use_combo", combos > 0);
+    tryEarn("mark_novelty_2", uniqueMoves >= 2);
+    tryEarn("mark_novelty_4", uniqueMoves >= 4 || combos > 0);
+    tryEarn("mark_drill_resonance", movesUsed.includes("drill_resonance"));
+    tryEarn("mark_high_integrity_win", integrity >= 80);
+  }
+
+  if (context.justDropped) {
+    tryEarn("mark_first_wing_membrane", context.justDropped.ids.includes("mat_wing_membrane"));
+    tryEarn("mark_first_crystallised_wax", context.justDropped.ids.includes("mat_crystallised_wax"));
+    tryEarn("mark_full_corpse", false); // handled in justWon
+  }
+
+  return newlyEarned;
+}
+
+// Category icons as SVG strings
+function BlotMarkCategoryIcon({ category, size = 22 }: { category: BlotMarkCategory; size?: number }) {
+  const s = size;
+  const c = s / 2;
+  const svgProps = { width: s, height: s, viewBox: `0 0 ${s} ${s}`, fill: "none" as const };
+  switch (category) {
+    case "Exploration":
+      // Footprint: two oval shapes
+      return <svg {...svgProps}>
+        <ellipse cx={c * 0.7} cy={c * 1.3} rx={c * 0.35} ry={c * 0.5} fill="currentColor" opacity="0.9" transform={`rotate(-15, ${c * 0.7}, ${c * 1.3})`} />
+        <ellipse cx={c * 1.3} cy={c * 0.7} rx={c * 0.35} ry={c * 0.5} fill="currentColor" opacity="0.55" transform={`rotate(-15, ${c * 1.3}, ${c * 0.7})`} />
+      </svg>;
+    case "Harvesting":
+      // Three radial lines from center
+      return <svg {...svgProps}>
+        {[0, 120, 240].map((deg, i) => {
+          const r = deg * Math.PI / 180;
+          const x1 = c + Math.cos(r) * c * 0.28;
+          const y1 = c + Math.sin(r) * c * 0.28;
+          const x2 = c + Math.cos(r) * c * 0.82;
+          const y2 = c + Math.sin(r) * c * 0.82;
+          return <line key={i} x1={x1} y1={y1} x2={x2} y2={y2} stroke="currentColor" strokeWidth={c * 0.22} strokeLinecap="round" opacity={i === 0 ? 0.9 : 0.55} />;
+        })}
+        <circle cx={c} cy={c} r={c * 0.2} fill="currentColor" />
+      </svg>;
+    case "Crafting":
+      // Interlocked rings
+      return <svg {...svgProps}>
+        <circle cx={c * 0.72} cy={c} r={c * 0.52} stroke="currentColor" strokeWidth={c * 0.22} opacity="0.9" />
+        <circle cx={c * 1.28} cy={c} r={c * 0.52} stroke="currentColor" strokeWidth={c * 0.22} opacity="0.6" />
+      </svg>;
+    case "Survival":
+      // Coiled tail / spiral
+      return <svg {...svgProps}>
+        <path d={`M ${c} ${c * 0.35} A ${c * 0.65} ${c * 0.65} 0 1 1 ${c * 0.5} ${c * 1.5}`} stroke="currentColor" strokeWidth={c * 0.22} strokeLinecap="round" fill="none" opacity="0.9" />
+        <circle cx={c * 0.5} cy={c * 1.5} r={c * 0.18} fill="currentColor" opacity="0.7" />
+      </svg>;
+    case "Combat":
+      // Torn wing / diagonal slash marks
+      return <svg {...svgProps}>
+        <line x1={c * 0.3} y1={c * 0.5} x2={c * 1.7} y2={c * 1.5} stroke="currentColor" strokeWidth={c * 0.22} strokeLinecap="round" opacity="0.9" />
+        <line x1={c * 0.6} y1={c * 0.3} x2={c * 1.4} y2={c * 1.7} stroke="currentColor" strokeWidth={c * 0.18} strokeLinecap="round" opacity="0.5" />
+      </svg>;
+    case "Loot":
+      // Crystal facet / diamond
+      return <svg {...svgProps}>
+        <polygon points={`${c},${c * 0.2} ${c * 1.7},${c} ${c},${c * 1.8} ${c * 0.3},${c}`} stroke="currentColor" strokeWidth={c * 0.15} fill="currentColor" opacity="0.25" />
+        <polygon points={`${c},${c * 0.2} ${c * 1.7},${c} ${c},${c * 1.8} ${c * 0.3},${c}`} stroke="currentColor" strokeWidth={c * 0.15} fill="none" opacity="0.9" />
+        <line x1={c * 0.3} y1={c} x2={c * 1.7} y2={c} stroke="currentColor" strokeWidth={c * 0.12} opacity="0.4" />
+      </svg>;
+  }
+}
+
+const CATEGORY_COLOR: Record<BlotMarkCategory, string> = {
+  Exploration: "#7ecba1",
+  Harvesting:  "#c8a96e",
+  Crafting:    "#7eb8cb",
+  Survival:    "#f5c842",
+  Combat:      "#ce93d8",
+  Loot:        "#80cbc4",
+};
+
+
 
 function FadeIn({ delay = 0, children }: { delay?: number; children: React.ReactNode }) {
   return (
@@ -81,6 +326,40 @@ function MiniXPBar({ method, xpBefore, xpAfter }: {
       </div>
       <div style={{ fontSize: "0.65rem", opacity: 0.35, marginTop: 3, paddingLeft: 22 }}>
         {methodNames[method]} proficiency
+      </div>
+    </div>
+  );
+}
+
+function BlotMarkFlyIn({ category, color, onDone }: { category: BlotMarkCategory; color: string; onDone: () => void }) {
+  const ref = React.useRef<HTMLDivElement>(null);
+  React.useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    // Start near bottom-center (where toast is), fly to top-left sidebar button area
+    const startX = window.innerWidth * 0.5;
+    const startY = window.innerHeight - 110;
+    // Marks button in sidebar — approximately x=110, y=220 (rough estimate, works for sidebar layout)
+    const targetX = 110;
+    const targetY = 220;
+    el.style.left = `${startX}px`;
+    el.style.top = `${startY}px`;
+    el.style.opacity = "1";
+    el.style.transform = "translate(-50%, -50%) scale(1)";
+    const frame = requestAnimationFrame(() => {
+      el.style.transition = "left 700ms cubic-bezier(0.4,0,0.2,1), top 700ms cubic-bezier(0.4,0,0.2,1), transform 700ms ease-in, opacity 250ms ease-in 500ms";
+      el.style.left = `${targetX}px`;
+      el.style.top = `${targetY}px`;
+      el.style.transform = "translate(-50%, -50%) scale(0.2)";
+      el.style.opacity = "0";
+    });
+    const t = setTimeout(onDone, 800);
+    return () => { cancelAnimationFrame(frame); clearTimeout(t); };
+  }, [onDone]);
+  return (
+    <div style={{ position: "fixed", inset: 0, zIndex: 250, pointerEvents: "none" }}>
+      <div ref={ref} style={{ position: "absolute", willChange: "left, top, transform, opacity", color }}>
+        <BlotMarkCategoryIcon category={category} size={36} />
       </div>
     </div>
   );
@@ -286,6 +565,13 @@ export default function App() {
   const [battleResult, setBattleResult] = useState<BattleResult | null>(null);
   const [battleLog, setBattleLog] = useState<string[]>([]);  // last move's log lines
 
+  const [markState, setMarkState] = useState<BlotMarkState>(() => makeInitialMarkState());
+  const [marksViewed, setMarksViewed] = useState(false); // true after panel opened this "session"
+  const [toastQueue, setToastQueue] = useState<BlotMarkId[]>([]);
+  const [activeToast, setActiveToast] = useState<BlotMarkId | null>(null);
+  const [flyingMarkCategory, setFlyingMarkCategory] = useState<{ category: BlotMarkCategory; key: number } | null>(null);
+  const [newRevealIds, setNewRevealIds] = useState<BlotMarkId[]>([]); // IDs newly revealed, for shimmer
+
   const [returnScreen, setReturnScreen] = useState<Screen>("HUB");
   const [expandedItem, setExpandedItem] = useState<string | null>(null);
   const [howItWorksOpen, setHowItWorksOpen] = useState(false);
@@ -349,6 +635,12 @@ export default function App() {
     setScoopExpanded(false);
     setChomperAutoEnabled(true);
     setDecayedFoodAlert(null);
+    setMarkState(makeInitialMarkState());
+    setMarksViewed(false);
+    setToastQueue([]);
+    setActiveToast(null);
+    setFlyingMarkCategory(null);
+    setNewRevealIds([]);
   }
 
   /** Snapshot qty of each storable food stack before an action */
@@ -475,13 +767,70 @@ export default function App() {
     else setScreen("HUB");
   }
 
-  function openMetaScreen(target: "INVENTORY" | "SKILLS") {
+  // ── Blot Mark helpers ─────────────────────────────────────────────────────
+  function triggerMarks(
+    updatedPlayer: PlayerState,
+    updatedMarkState: BlotMarkState,
+    context: Parameters<typeof computeEarnedMarks>[2]
+  ): BlotMarkState {
+    const ms = structuredClone(updatedMarkState) as BlotMarkState;
+    // Serialize Sets properly after structuredClone
+    ms.poisVisited = new Set(updatedMarkState.poisVisited);
+    ms.distinctMethodsUsed = new Set(updatedMarkState.distinctMethodsUsed);
+    ms.toolsCrafted = new Set(updatedMarkState.toolsCrafted);
+
+    const newlyEarned = computeEarnedMarks(ms, updatedPlayer, context);
+    for (const id of newlyEarned) ms.earned[id] = true;
+
+    const newRevealed: BlotMarkId[] = [];
+    const computedRevealed = computeRevealedMarks(ms, updatedPlayer);
+    for (const id of computedRevealed) {
+      if (!ms.revealed[id]) {
+        ms.revealed[id] = true;
+        newRevealed.push(id);
+      }
+    }
+
+    if (newRevealed.length > 0) {
+      setNewRevealIds(prev => [...prev, ...newRevealed]);
+      setMarksViewed(false); // badge for new reveals too
+    }
+
+    if (newlyEarned.length > 0) {
+      setToastQueue(prev => [...prev, ...newlyEarned]);
+      setMarksViewed(false);
+    }
+
+    return ms;
+  }
+
+  // Toast queue processor
+  useEffect(() => {
+    if (activeToast || toastQueue.length === 0) return;
+    const next = toastQueue[0];
+    setActiveToast(next);
+    setToastQueue(prev => prev.slice(1));
+    // Start fly-in
+    const mark = BLOT_MARKS[next];
+    setFlyingMarkCategory({ category: mark.category, key: Date.now() });
+    // Auto-dismiss after 3s
+    const t = setTimeout(() => setActiveToast(null), 3200);
+    return () => clearTimeout(t);
+  }, [activeToast, toastQueue]);
+
+
+
+  function openMetaScreen(target: "INVENTORY" | "SKILLS" | "MARKS") {
     setDecayedFoodAlert(null);
     if (target === "INVENTORY") playSfx("sfx_inventory_open");
     else playSfx("sfx_transition");
     // Only store return point when first leaving main flow
-    if (screen !== "INVENTORY" && screen !== "SKILLS") setReturnScreen(screen);
+    if (screen !== "INVENTORY" && screen !== "SKILLS" && screen !== "MARKS") setReturnScreen(screen);
     setExpandedItem(null);
+    if (target === "MARKS") {
+      setMarksViewed(true);
+      setNewRevealIds([]); // clear shimmer on open
+    }
     setScreen(target);
   }
 
@@ -524,6 +873,27 @@ export default function App() {
     setScoopExpanded(false);
     if (journeyPreview.mode === "explore") setSavedExploreRoll(null);
     else setSavedFoodRoll(null);
+
+    // Track blot marks
+    const ms = structuredClone(markState) as BlotMarkState;
+    ms.poisVisited = new Set(markState.poisVisited);
+    ms.distinctMethodsUsed = new Set(markState.distinctMethodsUsed);
+    ms.toolsCrafted = new Set(markState.toolsCrafted);
+    ms.poisVisited.add(journeyPreview.poi.id);
+    // Track low satiety
+    if (next.stats.satiety < next.stats.maxSatiety * 0.3) ms.hasSeenLowSatiety = true;
+    ms.lowestSatietySeen = Math.min(ms.lowestSatietySeen, next.stats.satiety);
+    const newMs = triggerMarks(next, ms, {
+      justJourneyed: journeyPreview.mode,
+    });
+    // Check moth encounter
+    if (resWithMoth.mothEncountered) {
+      const ms2 = triggerMarks(next, newMs, { justEncountered: true });
+      setMarkState(ms2);
+    } else {
+      setMarkState(newMs);
+    }
+
     setScreen("SUMMARY_JOURNEY");
   }
   function sniffAgain() {
@@ -556,6 +926,11 @@ export default function App() {
     const next = structuredClone(player);
     next.stats.stamina = clamp(next.stats.stamina - 20, 0, next.stats.maxStamina);
     setPlayer(next);
+    const ms = structuredClone(markState) as BlotMarkState;
+    ms.poisVisited = new Set(markState.poisVisited);
+    ms.distinctMethodsUsed = new Set(markState.distinctMethodsUsed);
+    ms.toolsCrafted = new Set(markState.toolsCrafted);
+    setMarkState(triggerMarks(next, ms, { justAvoided: true }));
     enterPoi();
   }
 
@@ -568,6 +943,12 @@ export default function App() {
     setBattleLog([]);
     // Mark that we came from journey summary so we know where to go back
     setReturnScreen("SUMMARY_JOURNEY");
+    // Wire blot mark for choosing to hunt
+    const ms = structuredClone(markState) as BlotMarkState;
+    ms.poisVisited = new Set(markState.poisVisited);
+    ms.distinctMethodsUsed = new Set(markState.distinctMethodsUsed);
+    ms.toolsCrafted = new Set(markState.toolsCrafted);
+    setMarkState(triggerMarks(player, ms, { justHunted: true }));
     setScreen("BATTLE");
   }
 
@@ -595,6 +976,16 @@ export default function App() {
     checkDecayAlert(snap, next.inventory, res.foodConsumed);
     if (activeBlot && activeBlot.harvestCharges !== undefined)
       setActiveBlot({ ...activeBlot, harvestCharges: Math.max(0, activeBlot.harvestCharges - 1) });
+
+    // Track blot marks
+    const ms = structuredClone(markState) as BlotMarkState;
+    ms.poisVisited = new Set(markState.poisVisited);
+    ms.distinctMethodsUsed = new Set(markState.distinctMethodsUsed);
+    ms.toolsCrafted = new Set(markState.toolsCrafted);
+    ms.distinctMethodsUsed.add(harvestPreview.method);
+    if (next.stats.satiety < next.stats.maxSatiety * 0.3) ms.hasSeenLowSatiety = true;
+    setMarkState(triggerMarks(next, ms, { justHarvested: { methods: [harvestPreview.method] } }));
+
     setScreen("SUMMARY_HARVEST");
   }
   function doMultiHarvest() {
@@ -626,6 +1017,16 @@ export default function App() {
     setHarvestXpBefore(xpBefore);
     const allConsumed = results.flatMap(r => r.foodConsumed);
     checkDecayAlert(snap, next.inventory, allConsumed);
+
+    // Track blot marks
+    const ms = structuredClone(markState) as BlotMarkState;
+    ms.poisVisited = new Set(markState.poisVisited);
+    ms.distinctMethodsUsed = new Set(markState.distinctMethodsUsed);
+    ms.toolsCrafted = new Set(markState.toolsCrafted);
+    for (const m of methods) ms.distinctMethodsUsed.add(m);
+    if (next.stats.satiety < next.stats.maxSatiety * 0.3) ms.hasSeenLowSatiety = true;
+    setMarkState(triggerMarks(next, ms, { justHarvested: { methods } }));
+
     setScreen("SUMMARY_HARVEST");
   }
 
@@ -638,6 +1039,12 @@ export default function App() {
     const blotCopy = structuredClone(activeBlot);
     const result = eatSapAtBlot(next, blotCopy);
     setPlayer(next); setActiveBlot(blotCopy); setLastEatResult(result);
+    // Track eat on site
+    const ms = structuredClone(markState) as BlotMarkState;
+    ms.poisVisited = new Set(markState.poisVisited);
+    ms.distinctMethodsUsed = new Set(markState.distinctMethodsUsed);
+    ms.toolsCrafted = new Set(markState.toolsCrafted);
+    setMarkState(triggerMarks(next, ms, { justAte: { onSite: true } }));
   }
   function doHarvestStorable() {
     if (!activeBlot) return;
@@ -677,6 +1084,15 @@ export default function App() {
       const rect = btn?.getBoundingClientRect();
       setCraftFlashOrigin(rect ? { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 } : null);
       setCraftFlashItem(res.crafted.itemId);
+
+      // Track blot marks for crafting
+      const ms = structuredClone(markState) as BlotMarkState;
+      ms.poisVisited = new Set(markState.poisVisited);
+      ms.distinctMethodsUsed = new Set(markState.distinctMethodsUsed);
+      ms.toolsCrafted = new Set(markState.toolsCrafted);
+      if (HARVESTING_TOOLS.includes(res.crafted.itemId)) ms.toolsCrafted.add(res.crafted.itemId);
+      if (next.stats.satiety < next.stats.maxSatiety * 0.3) ms.hasSeenLowSatiety = true;
+      setMarkState(triggerMarks(next, ms, { justCrafted: { itemId: res.crafted.itemId } }));
     } else {
       playSfx("sfx_craft_fail", 200);
     }
@@ -698,6 +1114,11 @@ export default function App() {
     const res = resolveRecover(next, periods, chomperAutoEnabled);
     setPlayer(next); setRecoverSummary(res);
     checkDecayAlert(snap, next.inventory, res.foodConsumed);
+    const ms = structuredClone(markState) as BlotMarkState;
+    ms.poisVisited = new Set(markState.poisVisited);
+    ms.distinctMethodsUsed = new Set(markState.distinctMethodsUsed);
+    ms.toolsCrafted = new Set(markState.toolsCrafted);
+    setMarkState(triggerMarks(next, ms, { justRecovered: true }));
     setScreen("SUMMARY_RECOVER");
   }
   function keepFlopping() {
@@ -747,6 +1168,29 @@ export default function App() {
       const { result, updatedPlayer } = resolveBattle(nextState, endReason, player);
       setPlayer(updatedPlayer);
       setBattleState(null);
+
+      // Wire blot marks for combat win
+      const ms = structuredClone(markState) as BlotMarkState;
+      ms.poisVisited = new Set(markState.poisVisited);
+      ms.distinctMethodsUsed = new Set(markState.distinctMethodsUsed);
+      ms.toolsCrafted = new Set(markState.toolsCrafted);
+      const uniqueMoves = new Set(nextState.movesUsed).size;
+      const allDropIds = [...result.midBattleDrops, ...result.corpseDrops].map(d => d.id as string);
+      let ms2 = triggerMarks(updatedPlayer, ms, {
+        justWon: {
+          integrity: result.finalIntegrity,
+          movesUsed: nextState.movesUsed,
+          combos: nextState.doubleCombosLanded,
+          uniqueMoves,
+        }
+      });
+      ms2 = triggerMarks(updatedPlayer, ms2, { justDropped: { ids: allDropIds } });
+      // High integrity (80+) full corpse check
+      if (result.finalIntegrity >= 80) {
+        ms2 = triggerMarks(updatedPlayer, ms2, { justWon: { integrity: result.finalIntegrity, movesUsed: nextState.movesUsed, combos: nextState.doubleCombosLanded, uniqueMoves } });
+      }
+      setMarkState(ms2);
+
       if (returnScreen === "SUMMARY_JOURNEY" && journeyResult) {
         setJourneyResult({ ...journeyResult, mothEncountered: false, mothDefeated: true });
         setBattleResult(null);
@@ -969,6 +1413,53 @@ export default function App() {
         <button className="btn" style={{ width: "100%", fontSize: "0.88rem", background: screen === "SKILLS" ? "#1a2e1a" : undefined, border: screen === "SKILLS" ? "1px solid #4caf50" : undefined, color: screen === "SKILLS" ? "#7ecba1" : undefined }} onClick={() => openMetaScreen("SKILLS")}>
           Proficiency
         </button>
+        {/* Blot Marks button */}
+        {(() => {
+          const hasNewEarned = toastQueue.length > 0 || (activeToast !== null);
+          const hasNewReveal = newRevealIds.length > 0;
+          const hasPending = !marksViewed && (hasNewEarned || hasNewReveal);
+          const earnedCount = Object.keys(markState.earned).length;
+          const glowStyle = hasPending ? (hasNewEarned
+            ? { boxShadow: "0 0 0 2px #ce93d8, 0 0 12px 2px #ce93d840", animation: "markBtnPulse 1.1s ease-in-out infinite", border: "1px solid #ce93d8" }
+            : { boxShadow: "0 0 0 1px #7ecba150, 0 0 8px 1px #7ecba120", animation: "markBtnPulseSubtle 2.2s ease-in-out infinite", border: "1px solid #7ecba150" }
+          ) : {};
+          return (
+            <div style={{ position: "relative" }}>
+              <button
+                className="btn"
+                style={{
+                  width: "100%", fontSize: "0.88rem",
+                  background: screen === "MARKS" ? "#1a1a2e" : undefined,
+                  border: screen === "MARKS" ? "1px solid #ce93d8" : undefined,
+                  color: screen === "MARKS" ? "#ce93d8" : undefined,
+                  ...glowStyle,
+                }}
+                onClick={() => openMetaScreen("MARKS")}
+              >
+                Blot Marks
+              </button>
+              {hasPending && (
+                <div style={{
+                  position: "absolute", top: -4, right: -4,
+                  width: 10, height: 10, borderRadius: "50%",
+                  background: hasNewEarned ? "#ce93d8" : "#7ecba1",
+                  border: "2px solid #0e0e0e",
+                  boxShadow: `0 0 6px ${hasNewEarned ? "#ce93d8" : "#7ecba1"}`,
+                }} />
+              )}
+              {earnedCount > 0 && !hasPending && (
+                <div style={{
+                  position: "absolute", top: -5, right: -5,
+                  fontSize: "0.6rem", fontWeight: 700, lineHeight: 1,
+                  background: "#2a1a3a", color: "#ce93d870", border: "1px solid #3a2a4a",
+                  borderRadius: 8, padding: "2px 5px",
+                }}>
+                  {earnedCount}/{BLOT_MARK_ORDER.length}
+                </div>
+              )}
+            </div>
+          );
+        })()}
       </div>
 
       <div style={{ borderTop: "1px solid #2a2a2a", paddingTop: 10 }}>
@@ -2154,6 +2645,101 @@ export default function App() {
     </div>
   );
 
+  // ── Blot Marks screen ────────────────────────────────────────────────────
+  const marksScreen = (() => {
+    const categories: BlotMarkCategory[] = ["Exploration", "Harvesting", "Crafting", "Survival", "Combat", "Loot"];
+    const earnedCount = Object.keys(markState.earned).length;
+
+    return (
+      <div style={{ background: "#111", borderRadius: 14, border: "1px solid #2a2a2a", overflow: "hidden" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "14px 18px", borderBottom: "1px solid #2a2a2a", background: "#0e0e0e" }}>
+          <button onClick={backFromMeta} style={{ background: "none", border: "none", color: "#ce93d8", cursor: "pointer", fontSize: "0.9rem", padding: "4px 8px", borderRadius: 6, fontWeight: 600 }}>← Back</button>
+          <div style={{ fontSize: "1.1rem", fontWeight: 700, letterSpacing: "0.05em" }}>Blot Marks</div>
+          <div style={{ marginLeft: "auto", fontSize: "0.78rem", opacity: 0.4 }}>{earnedCount} / {BLOT_MARK_ORDER.length}</div>
+        </div>
+        <div style={{ padding: "16px 18px", display: "flex", flexDirection: "column", gap: 18 }}>
+          {categories.map(cat => {
+            const catMarks = BLOT_MARK_ORDER.filter(id => BLOT_MARKS[id].category === cat);
+            const catColor = CATEGORY_COLOR[cat];
+            return (
+              <div key={cat}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+                  <div style={{ color: catColor, opacity: 0.85 }}>
+                    <BlotMarkCategoryIcon category={cat} size={16} />
+                  </div>
+                  <div style={{ fontSize: "0.72rem", fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: catColor, opacity: 0.7 }}>{cat}</div>
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                  {catMarks.map(id => {
+                    const isEarned = !!markState.earned[id];
+                    const isRevealed = !!markState.revealed[id];
+                    const isNewReveal = newRevealIds.includes(id);
+
+                    if (!isRevealed) {
+                      // Hidden — show category stub only
+                      return (
+                        <div key={id} style={{
+                          display: "flex", alignItems: "center", gap: 10,
+                          background: "#0e0e0e", borderRadius: 9, border: "1px solid #1e1e1e",
+                          padding: "10px 14px", opacity: 0.35,
+                        }}>
+                          <div style={{ width: 28, height: 28, borderRadius: "50%", background: "#1a1a1a", border: "1px solid #2a2a2a", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                            <span style={{ fontSize: "0.9rem", opacity: 0.4 }}>?</span>
+                          </div>
+                          <div>
+                            <div style={{ fontSize: "0.8rem", fontWeight: 600, letterSpacing: "0.03em", color: "#444" }}>???</div>
+                            <div style={{ fontSize: "0.68rem", color: catColor, opacity: 0.4, marginTop: 1 }}>{cat}</div>
+                          </div>
+                        </div>
+                      );
+                    }
+
+                    return (
+                      <div key={id} style={{
+                        display: "flex", alignItems: "flex-start", gap: 10,
+                        background: isEarned ? "#0e1a0e" : "#131313",
+                        borderRadius: 9,
+                        border: `1px solid ${isEarned ? catColor + "50" : "#252525"}`,
+                        borderLeft: `3px solid ${isEarned ? catColor : "#2a2a2a"}`,
+                        padding: "10px 14px",
+                        transition: "all 0.3s",
+                        animation: isNewReveal ? "markRevealFadeIn 0.6s ease both" : undefined,
+                      }}>
+                        <div style={{
+                          width: 28, height: 28, borderRadius: "50%", flexShrink: 0, marginTop: 1,
+                          background: isEarned ? catColor + "22" : "#1a1a1a",
+                          border: `1px solid ${isEarned ? catColor + "80" : "#2a2a2a"}`,
+                          display: "flex", alignItems: "center", justifyContent: "center",
+                          color: isEarned ? catColor : "#444",
+                        }}>
+                          {isEarned
+                            ? <BlotMarkCategoryIcon category={cat} size={15} />
+                            : <span style={{ fontSize: "0.75rem", opacity: 0.4 }}>○</span>
+                          }
+                        </div>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontSize: "0.88rem", fontWeight: 700, color: isEarned ? catColor : "#888", marginBottom: 2 }}>
+                            {BLOT_MARKS[id].title}
+                          </div>
+                          <div style={{ fontSize: "0.75rem", opacity: isEarned ? 0.65 : 0.35, fontStyle: "italic", lineHeight: 1.4 }}>
+                            {BLOT_MARKS[id].flavour}
+                          </div>
+                        </div>
+                        {isEarned && (
+                          <div style={{ fontSize: "0.75rem", color: catColor, opacity: 0.6, fontWeight: 700, flexShrink: 0, marginTop: 2 }}>✓</div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  })();
+
   // ── Battle screen ─────────────────────────────────────────────────────────
   const battleScreen = battleState && (() => {
     const creature = CREATURES[battleState.creatureId];
@@ -2481,6 +3067,7 @@ export default function App() {
       case "SUMMARY_RECOVER": body = recoverSummaryScreen; break;
       case "INVENTORY": body = inventoryScreen; break;
       case "SKILLS": body = skillsScreen; break;
+      case "MARKS": body = marksScreen; break;
       case "BATTLE": body = battleScreen; break;
       case "SUMMARY_BATTLE": body = battleSummaryScreen; break;
       default: body = hub;
@@ -2515,6 +3102,48 @@ export default function App() {
         {craftFlashItem && (
           <CraftSuccessFlash itemId={craftFlashItem} origin={craftFlashOrigin} onDone={() => { setCraftFlashItem(null); setCraftFlashOrigin(null); }} />
         )}
+        {/* Blot Mark toast */}
+        {activeToast && (() => {
+          const mark = BLOT_MARKS[activeToast];
+          const catColor = CATEGORY_COLOR[mark.category];
+          return (
+            <div style={{
+              position: "fixed", bottom: 80, left: "50%", transform: "translateX(-50%)",
+              zIndex: 300, pointerEvents: "none",
+              animation: "markToastIn 0.35s cubic-bezier(0.22,1,0.36,1) both",
+            }}>
+              <div style={{
+                background: "#141414", border: `1px solid ${catColor}60`,
+                borderLeft: `3px solid ${catColor}`,
+                borderRadius: 12, padding: "12px 18px",
+                display: "flex", alignItems: "center", gap: 12,
+                boxShadow: `0 4px 24px #00000080, 0 0 12px ${catColor}20`,
+                minWidth: 260, maxWidth: 340,
+              }}>
+                <div style={{ color: catColor, flexShrink: 0 }}>
+                  <BlotMarkCategoryIcon category={mark.category} size={28} />
+                </div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: "0.68rem", fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: catColor, opacity: 0.7, marginBottom: 2 }}>Blot Mark · {mark.category}</div>
+                  <div style={{ fontSize: "0.95rem", fontWeight: 700, color: catColor }}>{mark.title}</div>
+                  <div style={{ fontSize: "0.75rem", opacity: 0.6, fontStyle: "italic", marginTop: 2, lineHeight: 1.4 }}>{mark.flavour}</div>
+                </div>
+              </div>
+            </div>
+          );
+        })()}
+        {/* Fly-in to marks button */}
+        {flyingMarkCategory && (() => {
+          const catColor = CATEGORY_COLOR[flyingMarkCategory.category];
+          return (
+            <BlotMarkFlyIn
+              key={flyingMarkCategory.key}
+              category={flyingMarkCategory.category}
+              color={catColor}
+              onDone={() => setFlyingMarkCategory(null)}
+            />
+          );
+        })()}
       </div>
     </div>
   );

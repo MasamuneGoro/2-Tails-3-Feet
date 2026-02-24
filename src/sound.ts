@@ -111,10 +111,8 @@ export function playSfx(id: SfxId, delayMs = 0) {
   }
 
   setTimeout(() => {
-    // Suppress click if any non-click sound is active
     if (id === "sfx_click" && nonClickPlaying) return;
 
-    // Truncate journey_start if a new non-click sound fires
     if (id !== "sfx_click" && journeyStartInstance) {
       journeyStartInstance.pause();
       journeyStartInstance.currentTime = 0;
@@ -134,6 +132,9 @@ export function playSfx(id: SfxId, delayMs = 0) {
 }
 
 // ─── BGM Manager ──────────────────────────────────────────────────────────────
+// Design: one looping track at a time. Tracks cross-fade on change.
+// bgmCurrent is set synchronously when a track is requested, acting as a
+// mutex — this prevents the async play() promise from causing double-starts.
 
 export type BgmTrack = "hub" | "journey" | "battle";
 
@@ -152,15 +153,21 @@ function getBgmSrc(track: BgmTrack): string {
 }
 
 function fadeOutAndStop(el: HTMLAudioElement, onDone?: () => void) {
-  const step = el.volume / 20;
+  // If already at 0 or nearly so, just stop immediately
+  if (el.volume < 0.02) {
+    el.pause();
+    onDone?.();
+    return;
+  }
+  const startVol = el.volume;
+  const step = startVol / 20;
   const interval = setInterval(() => {
-    if (el.volume <= step) {
+    el.volume = Math.max(0, el.volume - step);
+    if (el.volume < 0.02) {
       el.pause();
       el.volume = 0;
       clearInterval(interval);
       onDone?.();
-    } else {
-      el.volume = Math.max(0, el.volume - step);
     }
   }, 25);
 }
@@ -175,42 +182,37 @@ export function getBgmVolume(): number {
 }
 
 export function playBgm(track: BgmTrack) {
-  // Use bgmCurrent alone as the guard — bgmElement.paused is unreliable
-  // while play() is still pending (async), causing double-start race conditions
+  // bgmCurrent is the mutex — set synchronously before any async work
   if (bgmCurrent === track) return;
 
   const prevEl = bgmElement;
-
-  // Claim track immediately so any re-entrant calls are blocked
   bgmCurrent = track;
   bgmElement = null;
 
   const startNew = () => {
     const el = new Audio(getBgmSrc(track));
     el.loop = true;
-    el.volume = 0;
-    el.preload = "auto";
+    el.volume = bgmVolume; // start at full volume, no fade-in complexity
     bgmElement = el;
+
     el.play().then(() => {
-      // Bail if we've been superseded
-      if (bgmElement !== el) return;
-      const target = bgmVolume;
-      const step = target / 20;
-      const interval = setInterval(() => {
-        if (bgmElement !== el) { clearInterval(interval); return; }
-        if (el.volume >= target - step) {
-          el.volume = target;
-          clearInterval(interval);
-        } else {
-          el.volume = Math.min(target, el.volume + step);
-        }
-      }, 25);
-    }).catch(() => {});
+      // Confirm we're still the active element (haven't been superseded)
+      if (bgmElement !== el) {
+        el.pause();
+      }
+    }).catch((err) => {
+      console.warn("[BGM] play() failed:", err);
+      if (bgmElement === el) {
+        bgmElement = null;
+        bgmCurrent = null;
+      }
+    });
   };
 
   if (prevEl && !prevEl.paused) {
     fadeOutAndStop(prevEl, startNew);
   } else {
+    if (prevEl) prevEl.pause();
     startNew();
   }
 }
@@ -219,7 +221,7 @@ export function stopBgm() {
   const el = bgmElement;
   bgmElement = null;
   bgmCurrent = null;
-  if (el && !el.paused) fadeOutAndStop(el);
+  if (el) fadeOutAndStop(el);
 }
 
 // ─── SFX Volumes ──────────────────────────────────────────────────────────────

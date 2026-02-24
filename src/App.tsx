@@ -908,7 +908,10 @@ export default function App() {
     if (screen === "EXHAUSTED") playSfx("sfx_exhausted");
   }, [screen]);
 
-  // BGM: drive track based on active screen (only after user has unlocked audio)
+  // BGM: drive track based on active screen
+  // Guard: only runs after user has unlocked audio on first click.
+  // The first-click handler in the unlock useEffect starts BGM initially;
+  // this effect handles all subsequent screen transitions.
   useEffect(() => {
     if (!audioUnlocked.current) return;
     if (screen === "BATTLE") {

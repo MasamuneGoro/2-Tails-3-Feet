@@ -799,10 +799,29 @@ export default function App() {
   /** Snapshot qty of each storable food stack before an action */
 
   // Unlock audio on first interaction and preload all sounds
+  const audioUnlocked = React.useRef(false);
   useEffect(() => {
     const handler = (e: PointerEvent) => {
-      unlockAudio();
-      preloadAll();
+      if (!audioUnlocked.current) {
+        audioUnlocked.current = true;
+        unlockAudio();
+        preloadAll();
+        // Kick off BGM for whatever screen we're on
+        if (screen === "BATTLE") {
+          playBgm("battle");
+        } else if (
+          screen === "PREVIEW_JOURNEY" ||
+          screen === "SUMMARY_JOURNEY" ||
+          screen === "POI" ||
+          screen === "PREVIEW_HARVEST" ||
+          screen === "SUMMARY_HARVEST" ||
+          screen === "SUMMARY_BATTLE"
+        ) {
+          playBgm("journey");
+        } else {
+          playBgm("hub");
+        }
+      }
       // Play click sound for any button press
       if ((e.target as HTMLElement)?.closest("button, select")) {
         playSfx("sfx_click");
@@ -810,7 +829,7 @@ export default function App() {
     };
     window.addEventListener("pointerdown", handler);
     return () => window.removeEventListener("pointerdown", handler);
-  }, []);
+  }, [screen]);
 
   // Hunger warning — fire once when satiety crosses below 25%
   const satietyPct = player.stats.satiety / player.stats.maxSatiety;

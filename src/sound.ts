@@ -105,12 +105,6 @@ const DURATIONS: Partial<Record<SfxId, number>> = {
 export function playSfx(id: SfxId, delayMs = 0) {
   if (!unlocked) return;
 
-  // Mark non-click sounds as "coming" immediately so the simultaneous sfx_click
-  // is suppressed even before the delayed sound actually plays.
-  if (id !== "sfx_click") {
-    markNonClickPlaying((DURATIONS[id] ?? 1500) + delayMs);
-  }
-
   setTimeout(() => {
     // Suppress click if any non-click sound is active
     if (id === "sfx_click" && nonClickPlaying) return;
@@ -130,6 +124,10 @@ export function playSfx(id: SfxId, delayMs = 0) {
     if (id === "sfx_journey_start") {
       journeyStartInstance = instance;
       instance.addEventListener("ended", () => { journeyStartInstance = null; });
+    }
+
+    if (id !== "sfx_click") {
+      markNonClickPlaying(DURATIONS[id] ?? 1500);
     }
   }, delayMs);
 }
@@ -179,7 +177,6 @@ export function getBgmVolume(): number {
 }
 
 export function playBgm(track: BgmTrack) {
-  if (!unlocked) return;
   if (bgmCurrent === track && bgmElement && !bgmElement.paused) return;
 
   if (bgmFadeTimer) { clearTimeout(bgmFadeTimer); bgmFadeTimer = null; }

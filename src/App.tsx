@@ -812,7 +812,6 @@ export default function App() {
         } else if (
           screen === "PREVIEW_JOURNEY" ||
           screen === "SUMMARY_JOURNEY" ||
-          screen === "POI" ||
           screen === "PREVIEW_HARVEST" ||
           screen === "SUMMARY_HARVEST" ||
           screen === "SUMMARY_BATTLE"
@@ -916,7 +915,6 @@ export default function App() {
     } else if (
       screen === "PREVIEW_JOURNEY" ||
       screen === "SUMMARY_JOURNEY" ||
-      screen === "POI" ||
       screen === "PREVIEW_HARVEST" ||
       screen === "SUMMARY_HARVEST" ||
       screen === "SUMMARY_BATTLE"

@@ -908,8 +908,9 @@ export default function App() {
     if (screen === "EXHAUSTED") playSfx("sfx_exhausted");
   }, [screen]);
 
-  // BGM: drive track based on active screen
+  // BGM: drive track based on active screen (only after user has unlocked audio)
   useEffect(() => {
+    if (!audioUnlocked.current) return;
     if (screen === "BATTLE") {
       playBgm("battle");
     } else if (

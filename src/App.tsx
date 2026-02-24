@@ -1147,7 +1147,8 @@ export default function App() {
     const trophyQty = invGet(next.inventory, recipe.trophyInput)?.qty ?? 0;
     const markerQty = invGet(next.inventory, recipe.markerInput)?.qty ?? 0;
     const resinQty = invGet(next.inventory, "resin_glob")?.qty ?? 0;
-    if (trophyQty < 1 || markerQty < recipe.markerQty || resinQty < recipe.resinQty) return;
+    const hasTinker = hasEquippedTail(player, "eq_tinker_shaft");
+    if (trophyQty < 1 || markerQty < recipe.markerQty || resinQty < recipe.resinQty || !hasTinker) return;
     invRemove(next.inventory, recipe.trophyInput, 1);
     invRemove(next.inventory, recipe.markerInput, recipe.markerQty);
     invRemove(next.inventory, "resin_glob", recipe.resinQty);
@@ -1161,7 +1162,8 @@ export default function App() {
     const trophyQty = invGet(player.inventory, recipe.trophyInput)?.qty ?? 0;
     const markerQty = invGet(player.inventory, recipe.markerInput)?.qty ?? 0;
     const resinQty = invGet(player.inventory, "resin_glob")?.qty ?? 0;
-    return trophyQty >= 1 && markerQty >= recipe.markerQty && resinQty >= recipe.resinQty;
+    const hasTinker = hasEquippedTail(player, "eq_tinker_shaft");
+    return trophyQty >= 1 && markerQty >= recipe.markerQty && resinQty >= recipe.resinQty && hasTinker;
   }
 
   function slotGemTrophy(gemId: GemTrophyItemId) {
@@ -1893,13 +1895,13 @@ export default function App() {
                 const discoveredMethods = new Set(player.toolDiscovery[activePoi.id] ?? []);
                 // All tiers that exist at this POI, sorted by tier order
                 const rankedEntries = tierOrder
-                  .map(tier => {
-                    const entry = (Object.entries(poiMethodRank) as [HarvestMethodId, string][]).find(([, v]) => v === tier);
-                    if (!entry) return null;
-                    const [method] = entry;
-                    const tool = Object.values(ITEMS).find(it => it.harvestingMethod === method);
-                    const discovered = discoveredMethods.has(method);
-                    return { tier, method, tool, discovered };
+                  .flatMap(tier => {
+                    const entries = (Object.entries(poiMethodRank) as [HarvestMethodId, string][]).filter(([, v]) => v === tier);
+                    return entries.map(([method]) => {
+                      const tool = Object.values(ITEMS).find(it => it.harvestingMethod === method);
+                      const discovered = discoveredMethods.has(method);
+                      return { tier, method, tool, discovered };
+                    });
                   })
                   .filter(Boolean) as { tier: string; method: HarvestMethodId; tool: { name: string; id: string } | undefined; discovered: boolean }[];
                 return (
@@ -2153,9 +2155,7 @@ export default function App() {
           </button>
         </div>
       )}
-      <div className="notice" style={{ marginTop: 12 }}>
-        <span className="small">Hunger ends you. Fatigue stops you. The sticky world clings on.</span>
-      </div>
+
     </div>
   );
 
@@ -2356,7 +2356,7 @@ export default function App() {
             </div>
           </>
         ) : (
-          <div>
+          <div style={{ marginTop: 12 }}>
             {/* Gate encounter pending */}
             {gateEncounterPending && !markState.gateDiscovered && (
               <div style={{ background: "#0d0d18", border: "1px solid #3a2a5a", borderLeft: "3px solid #7b5ea7", borderRadius: 10, padding: "14px 16px", marginBottom: 12 }}>
@@ -2608,13 +2608,14 @@ export default function App() {
                 const cat = recipe.category;
                 const catColor = CATEGORY_COLOR[cat];
                 const can = canCraftGemTrophy(gemId);
+                const hasTinker = hasEquippedTail(player, "eq_tinker_shaft");
                 const alreadyHave = (invGet(player.inventory, gemId)?.qty ?? 0) > 0;
                 return (
                   <div key={gemId} style={{ background: "#161616", borderRadius: 10, border: `1px solid ${can ? catColor + "40" : "#1e1e1e"}`, borderLeft: `3px solid ${can ? catColor : "#333"}`, padding: "12px 14px", opacity: alreadyHave ? 0.5 : can ? 1 : 0.6 }}>
                     <div style={{ fontWeight: 600, fontSize: "0.92rem", color: catColor, marginBottom: 4 }}>{GEM_TROPHIES[gemId].name}</div>
                     <div style={{ fontSize: "0.75rem", opacity: 0.55, marginBottom: 8, fontStyle: "italic" }}>{GEM_TROPHIES[gemId].flavor}</div>
                     <div style={{ fontSize: "0.72rem", opacity: 0.6, marginBottom: 8 }}>
-                      Needs: {TROPHIES[recipe.trophyInput].name} ×1 · {MARKERS[recipe.markerInput].name} ×{recipe.markerQty} · Resin Glob ×{recipe.resinQty}
+                      Needs: {TROPHIES[recipe.trophyInput].name} ×1 · {MARKERS[recipe.markerInput].name} ×{recipe.markerQty} · Resin Glob ×{recipe.resinQty} · Tinker Shaft equipped
                       <span style={{ marginLeft: 8, color: (invGet(player.inventory, recipe.trophyInput)?.qty ?? 0) >= 1 ? catColor : "#666" }}>
                         Trophy: {invGet(player.inventory, recipe.trophyInput)?.qty ?? 0}
                       </span>
@@ -2623,6 +2624,9 @@ export default function App() {
                       </span>
                       <span style={{ marginLeft: 6, color: (invGet(player.inventory, "resin_glob")?.qty ?? 0) >= recipe.resinQty ? catColor : "#666" }}>
                         Resin: {invGet(player.inventory, "resin_glob")?.qty ?? 0}/{recipe.resinQty}
+                      </span>
+                      <span style={{ marginLeft: 6, color: hasTinker ? catColor : "#666" }}>
+                        {hasTinker ? "✓ Tinker Shaft" : "✗ Tinker Shaft"}
                       </span>
                     </div>
                     {alreadyHave ? (
@@ -3503,17 +3507,6 @@ export default function App() {
           </div>
         </FadeIn>
 
-        {/* Integrity body description */}
-        {integrityFlavour && (
-          <FadeIn delay={120}>
-            <div style={{ fontStyle: "italic", fontSize: "0.82rem", opacity: 0.65, marginBottom: 4, paddingLeft: 2 }}>
-              {integrityFlavour}
-            </div>
-            <div style={{ fontSize: "0.75rem", opacity: 0.35, marginBottom: 12, paddingLeft: 2 }}>
-              Integrity {battleResult.finalIntegrity} / {creature.integrityMax}
-            </div>
-          </FadeIn>
-        )}
         {battleResult.foodContaminated && (
           <FadeIn delay={150}>
             <div style={{ background: "#1f0a0a", border: "1px solid #b71c1c", borderRadius: 10, padding: "10px 14px", marginBottom: 12, fontSize: "0.82rem", color: "#ff8a80" }}>
@@ -3549,6 +3542,16 @@ export default function App() {
           <FadeIn delay={300}>
             <div className="card" style={{ marginBottom: 10 }}>
               <h3>From the corpse</h3>
+              {integrityFlavour && (
+                <div style={{ marginBottom: 10 }}>
+                  <div style={{ fontStyle: "italic", fontSize: "0.82rem", opacity: 0.65, marginBottom: 4 }}>
+                    {integrityFlavour}
+                  </div>
+                  <div style={{ fontSize: "0.75rem", opacity: 0.35, marginBottom: 8 }}>
+                    Integrity {battleResult.finalIntegrity} / {creature.integrityMax}
+                  </div>
+                </div>
+              )}
               <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                 {battleResult.corpseDrops.map((d, i) => (
                   <div key={i} style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -3577,9 +3580,12 @@ export default function App() {
           <div className="row">
             <button className="btn" style={{ background: "#1a2e1a", border: "1px solid #4caf50", color: "#7ecba1", fontWeight: 600, padding: "12px 22px" }} onClick={() => {
               if (returnScreen === "SUMMARY_JOURNEY" && journeyResult) {
+                setJourneyResult({ ...journeyResult, mothEncountered: false, mothDefeated: true });
+                setBattleResult(null);
                 setReturnScreen("HUB");
                 setScreen("SUMMARY_JOURNEY");
               } else {
+                setBattleResult(null);
                 gotoHub();
               }
             }}>Back to it</button>
@@ -3851,7 +3857,7 @@ export default function App() {
       {sidebar}
       <div style={{ flex: 1, padding: 22, maxWidth: 820 }}>
         <h1 style={{ letterSpacing: "0.08em", marginBottom: 4 }}>2 Tails 3 Feet</h1>
-        <div style={{ opacity: 0.5, fontSize: 13, marginBottom: 12 }}>Sticky Survival Prototype</div>
+        <div style={{ opacity: 0.55, fontSize: 15, marginBottom: 12, fontStyle: "italic" }}>Hunger ends you. Fatigue stops you. The sticky world clings on.</div>
         {hud}
         {decayedFoodAlert && (
           <div style={{

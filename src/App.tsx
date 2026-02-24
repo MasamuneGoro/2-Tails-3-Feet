@@ -495,8 +495,8 @@ function CraftSuccessFlash({ itemId, origin, onDone }: { itemId: string; origin:
   React.useEffect(() => {
     const el = ref.current;
     if (!el) return;
-    // Inventory button is in sidebar top-right area — estimate fixed position
-    const targetX = window.innerWidth - 60;
+    // Inventory button is in sidebar top-left area
+    const targetX = 100;
     const targetY = 60;
     const startX = origin ? origin.x : window.innerWidth * 0.5;
     const startY = origin ? origin.y : window.innerHeight * 0.5;
@@ -1699,10 +1699,16 @@ export default function App() {
           const hasNewReveal = newRevealIds.length > 0;
           const hasPending = !marksViewed && (hasNewEarned || hasNewReveal);
           const earnedCount = Object.keys(markState.earned).length;
+          const unclaimedCount = Object.keys(markState.earned).filter(id => !markState.claimedMarkers?.[id as import("./types").BlotMarkId]).length;
+          const hasUnclaimed = unclaimedCount > 0;
+          // Priority: new-earn pulse > new-reveal subtle pulse > unclaimed ambient glow
           const glowStyle = hasPending ? (hasNewEarned
             ? { boxShadow: "0 0 0 2px #ce93d8, 0 0 12px 2px #ce93d840", animation: "markBtnPulse 1.1s ease-in-out infinite", border: "1px solid #ce93d8" }
             : { boxShadow: "0 0 0 1px #7ecba150, 0 0 8px 1px #7ecba120", animation: "markBtnPulseSubtle 2.2s ease-in-out infinite", border: "1px solid #7ecba150" }
-          ) : {};
+          ) : hasUnclaimed ? {
+            animation: "unclaimedBtnGlow 3s ease-in-out infinite",
+            border: "1px solid #c8a96e40",
+          } : {};
           return (
             <div style={{ position: "relative" }}>
               <button
@@ -1716,7 +1722,17 @@ export default function App() {
                 }}
                 onClick={() => openMetaScreen("MARKS")}
               >
-                Blot Marks
+                Blot Marks{hasUnclaimed && (
+                  <span style={{
+                    display: "inline-flex", alignItems: "center", justifyContent: "center",
+                    marginLeft: 7, minWidth: 18, height: 18, borderRadius: 9,
+                    background: "#c8a96e22", border: "1px solid #c8a96e80",
+                    color: "#c8a96e", fontSize: "0.6rem", fontWeight: 700,
+                    padding: "0 4px", lineHeight: 1, verticalAlign: "middle",
+                  }}>
+                    {unclaimedCount}
+                  </span>
+                )}
               </button>
               {hasPending && (
                 <div style={{
@@ -3176,10 +3192,13 @@ export default function App() {
                         borderRadius: 9,
                         border: `1px solid ${isEarned ? catColor + "50" : "#252525"}`,
                         borderLeft: `3px solid ${isEarned ? catColor : isExpanded ? "#555" : "#2a2a2a"}`,
-                        transition: "border-color 0.2s, box-shadow 0.2s",
+                        transition: "border-color 0.2s",
                         overflow: "hidden",
-                        animation: isNewReveal ? "markRevealFadeIn 0.6s ease both" : undefined,
-                        boxShadow: hasUnclaimed ? `0 0 8px ${catColor}40, 0 0 2px ${catColor}30` : undefined,
+                        animation: isNewReveal
+                          ? "markRevealFadeIn 0.6s ease both"
+                          : hasUnclaimed
+                          ? `unclaimedPulse-${cat} 2.5s ease-in-out infinite`
+                          : undefined,
                       }}>
                         {/* Clickable header row */}
                         <div

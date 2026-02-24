@@ -231,3 +231,35 @@ hr {
   0%   { opacity: 1; transform: translateX(-50%) translateY(0); }
   100% { opacity: 0; transform: translateX(-50%) translateY(16px); }
 }
+
+/* ── Unclaimed reward pulse — one per category colour ─────────────────── */
+@keyframes unclaimedPulse-Exploration {
+  0%, 100% { box-shadow: 0 0 6px #c8a96e30, 0 0 2px #c8a96e20; }
+  50%       { box-shadow: 0 0 16px #c8a96e70, 0 0 6px #c8a96e50; }
+}
+@keyframes unclaimedPulse-Harvesting {
+  0%, 100% { box-shadow: 0 0 6px #7ecba130, 0 0 2px #7ecba120; }
+  50%       { box-shadow: 0 0 16px #7ecba170, 0 0 6px #7ecba150; }
+}
+@keyframes unclaimedPulse-Crafting {
+  0%, 100% { box-shadow: 0 0 6px #a07ed430, 0 0 2px #a07ed420; }
+  50%       { box-shadow: 0 0 16px #a07ed470, 0 0 6px #a07ed450; }
+}
+@keyframes unclaimedPulse-Survival {
+  0%, 100% { box-shadow: 0 0 6px #e5737330, 0 0 2px #e5737320; }
+  50%       { box-shadow: 0 0 16px #e5737370, 0 0 6px #e5737350; }
+}
+@keyframes unclaimedPulse-Combat {
+  0%, 100% { box-shadow: 0 0 6px #ce93d830, 0 0 2px #ce93d820; }
+  50%       { box-shadow: 0 0 16px #ce93d870, 0 0 6px #ce93d850; }
+}
+@keyframes unclaimedPulse-Loot {
+  0%, 100% { box-shadow: 0 0 6px #f5c84230, 0 0 2px #f5c84220; }
+  50%       { box-shadow: 0 0 16px #f5c84270, 0 0 6px #f5c84250; }
+}
+
+/* Marks button unclaimed-rewards ambient glow (slower than new-earn pulse) */
+@keyframes unclaimedBtnGlow {
+  0%, 100% { box-shadow: 0 0 0 1px #c8a96e30, 0 0 8px 1px #c8a96e15; }
+  50%       { box-shadow: 0 0 0 2px #c8a96e60, 0 0 14px 2px #c8a96e30; }
+}

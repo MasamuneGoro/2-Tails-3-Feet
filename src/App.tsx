@@ -1901,6 +1901,35 @@ export default function App() {
         </div>
       </div>
 
+      {/* ── Biomass counter — only appears after Hungry Mouth first fed ── */}
+      {mouthFeedCount > 0 && (() => {
+        const SOFT_CAP = 2000;
+        const fillPct = Math.min(100, (biomassTotal / SOFT_CAP) * 100);
+        const formatted = biomassTotal.toLocaleString();
+        return (
+          <div style={{ borderTop: "1px solid #2a2a2a", paddingTop: 10 }}>
+            <div style={{ fontSize: "0.7rem", opacity: 0.4, letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: 7 }}>
+              Biomass
+            </div>
+            <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 5 }}>
+              <span style={{ fontSize: "0.95rem", fontWeight: 700, color: "#ce93d8", letterSpacing: "0.03em" }}>
+                {formatted}
+              </span>
+            </div>
+            <div style={{ position: "relative", width: "100%", height: 6, background: "#1a0a2a", borderRadius: 4, overflow: "hidden" }}>
+              <div style={{
+                position: "absolute", left: 0, top: 0, bottom: 0,
+                width: `${fillPct}%`,
+                background: "linear-gradient(to right, #6a1b9a, #ab47bc)",
+                borderRadius: 4,
+                boxShadow: fillPct > 0 ? "0 0 6px #9c27b066" : "none",
+                transition: "width 0.4s ease",
+              }} />
+            </div>
+          </div>
+        );
+      })()}
+
       <div style={{ borderTop: "1px solid #2a2a2a", paddingTop: 10 }}>
         <button className="btn" style={{ width: "100%", fontSize: "0.8rem", opacity: 0.6 }} onClick={reset}>
           Reset Run
@@ -1957,10 +1986,6 @@ export default function App() {
     <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 14, padding: "10px 0" }}>
       <StatBar value={player.stats.satiety} max={player.stats.maxSatiety} kind="satiety" netRange={previewOverlay?.satiety} />
       <StatBar value={player.stats.stamina} max={player.stats.maxStamina} kind="stamina" netRange={previewOverlay?.stamina} />
-      <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.8rem", opacity: 0.7 }}>
-        <span>Biomass</span>
-        <span style={{ color: biomassTotal > 0 ? "#a8d8a8" : undefined }}>{biomassTotal}</span>
-      </div>
       <span style={{ fontSize: "0.8rem", opacity: 0.45 }}>{BIOME_LEVEL.name}</span>
     </div>
   );

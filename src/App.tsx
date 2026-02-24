@@ -569,6 +569,7 @@ export default function App() {
   const [marksViewed, setMarksViewed] = useState(false); // true after panel opened this "session"
   const [toastQueue, setToastQueue] = useState<BlotMarkId[]>([]);
   const [activeToast, setActiveToast] = useState<BlotMarkId | null>(null);
+  const [toastDismissing, setToastDismissing] = useState(false);
   const [flyingMarkCategory, setFlyingMarkCategory] = useState<{ category: BlotMarkCategory; key: number } | null>(null);
   const [newRevealIds, setNewRevealIds] = useState<BlotMarkId[]>([]); // IDs newly revealed, for shimmer
 
@@ -639,6 +640,8 @@ export default function App() {
     setMarksViewed(false);
     setToastQueue([]);
     setActiveToast(null);
+    setToastDismissing(false);
+    if (toastTimerRef.current) { clearTimeout(toastTimerRef.current); toastTimerRef.current = null; }
     setFlyingMarkCategory(null);
     setNewRevealIds([]);
   }
@@ -805,17 +808,27 @@ export default function App() {
   }
 
   // Toast queue processor
+  const toastTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
-    if (activeToast || toastQueue.length === 0) return;
+    if (activeToast !== null) return; // already showing one
+    if (toastQueue.length === 0) return;
     const next = toastQueue[0];
-    setActiveToast(next);
     setToastQueue(prev => prev.slice(1));
+    setToastDismissing(false);
+    setActiveToast(next);
     // Start fly-in
     const mark = BLOT_MARKS[next];
     setFlyingMarkCategory({ category: mark.category, key: Date.now() });
-    // Auto-dismiss after 3s
-    const t = setTimeout(() => setActiveToast(null), 3200);
-    return () => clearTimeout(t);
+    // Begin dismiss animation at 2.8s, clear at 3.2s
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    toastTimerRef.current = setTimeout(() => {
+      setToastDismissing(true);
+      toastTimerRef.current = setTimeout(() => {
+        setActiveToast(null);
+        setToastDismissing(false);
+        toastTimerRef.current = null;
+      }, 400);
+    }, 2800);
   }, [activeToast, toastQueue]);
 
 
@@ -3110,7 +3123,9 @@ export default function App() {
             <div style={{
               position: "fixed", bottom: 80, left: "50%", transform: "translateX(-50%)",
               zIndex: 300, pointerEvents: "none",
-              animation: "markToastIn 0.35s cubic-bezier(0.22,1,0.36,1) both",
+              animation: toastDismissing
+                ? "markToastOut 0.4s cubic-bezier(0.4,0,1,1) both"
+                : "markToastIn 0.35s cubic-bezier(0.22,1,0.36,1) both",
             }}>
               <div style={{
                 background: "#141414", border: `1px solid ${catColor}60`,

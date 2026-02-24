@@ -1017,12 +1017,11 @@ export default function App() {
     setDecayedFoodAlert(null);
     // Re-clicking the active screen closes it
     if (screen === target) {
-      playSfx("sfx_transition");
+      playSfx("sfx_inventory_open");
       setScreen(returnScreen);
       return;
     }
-    if (target === "INVENTORY") playSfx("sfx_inventory_open");
-    else playSfx("sfx_transition");
+    playSfx("sfx_inventory_open");
     // Only store return point when first leaving main flow
     if (screen !== "INVENTORY" && screen !== "SKILLS" && screen !== "MARKS") setReturnScreen(screen);
     setExpandedItem(null);
@@ -1036,7 +1035,7 @@ export default function App() {
 
   function backFromMeta() {
     setDecayedFoodAlert(null);
-    playSfx("sfx_transition");
+    playSfx("sfx_inventory_open");
     setScreen(returnScreen);
   }
 

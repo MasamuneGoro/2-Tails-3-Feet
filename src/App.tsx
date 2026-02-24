@@ -326,7 +326,7 @@ export default function App() {
     // Regenerate any active preview with new equipment
     if (screen === "PREVIEW_JOURNEY" && journeyPreview) {
       const pv = makeJourneyPreview(next, journeyPreview.mode, chomperAutoEnabled);
-      setJourneyPreview({ ...pv, poi: journeyPreview.poi, surfacedEvents: journeyPreview.surfacedEvents });
+      setJourneyPreview({ ...pv, poi: journeyPreview.poi, surfacedEvents: journeyPreview.surfacedEvents, mothEncountered: journeyPreview.mothEncountered });
     } else if (screen === "PREVIEW_HARVEST" && harvestPreview) {
       setHarvestPreview(makeHarvestPreview(next, harvestPreview.poiId, harvestPreview.method, chomperAutoEnabled));
     } else if (screen === "PREVIEW_CRAFT" && craftPreview) {
@@ -492,17 +492,18 @@ export default function App() {
   }
 
   // ── Journey ───────────────────────────────────────────────────────────────
+  function rollMothEncounter(pv: JourneyPreview): JourneyPreview {
+    const mothPois: PoiId[] = ["poi_resin_node", "poi_resin_hollow", "poi_sap_weep"];
+    const isResin = mothPois.includes(pv.poi.id);
+    const chance = isResin ? (pv.poi.quality === "uncommon" ? 0.70 : 0.35) : 0;
+    return { ...pv, mothEncountered: Math.random() < chance };
+  }
+
   function genJourney(mode: "explore" | "findFood") {
     setDecayedFoodAlert(null);
     const saved = mode === "explore" ? savedExploreRoll : savedFoodRoll;
-    let pv = saved ?? makeJourneyPreview(player, mode, chomperAutoEnabled);
+    let pv = saved ?? rollMothEncounter(makeJourneyPreview(player, mode, chomperAutoEnabled));
     if (!saved) {
-      // Roll moth encounter: 35% common resin POI, 70% uncommon resin POI
-      const mothPois: PoiId[] = ["poi_resin_node", "poi_resin_hollow", "poi_sap_weep"];
-      const isResin = mothPois.includes(pv.poi.id);
-      const chance = isResin ? (pv.poi.quality === "uncommon" ? 0.70 : 0.35) : 0;
-      const mothEncountered = Math.random() < chance;
-      pv = { ...pv, mothEncountered };
       if (mode === "explore") setSavedExploreRoll(pv);
       else setSavedFoodRoll(pv);
     }
@@ -532,7 +533,7 @@ export default function App() {
     next.stats.satiety = clamp(next.stats.satiety - 20, 0, next.stats.maxSatiety);
     next.stats.stamina = clamp(next.stats.stamina - 20, 0, next.stats.maxStamina);
     setPlayer(next);
-    const pv = makeJourneyPreview(next, journeyPreview.mode, chomperAutoEnabled);
+    const pv = rollMothEncounter(makeJourneyPreview(next, journeyPreview.mode, chomperAutoEnabled));
     if (journeyPreview.mode === "explore") setSavedExploreRoll(pv);
     else setSavedFoodRoll(pv);
     setJourneyPreview(pv);
@@ -767,7 +768,7 @@ export default function App() {
     // Refresh active preview
     if (screen === "PREVIEW_JOURNEY" && journeyPreview) {
       const pv = makeJourneyPreview(player, journeyPreview.mode, newVal);
-      setJourneyPreview({ ...pv, poi: journeyPreview.poi, surfacedEvents: journeyPreview.surfacedEvents });
+      setJourneyPreview({ ...pv, poi: journeyPreview.poi, surfacedEvents: journeyPreview.surfacedEvents, mothEncountered: journeyPreview.mothEncountered });
     } else if (screen === "PREVIEW_HARVEST" && harvestPreview) {
       setHarvestPreview(makeHarvestPreview(player, harvestPreview.poiId, harvestPreview.method, newVal));
     } else if (screen === "PREVIEW_CRAFT" && craftPreview) {
@@ -1314,7 +1315,6 @@ export default function App() {
         <button style={hubBtnStyle("findFood")} onClick={() => genJourney("findFood")} disabled={dead || exhausted}>Find Food</button>
         <button style={hubBtnStyle("craft")} onClick={openCraft} disabled={dead || exhausted}>Craft</button>
         <button style={hubBtnStyle("layDown")} onClick={previewRecover} disabled={dead}>Lay Down</button>
-        <button style={hubBtnStyle("fight")} onClick={() => enterBattle("creature_gloop_moth")} disabled={dead || exhausted}>Hunt Moth</button>
       </div>
       <div className="notice" style={{ marginTop: 12 }}>
         <span className="small">Hunger ends you. Fatigue stops you. The sticky world clings on.</span>

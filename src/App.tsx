@@ -219,12 +219,12 @@ function computeEarnedMarks(ms: BlotMarkState, player: PlayerState, context: {
     tryEarn("mark_novelty_4", uniqueMoves >= 4 || combos > 0);
     tryEarn("mark_drill_resonance", movesUsed.includes("drill_resonance"));
     tryEarn("mark_high_integrity_win", integrity >= 80);
+    tryEarn("mark_full_corpse", integrity >= 80);
   }
 
   if (context.justDropped) {
     tryEarn("mark_first_wing_membrane", context.justDropped.ids.includes("mat_wing_membrane"));
     tryEarn("mark_first_crystallised_wax", context.justDropped.ids.includes("mat_crystallised_wax"));
-    tryEarn("mark_full_corpse", false); // handled in justWon
   }
 
   return newlyEarned;
@@ -705,6 +705,7 @@ export default function App() {
   const [toastDismissing, setToastDismissing] = useState(false);
   const [flyingMarkCategory, setFlyingMarkCategory] = useState<{ category: BlotMarkCategory; key: number } | null>(null);
   const [newRevealIds, setNewRevealIds] = useState<BlotMarkId[]>([]); // IDs newly revealed, for shimmer
+  const [flyingClaimItems, setFlyingClaimItems] = useState<{ id: string; key: number }[]>([]); // items flying to inventory on claim
 
   // Gate state
   const [gateEncounterPending, setGateEncounterPending] = useState(false); // set during journey if gate should trigger
@@ -1140,19 +1141,26 @@ export default function App() {
     ms.claimedMarkers[markId] = true;
 
     const next = structuredClone(player);
+    let claimedItemId: string;
     if (isGateMark) {
       // Give Trophy
       const trophyId = CATEGORY_TROPHY[cat];
       invAdd(next.inventory, trophyId, 1);
       playSfx("sfx_trophy_earned");
+      claimedItemId = trophyId;
     } else {
       // Give Marker
       const markerId = CATEGORY_MARKER[cat];
       invAdd(next.inventory, markerId, 1);
       playSfx("sfx_marker_claim");
+      claimedItemId = markerId;
     }
     setPlayer(next);
     setMarkState(ms);
+    // Trigger fly-to-inventory animation
+    const key = Date.now();
+    setFlyingClaimItems(prev => [...prev, { id: claimedItemId, key }]);
+    setTimeout(() => setFlyingClaimItems(prev => prev.filter(f => f.key !== key)), 900);
   }
 
   function craftGemTrophy(gemId: GemTrophyItemId) {
@@ -4070,6 +4078,16 @@ export default function App() {
             />
           );
         })()}
+        {/* Fly-to-inventory on claim */}
+        {flyingClaimItems.map(f => (
+          <div key={f.key} style={{
+            position: "fixed", bottom: 80, left: "50%", transform: "translateX(-50%)",
+            pointerEvents: "none", zIndex: 200,
+            animation: "claimFlyToInv 800ms cubic-bezier(0.25, 0.1, 0.25, 1) both",
+          }}>
+            <ItemIcon id={f.id} size={36} />
+          </div>
+        ))}
       </div>
     </div>
   );

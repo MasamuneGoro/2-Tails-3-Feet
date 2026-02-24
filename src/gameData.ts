@@ -316,6 +316,16 @@ export const RECIPES: Record<
     requiresTinker: boolean;
   }
 > = {
+  rcp_pointed_twig: {
+    id: "rcp_pointed_twig",
+    name: "Pointed Twig",
+    output: { itemId: "eq_pointed_twig", qty: 1 },
+    inputs: [{ id: "fiber_clump", qty: 1 }],
+    craftPeriods: 2,
+    satietyPerPeriod: 10,
+    staminaPerPeriod: 15,
+    requiresTinker: false,
+  },
   rcp_fiber_comb: {
     id: "rcp_fiber_comb",
     name: "Fiber Comb",

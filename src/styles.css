@@ -195,6 +195,13 @@ hr {
   100% { opacity: 0; transform: translate(-180px, -140px) scale(0.3); }
 }
 
+@keyframes claimFlyToInv {
+  0%   { opacity: 0; transform: translateX(-50%) scale(0.4); }
+  15%  { opacity: 1; transform: translateX(-50%) scale(1.3); }
+  50%  { opacity: 1; transform: translateX(-50%) scale(1); }
+  100% { opacity: 0; transform: translate(calc(-50% - 160px), -220px) scale(0.3); }
+}
+
 @keyframes craftPop {
   0%   { opacity: 0; transform: translate(-50%, -50%) scale(0.4); }
   30%  { opacity: 1; transform: translate(-50%, -50%) scale(1.15); }

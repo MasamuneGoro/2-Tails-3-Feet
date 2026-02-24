@@ -22,31 +22,59 @@ function pct(n: number, d: number) { return Math.round((n / d) * 100); }
 import type { BlotMark } from "./types";
 
 const BLOT_MARKS: Record<BlotMarkId, BlotMark> = {
-  mark_first_journey:      { id: "mark_first_journey",      category: "Exploration", title: "First Steps Out",       flavour: "You left the hub. That counts for something." },
-  mark_first_find_food:    { id: "mark_first_find_food",    category: "Exploration", title: "Belly Before Pride",    flavour: "You went looking for something edible. Smart." },
-  mark_visit_all_poi:      { id: "mark_visit_all_poi",      category: "Exploration", title: "Full Survey",           flavour: "Every corner of the resin field, mapped in your head." },
-  mark_first_harvest:      { id: "mark_first_harvest",      category: "Harvesting",  title: "First Poke",            flavour: "You touched the world and it gave something back." },
-  mark_all_methods:        { id: "mark_all_methods",        category: "Harvesting",  title: "Five Ways In",          flavour: "Every surface gives eventually, if you know how to ask." },
-  mark_harvest_proficiency:{ id: "mark_harvest_proficiency",category: "Harvesting",  title: "Getting Good at This",  flavour: "The motion is starting to feel like yours." },
-  mark_all_proficiency:    { id: "mark_all_proficiency",    category: "Harvesting",  title: "Nothing Stumps You",    flavour: "You've stopped guessing." },
-  mark_first_craft:        { id: "mark_first_craft",        category: "Crafting",    title: "Tinkered",              flavour: "You made something. It probably works." },
-  mark_craft_all_tools:    { id: "mark_craft_all_tools",    category: "Crafting",    title: "Full Kit",              flavour: "You don't need to improvise anymore." },
-  mark_craft_equipment:    { id: "mark_craft_equipment",    category: "Crafting",    title: "Quality of Life",       flavour: "You stopped just surviving and started planning." },
-  mark_first_recover:      { id: "mark_first_recover",      category: "Survival",    title: "Knew Your Limits",      flavour: "Resting isn't giving up." },
-  mark_low_satiety_survive:{ id: "mark_low_satiety_survive",category: "Survival",    title: "Running on Nothing",    flavour: "You were close. You didn't need to be, but here you are." },
+  mark_first_journey:      { id: "mark_first_journey",      category: "Exploration", title: "First Steps Out",          flavour: "You went out and came back. That's how it starts." },
+  mark_first_find_food:    { id: "mark_first_find_food",    category: "Exploration", title: "Belly Before Pride",       flavour: "You went looking for something edible. Smart." },
+  mark_visit_all_poi:      { id: "mark_visit_all_poi",      category: "Exploration", title: "Full Survey",              flavour: "Every corner of the resin field, mapped in your head." },
+  mark_first_harvest:      { id: "mark_first_harvest",      category: "Harvesting",  title: "First Poke",               flavour: "You touched the world and it gave something back." },
+  mark_all_methods:        { id: "mark_all_methods",        category: "Harvesting",  title: "Five Ways In",             flavour: "Every surface gives eventually, if you know how to ask." },
+  mark_harvest_proficiency:{ id: "mark_harvest_proficiency",category: "Harvesting",  title: "Getting Good at This",     flavour: "The motion is starting to feel like yours." },
+  mark_all_proficiency:    { id: "mark_all_proficiency",    category: "Harvesting",  title: "Nothing Stumps You",       flavour: "You've stopped guessing." },
+  mark_first_craft:        { id: "mark_first_craft",        category: "Crafting",    title: "Tinkered",                 flavour: "You made something. It probably works." },
+  mark_craft_all_tools:    { id: "mark_craft_all_tools",    category: "Crafting",    title: "Full Kit",                 flavour: "You don't need to improvise anymore." },
+  mark_craft_equipment:    { id: "mark_craft_equipment",    category: "Crafting",    title: "Quality of Life",          flavour: "You stopped just surviving and started planning." },
+  mark_first_recover:      { id: "mark_first_recover",      category: "Survival",    title: "Knew Your Limits",         flavour: "Resting isn't giving up." },
+  mark_low_satiety_survive:{ id: "mark_low_satiety_survive",category: "Survival",    title: "Running on Nothing",       flavour: "You were close. You didn't need to be, but here you are." },
   mark_eat_on_site:        { id: "mark_eat_on_site",        category: "Survival",    title: "Straight from the Source", flavour: "Why carry it when you can just eat it there?" },
-  mark_first_encounter:    { id: "mark_first_encounter",    category: "Combat",      title: "Something Out There",   flavour: "You spotted it before it spotted you. Maybe." },
-  mark_first_hunt:         { id: "mark_first_hunt",         category: "Combat",      title: "Didn't Run",            flavour: "You could have walked away. You didn't." },
-  mark_first_win:          { id: "mark_first_win",          category: "Combat",      title: "It Went Down",          flavour: "You stood your ground and it worked." },
-  mark_use_combo:          { id: "mark_use_combo",          category: "Combat",      title: "Double-Handed",         flavour: "Two tools, one move. That takes practice." },
-  mark_novelty_2:          { id: "mark_novelty_2",          category: "Combat",      title: "Kept It Interesting",   flavour: "You surprised the moth. A little." },
-  mark_novelty_4:          { id: "mark_novelty_4",          category: "Combat",      title: "Unpredictable",         flavour: "Even you didn't know what you'd do next." },
-  mark_drill_resonance:    { id: "mark_drill_resonance",    category: "Combat",      title: "Resonance",             flavour: "The sound it made. You'll remember it." },
-  mark_high_integrity_win: { id: "mark_high_integrity_win", category: "Combat",      title: "Careful Hands",         flavour: "You took what you needed without breaking everything else." },
-  mark_avoid_moth:         { id: "mark_avoid_moth",         category: "Combat",      title: "Not Today",             flavour: "Wisdom, or just stamina math. Either way, smart." },
-  mark_first_wing_membrane:{ id: "mark_first_wing_membrane",category: "Loot",        title: "Delicate Thing",        flavour: "Light. Strange. You're not sure what it's for yet." },
-  mark_first_crystallised_wax:{ id: "mark_first_crystallised_wax", category: "Loot", title: "Something Crystallised", flavour: "It's solid. Warm. You'll figure out what it does." },
-  mark_full_corpse:        { id: "mark_full_corpse",        category: "Loot",        title: "Clean Harvest",         flavour: "Nothing wasted. Every part counted." },
+  mark_first_encounter:    { id: "mark_first_encounter",    category: "Combat",      title: "Something Out There",      flavour: "You spotted it before it spotted you. Maybe." },
+  mark_first_hunt:         { id: "mark_first_hunt",         category: "Combat",      title: "Didn't Run",               flavour: "You could have walked away. You didn't." },
+  mark_first_win:          { id: "mark_first_win",          category: "Combat",      title: "It Went Down",             flavour: "You stood your ground and it worked." },
+  mark_use_combo:          { id: "mark_use_combo",          category: "Combat",      title: "Double-Handed",            flavour: "Two tools, one move. That takes practice." },
+  mark_novelty_2:          { id: "mark_novelty_2",          category: "Combat",      title: "Kept It Interesting",      flavour: "You surprised the moth. A little." },
+  mark_novelty_4:          { id: "mark_novelty_4",          category: "Combat",      title: "Unpredictable",            flavour: "Even you didn't know what you'd do next." },
+  mark_drill_resonance:    { id: "mark_drill_resonance",    category: "Combat",      title: "Resonance",                flavour: "The sound it made. You'll remember it." },
+  mark_high_integrity_win: { id: "mark_high_integrity_win", category: "Combat",      title: "Careful Hands",            flavour: "You took what you needed without breaking everything else." },
+  mark_avoid_moth:         { id: "mark_avoid_moth",         category: "Combat",      title: "Not Today",                flavour: "Wisdom, or just stamina math. Either way, smart." },
+  mark_first_wing_membrane:{ id: "mark_first_wing_membrane",category: "Loot",        title: "Delicate Thing",           flavour: "Light. Strange. You're not sure what it's for yet." },
+  mark_first_crystallised_wax:{ id: "mark_first_crystallised_wax", category: "Loot", title: "Something Crystallised",  flavour: "It's solid. Warm. You'll figure out what it does." },
+  mark_full_corpse:        { id: "mark_full_corpse",        category: "Loot",        title: "Clean Harvest",            flavour: "Nothing wasted. Every part counted." },
+};
+
+const BLOT_MARK_HOW: Record<BlotMarkId, string> = {
+  mark_first_journey:       "Complete any journey by pressing Explore or Find Food.",
+  mark_first_find_food:     "Choose Find Food on a journey — it targets food locations directly.",
+  mark_visit_all_poi:       "Visit all six location types: Resin Node, Resin Hollow, Sap Weep, Fiber Patch, Stone Node, and Dense Pocket.",
+  mark_first_harvest:       "Arrive at a location and harvest using any available method.",
+  mark_all_methods:         "Use all five harvest methods: Poke, Smash, Tease, Drill, and Scoop. Requires all five tools crafted and equipped.",
+  mark_harvest_proficiency: "Reach level 3 in any single harvest method by repeating it.",
+  mark_all_proficiency:     "Reach level 3 in all five harvest methods: Poke, Smash, Tease, Drill, and Scoop.",
+  mark_first_craft:         "Craft any item using the Tinker Shaft.",
+  mark_craft_all_tools:     "Craft all five harvesting tools: Pointed Twig, Crude Hammerhead, Fiber Comb, Hand Drill, and Sticky Scoop.",
+  mark_craft_equipment:     "Craft a Chomper or a Tail Curler.",
+  mark_first_recover:       "Use Lay Down to rest and recover stamina.",
+  mark_low_satiety_survive: "Survive with your satiety at 120 or below.",
+  mark_eat_on_site:         "Travel to a Sap Weep location and eat the soft sap directly on site.",
+  mark_first_encounter:     "Encounter a Gloop Moth during a journey to a resin location. They appear at Resin Nodes, Resin Hollows, and Sap Weeps.",
+  mark_first_hunt:          "When a creature appears at the end of a journey, choose to hunt it instead of avoiding it.",
+  mark_first_win:           "Win a creature encounter by reducing the creature's composure to zero.",
+  mark_use_combo:           "Execute a combo move using two tools at once in battle.",
+  mark_novelty_2:           "Use 2 or 3 distinct moves in a single battle.",
+  mark_novelty_4:           "Use 4 or more distinct moves, or land any combo, in a single battle.",
+  mark_drill_resonance:     "Execute the Drill Resonance combo: first open the thorax with Drill alone, then use the Twig + Drill combo.",
+  mark_high_integrity_win:  "Win a battle with the creature's integrity at 80 or above. Avoid Smash moves — they deal heavy integrity damage.",
+  mark_avoid_moth:          "When a creature appears at the end of a journey, choose to avoid it.",
+  mark_first_wing_membrane: "Obtain a Wing Membrane drop from a Gloop Moth. Win with high integrity, or use the Expose and Strike combo.",
+  mark_first_crystallised_wax: "Obtain Crystallised Wax by executing the Drill Resonance combo mid-battle.",
+  mark_full_corpse:         "Win a battle with the creature's integrity at 80–100 to get the best possible corpse drops.",
 };
 
 const BLOT_MARK_ORDER: BlotMarkId[] = [
@@ -260,7 +288,80 @@ const CATEGORY_COLOR: Record<BlotMarkCategory, string> = {
   Loot:        "#80cbc4",
 };
 
+function getNudgeText(ms: BlotMarkState, player: PlayerState, atPoi: boolean): string | null {
+  const e = ms.earned;
+  const hasTinkerShaft = player.inventory.some(s => s.id === "eq_tinker_shaft" && s.qty > 0);
+  const toolsOwned = HARVESTING_TOOLS.filter(t => player.inventory.some(s => s.id === t && s.qty > 0));
+  const toolsEquipped = player.equipment.tailSlots.filter(Boolean).length;
+  const staminaPct = player.stats.stamina / player.stats.maxStamina;
+  const hasResources = player.inventory.some(s =>
+    (s.id === "resin_glob" || s.id === "fiber_clump" || s.id === "brittle_stone") && s.qty > 0
+  );
+  const visitedResin = ms.poisVisited.has("poi_resin_node") || ms.poisVisited.has("poi_resin_hollow") || ms.poisVisited.has("poi_sap_weep");
 
+  // Priority 1 — first journey
+  if (!e.mark_first_journey) return "Try exploring — head out and see what's nearby.";
+
+  // Priority 2 — first harvest (context-sensitive)
+  if (!e.mark_first_harvest) {
+    if (atPoi) return "You've arrived somewhere. Try harvesting.";
+    return "After a journey, you'll arrive somewhere you can harvest.";
+  }
+
+  // Priority 6 — low stamina (urgent, jumps queue)
+  if (!e.mark_first_recover && staminaPct < 0.6) return "You're getting tired. Try Lay Down to recover stamina.";
+
+  // Priority 3 — first craft
+  if (!e.mark_first_craft) {
+    if (hasTinkerShaft) return "You can craft tools. Open the Tinker Shaft to start.";
+    return "Gather resin and fiber to craft your first tool.";
+  }
+
+  // Priority 4 — first recover (if not yet done and not already shown by stamina gate)
+  if (!e.mark_first_recover) return "If stamina gets low, use Lay Down to rest.";
+
+  // Priority 5 — find food
+  if (!e.mark_first_find_food) return "Try Find Food on your next journey — it targets food locations.";
+
+  // Priority 7 — craft more tools
+  if (!e.mark_craft_all_tools) {
+    if (toolsOwned.length >= 2 && hasResources) return "You have resources. Craft more harvesting tools to unlock new methods.";
+    if (toolsOwned.length < 5) return "Craft the remaining harvesting tools to unlock all five harvest methods.";
+  }
+
+  // Priority 8 — use different methods
+  if (!e.mark_all_methods && toolsEquipped >= 2) return "Try using different harvest methods at your next location.";
+
+  // Priority 9 — craft equipment
+  if (!e.mark_craft_equipment && e.mark_craft_all_tools) return "All tools crafted. Try making a Chomper or Tail Curler next.";
+
+  // Priority 10 — proficiency
+  if (!e.mark_harvest_proficiency) return "Keep harvesting with the same method to build proficiency.";
+
+  // Priority 11 — sap weep
+  if (!e.mark_eat_on_site && ms.poisVisited.has("poi_sap_weep")) return "At a Sap Weep, you can eat the soft sap directly on site.";
+
+  // Priority 12–13 — encounter discovery
+  if (!e.mark_first_encounter && visitedResin) return "Resin locations sometimes have creatures. Head out and explore.";
+  if (e.mark_first_encounter && !e.mark_first_hunt) return "You spotted something out there. Next time, try hunting it.";
+  if (e.mark_first_hunt && !e.mark_first_win) return "Keep at it — creatures go down if you stay in the fight.";
+
+  // Priority 14–20 — combat chain
+  if (e.mark_first_win && !e.mark_use_combo) return "In battle, you can combine two tools into a single combo move.";
+  if (e.mark_first_win && !e.mark_novelty_2) return "In battle, try using different moves instead of repeating one.";
+  if (e.mark_novelty_2 && !e.mark_novelty_4) return "Push further — use four or more different moves in one battle.";
+  if (e.mark_use_combo && !e.mark_drill_resonance) return "Try the Drill Resonance combo: open the thorax first, then use Twig + Drill.";
+  if (e.mark_drill_resonance && !e.mark_first_crystallised_wax) return "Drill Resonance can drop Crystallised Wax. Aim for a clean hit.";
+  if (e.mark_first_win && !e.mark_high_integrity_win) return "Try winning a battle without smashing — keep the creature's integrity high.";
+  if (e.mark_first_win && !e.mark_full_corpse) return "A clean win with high integrity gives the best corpse drops.";
+  if (e.mark_first_win && !e.mark_first_wing_membrane) return "Wing Membranes drop from moths at high integrity. Use precise moves.";
+
+  // Priority 21 — long haul
+  if (!e.mark_visit_all_poi && ms.poisVisited.size >= 3) return "You've found most location types. Keep exploring to find the rest.";
+  if (e.mark_harvest_proficiency && !e.mark_all_proficiency) return "One method mastered. Bring all five to level 3.";
+
+  return null; // all done
+}
 
 function FadeIn({ delay = 0, children }: { delay?: number; children: React.ReactNode }) {
   return (
@@ -575,6 +676,7 @@ export default function App() {
 
   const [returnScreen, setReturnScreen] = useState<Screen>("HUB");
   const [expandedItem, setExpandedItem] = useState<string | null>(null);
+  const [expandedMark, setExpandedMark] = useState<BlotMarkId | null>(null);
   const [howItWorksOpen, setHowItWorksOpen] = useState(false);
   const [scoopExpanded, setScoopExpanded] = useState(false);
   const [chomperAutoEnabled, setChomperAutoEnabled] = useState(true);
@@ -842,7 +944,8 @@ export default function App() {
     setExpandedItem(null);
     if (target === "MARKS") {
       setMarksViewed(true);
-      setNewRevealIds([]); // clear shimmer on open
+      setNewRevealIds([]);
+      setExpandedMark(null);
     }
     setScreen(target);
   }
@@ -1577,6 +1680,29 @@ export default function App() {
 
   const hub = (
     <div className="card">
+      {/* Nudge bar — shows on HUB only, guides player to next action */}
+      {(() => {
+        const nudge = getNudgeText(markState, player, !!(activePoi && activeBlot));
+        if (!nudge) return null;
+        return (
+          <div
+            onClick={() => openMetaScreen("MARKS")}
+            style={{
+              display: "flex", alignItems: "center", gap: 10,
+              background: "#0e1218", border: "1px solid #2a3a2a",
+              borderLeft: "3px solid #7ecba160",
+              borderRadius: 9, padding: "9px 12px", marginBottom: 14,
+              cursor: "pointer", transition: "border-color 0.2s",
+            }}
+            onMouseEnter={e => (e.currentTarget.style.borderLeftColor = "#7ecba1aa")}
+            onMouseLeave={e => (e.currentTarget.style.borderLeftColor = "#7ecba160")}
+          >
+            <span style={{ fontSize: "0.75rem", opacity: 0.45, flexShrink: 0 }}>▸</span>
+            <span style={{ fontSize: "0.82rem", color: "#b0d4b8", flex: 1, lineHeight: 1.4 }}>{nudge}</span>
+            <span style={{ fontSize: "0.68rem", opacity: 0.3, flexShrink: 0, letterSpacing: "0.06em" }}>MARKS</span>
+          </div>
+        );
+      })()}
       {/* Location header */}
       {activePoi && activeBlot ? (
         <>
@@ -2687,9 +2813,9 @@ export default function App() {
                     const isEarned = !!markState.earned[id];
                     const isRevealed = !!markState.revealed[id];
                     const isNewReveal = newRevealIds.includes(id);
+                    const isExpanded = expandedMark === id;
 
                     if (!isRevealed) {
-                      // Hidden — show category stub only
                       return (
                         <div key={id} style={{
                           display: "flex", alignItems: "center", gap: 10,
@@ -2709,37 +2835,71 @@ export default function App() {
 
                     return (
                       <div key={id} style={{
-                        display: "flex", alignItems: "flex-start", gap: 10,
                         background: isEarned ? "#0e1a0e" : "#131313",
                         borderRadius: 9,
                         border: `1px solid ${isEarned ? catColor + "50" : "#252525"}`,
-                        borderLeft: `3px solid ${isEarned ? catColor : "#2a2a2a"}`,
-                        padding: "10px 14px",
-                        transition: "all 0.3s",
+                        borderLeft: `3px solid ${isEarned ? catColor : isExpanded ? "#555" : "#2a2a2a"}`,
+                        transition: "border-color 0.2s",
+                        overflow: "hidden",
                         animation: isNewReveal ? "markRevealFadeIn 0.6s ease both" : undefined,
                       }}>
-                        <div style={{
-                          width: 28, height: 28, borderRadius: "50%", flexShrink: 0, marginTop: 1,
-                          background: isEarned ? catColor + "22" : "#1a1a1a",
-                          border: `1px solid ${isEarned ? catColor + "80" : "#2a2a2a"}`,
-                          display: "flex", alignItems: "center", justifyContent: "center",
-                          color: isEarned ? catColor : "#444",
-                        }}>
-                          {isEarned
-                            ? <BlotMarkCategoryIcon category={cat} size={15} />
-                            : <span style={{ fontSize: "0.75rem", opacity: 0.4 }}>○</span>
-                          }
-                        </div>
-                        <div style={{ flex: 1 }}>
-                          <div style={{ fontSize: "0.88rem", fontWeight: 700, color: isEarned ? catColor : "#888", marginBottom: 2 }}>
-                            {BLOT_MARKS[id].title}
+                        {/* Clickable header row */}
+                        <div
+                          onClick={() => setExpandedMark(isExpanded ? null : id)}
+                          style={{
+                            display: "flex", alignItems: "flex-start", gap: 10,
+                            padding: "10px 14px", cursor: "pointer",
+                          }}
+                        >
+                          <div style={{
+                            width: 28, height: 28, borderRadius: "50%", flexShrink: 0, marginTop: 1,
+                            background: isEarned ? catColor + "22" : "#1a1a1a",
+                            border: `1px solid ${isEarned ? catColor + "80" : "#2a2a2a"}`,
+                            display: "flex", alignItems: "center", justifyContent: "center",
+                            color: isEarned ? catColor : "#444",
+                          }}>
+                            {isEarned
+                              ? <BlotMarkCategoryIcon category={cat} size={15} />
+                              : <span style={{ fontSize: "0.75rem", opacity: 0.4 }}>○</span>
+                            }
                           </div>
-                          <div style={{ fontSize: "0.75rem", opacity: isEarned ? 0.65 : 0.35, fontStyle: "italic", lineHeight: 1.4 }}>
-                            {BLOT_MARKS[id].flavour}
+                          <div style={{ flex: 1 }}>
+                            <div style={{ fontSize: "0.88rem", fontWeight: 700, color: isEarned ? catColor : "#888", marginBottom: 2 }}>
+                              {BLOT_MARKS[id].title}
+                            </div>
+                            <div style={{ fontSize: "0.75rem", opacity: isEarned ? 0.65 : 0.4, fontStyle: "italic", lineHeight: 1.4 }}>
+                              {BLOT_MARKS[id].flavour}
+                            </div>
+                          </div>
+                          <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0, marginTop: 4 }}>
+                            {isEarned && <span style={{ fontSize: "0.75rem", color: catColor, opacity: 0.6, fontWeight: 700 }}>✓</span>}
+                            <span style={{
+                              fontSize: "0.7rem", opacity: 0.3, transition: "transform 0.2s",
+                              display: "inline-block", transform: isExpanded ? "rotate(90deg)" : "rotate(0deg)",
+                            }}>▶</span>
                           </div>
                         </div>
-                        {isEarned && (
-                          <div style={{ fontSize: "0.75rem", color: catColor, opacity: 0.6, fontWeight: 700, flexShrink: 0, marginTop: 2 }}>✓</div>
+
+                        {/* Expandable how-to section */}
+                        {isExpanded && (
+                          <div style={{
+                            padding: "0 14px 12px 52px",
+                            animation: "markRevealFadeIn 0.2s ease both",
+                          }}>
+                            <div style={{
+                              fontSize: "0.78rem", color: isEarned ? catColor : "#aaa",
+                              opacity: isEarned ? 0.85 : 0.7,
+                              lineHeight: 1.55,
+                              borderTop: `1px solid ${isEarned ? catColor + "20" : "#2a2a2a"}`,
+                              paddingTop: 10,
+                            }}>
+                              {isEarned
+                                ? <span style={{ opacity: 0.5, marginRight: 6 }}>✓ Earned —</span>
+                                : null
+                              }
+                              {BLOT_MARK_HOW[id]}
+                            </div>
+                          </div>
                         )}
                       </div>
                     );

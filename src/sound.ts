@@ -149,7 +149,8 @@ function getBgmSrc(track: BgmTrack): string {
     const variant = BATTLE_VARIANTS[Math.floor(Math.random() * BATTLE_VARIANTS.length)];
     return `/bgm/${variant}.mp3`;
   }
-  return `/bgm/${track}.mp3`;
+  const filename = track === "hub" ? "main_hub" : track;
+  return `/bgm/${filename}.mp3`;
 }
 
 function fadeOutAndStop(el: HTMLAudioElement, onDone?: () => void) {

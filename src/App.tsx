@@ -1470,9 +1470,10 @@ export default function App() {
 
       if (returnScreen === "SUMMARY_JOURNEY" && journeyResult) {
         setJourneyResult({ ...journeyResult, mothEncountered: false, mothDefeated: true });
-        setBattleResult(null);
-        setReturnScreen("HUB");
-        setScreen("SUMMARY_JOURNEY");
+        // Show battle summary first; "Back to it" will then return to journey summary
+        setBattleResult(result);
+        // returnScreen stays "SUMMARY_JOURNEY" so the Back button knows where to go
+        setScreen("SUMMARY_BATTLE");
       } else {
         setBattleResult(result);
         setScreen("SUMMARY_BATTLE");
@@ -2590,7 +2591,7 @@ export default function App() {
         })}
       </div>
       {/* ── Gem-Embedded Trophy crafting ── */}
-      {(() => {
+      {markState.gateDiscovered && (() => {
         const gemIds = Object.keys(GEM_TROPHY_RECIPES) as GemTrophyItemId[];
         const availableGems = gemIds.filter(gemId => {
           const recipe = GEM_TROPHY_RECIPES[gemId];
@@ -2687,7 +2688,7 @@ export default function App() {
       </div>
 
       <div className="row">
-        <button ref={craftButtonRef} className="btn" style={{ background: "#1a2e1a", border: "1px solid #4caf50", color: "#7ecba1", fontWeight: 600, padding: "12px 22px" }} onClick={proceedCraft} disabled={dead || exhausted}>Make it</button>
+        <button ref={craftButtonRef} className="btn" style={{ background: "#1a2e1a", border: "1px solid #4caf50", color: "#7ecba1", fontWeight: 600, padding: "12px 22px", boxShadow: "0 0 10px rgba(78,200,120,0.35), 0 0 3px rgba(78,200,120,0.2)" }} onClick={proceedCraft} disabled={dead || exhausted}>Yes!</button>
         <button className="btn" onClick={() => setScreen("CRAFT_MENU")}>Put it down</button>
       </div>
     </div>
@@ -2943,7 +2944,10 @@ export default function App() {
 
         {/* Resources */}
         {(() => {
-          const resources = player.inventory.filter(s => !((s.id as string).startsWith("eq_") || (s.id as string).startsWith("food_")));
+          const resources = player.inventory.filter(s => {
+            const sid = s.id as string;
+            return !(sid.startsWith("eq_") || sid.startsWith("food_") || sid.startsWith("trophy_") || sid.startsWith("marker_") || sid.startsWith("gem_trophy_"));
+          });
           if (!resources.length) return null;
           return (
             <div>
@@ -2958,6 +2962,58 @@ export default function App() {
                   </div>
                 ))}
               </div>
+            </div>
+          );
+        })()}
+
+        {/* Trophies & Markers */}
+        {(() => {
+          const progressionItems = player.inventory.filter(s => {
+            const sid = s.id as string;
+            return sid.startsWith("trophy_") || sid.startsWith("marker_") || sid.startsWith("gem_trophy_");
+          });
+          if (!progressionItems.length) return null;
+          return (
+            <div>
+              <div style={{ fontSize: "0.7rem", opacity: 0.4, letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: 8 }}>Trophies & Markers</div>
+              {progressionItems.map(s => {
+                const sid = s.id as string;
+                const isExpanded = expandedItem === sid;
+                let itemDef: import("./gameData").ProgressionItemDef | undefined;
+                let catColor = "#888";
+                if (sid.startsWith("gem_trophy_")) {
+                  itemDef = GEM_TROPHIES[sid as import("./types").GemTrophyItemId];
+                } else if (sid.startsWith("trophy_")) {
+                  itemDef = TROPHIES[sid as import("./types").TrophyItemId];
+                } else if (sid.startsWith("marker_")) {
+                  itemDef = MARKERS[sid as import("./types").MarkerItemId];
+                }
+                if (itemDef?.category) catColor = CATEGORY_COLOR[itemDef.category] ?? "#888";
+                const isTrophy = sid.startsWith("trophy_");
+                const isGem = sid.startsWith("gem_trophy_");
+                const accentColor = isGem ? catColor : isTrophy ? catColor : catColor + "bb";
+                const borderLeft = isGem ? `3px solid ${catColor}` : isTrophy ? `3px solid ${catColor}80` : `3px solid ${catColor}50`;
+                return (
+                  <div key={sid} style={{ background: "#161616", borderRadius: 10, border: `1px solid ${catColor}30`, borderLeft, marginBottom: 6, overflow: "hidden" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", cursor: "pointer" }} onClick={() => setExpandedItem(isExpanded ? null : sid)}>
+                      <ItemIcon id={sid} size={20} />
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontWeight: 600, fontSize: "0.95rem", color: accentColor }}>{itemDef?.name ?? sid}</div>
+                        <div style={{ fontSize: "0.72rem", opacity: 0.45, marginTop: 2 }}>
+                          {isGem ? "Gem Trophy · " : isTrophy ? "Trophy · " : "Marker · "}{itemDef?.category}
+                        </div>
+                      </div>
+                      <div style={{ fontSize: "0.8rem", opacity: 0.5, padding: "3px 8px", background: "#1e1e1e", borderRadius: 6 }}>×{s.qty}</div>
+                      <div style={{ fontSize: "0.7rem", opacity: 0.35 }}>{isExpanded ? "▲" : "▼"}</div>
+                    </div>
+                    {isExpanded && (
+                      <div style={{ padding: "0 14px 12px", fontSize: "0.82rem", opacity: 0.65, fontStyle: "italic", borderTop: "1px solid #1e1e1e", paddingTop: 10, color: accentColor }}>
+                        {itemDef?.flavor}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           );
         })()}
@@ -3090,6 +3146,7 @@ export default function App() {
                     const isRevealed = !!markState.revealed[id];
                     const isNewReveal = newRevealIds.includes(id);
                     const isExpanded = expandedMark === id;
+                    const hasUnclaimed = isEarned && !markState.claimedMarkers?.[id];
 
                     if (!isRevealed) {
                       return (
@@ -3115,9 +3172,10 @@ export default function App() {
                         borderRadius: 9,
                         border: `1px solid ${isEarned ? catColor + "50" : "#252525"}`,
                         borderLeft: `3px solid ${isEarned ? catColor : isExpanded ? "#555" : "#2a2a2a"}`,
-                        transition: "border-color 0.2s",
+                        transition: "border-color 0.2s, box-shadow 0.2s",
                         overflow: "hidden",
                         animation: isNewReveal ? "markRevealFadeIn 0.6s ease both" : undefined,
+                        boxShadow: hasUnclaimed ? `0 0 8px ${catColor}40, 0 0 2px ${catColor}30` : undefined,
                       }}>
                         {/* Clickable header row */}
                         <div
@@ -3517,7 +3575,14 @@ export default function App() {
 
         <FadeIn delay={400}>
           <div className="row">
-            <button className="btn" style={{ background: "#1a2e1a", border: "1px solid #4caf50", color: "#7ecba1", fontWeight: 600, padding: "12px 22px" }} onClick={gotoHub}>Back to it</button>
+            <button className="btn" style={{ background: "#1a2e1a", border: "1px solid #4caf50", color: "#7ecba1", fontWeight: 600, padding: "12px 22px" }} onClick={() => {
+              if (returnScreen === "SUMMARY_JOURNEY" && journeyResult) {
+                setReturnScreen("HUB");
+                setScreen("SUMMARY_JOURNEY");
+              } else {
+                gotoHub();
+              }
+            }}>Back to it</button>
           </div>
         </FadeIn>
       </div>

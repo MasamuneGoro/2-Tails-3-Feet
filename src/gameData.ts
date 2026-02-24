@@ -574,6 +574,7 @@ export const MOVES: Record<MoveId, PlayerMove> = {
     id: "jab_wing",
     label: "Jab at the wing joint",
     tools: ["eq_pointed_twig"],
+    forbiddenFlags: ["wax_laced"],
     effect: {
       composureDelta: [15, 25],
       integrityDelta: -8,

@@ -258,9 +258,186 @@ const ICON_DEFS: Record<string, { color: string; paths: string }> = {
       <rect x="17.5" y="8.5" width="2" height="2.5" rx="0.8" fill="currentColor" opacity="0.2"/>
     `,
   },
-};
 
-// ─── ItemIcon component ───────────────────────────────────────────────────────
+  // ── Markers — small gems/shards, each with category colour ───────────────
+  marker_exploration: {
+    color: "#f4a840",   // amber-orange
+    paths: `
+      <circle cx="12" cy="12" r="4" fill="currentColor" opacity="0.25"/>
+      <circle cx="12" cy="12" r="4" fill="none" stroke="currentColor" stroke-width="2"/>
+      <circle cx="12" cy="12" r="1.5" fill="currentColor" opacity="0.7"/>
+      <path d="M12 5 L12 7.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" opacity="0.4"/>
+      <path d="M12 16.5 L12 19" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" opacity="0.4"/>
+      <path d="M5 12 L7.5 12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" opacity="0.4"/>
+      <path d="M16.5 12 L19 12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" opacity="0.4"/>
+    `,
+  },
+  marker_harvesting: {
+    color: "#66bb6a",   // green
+    paths: `
+      <polygon points="12,4 16,10 14.5,19 9.5,19 8,10" fill="currentColor" opacity="0.15" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
+      <path d="M8 10 L16 10" stroke="currentColor" stroke-width="1.5" opacity="0.5"/>
+      <circle cx="12" cy="13" r="1.2" fill="currentColor" opacity="0.6"/>
+    `,
+  },
+  marker_crafting: {
+    color: "#9e9e9e",   // grey
+    paths: `
+      <rect x="7" y="7" width="10" height="10" rx="1.5" fill="currentColor" opacity="0.12" stroke="currentColor" stroke-width="2"/>
+      <path d="M7 12 L17 12" stroke="currentColor" stroke-width="1.5" opacity="0.5"/>
+      <path d="M12 7 L12 17" stroke="currentColor" stroke-width="1.5" opacity="0.5"/>
+    `,
+  },
+  marker_survival: {
+    color: "#ef5350",   // red
+    paths: `
+      <ellipse cx="12" cy="12.5" rx="5" ry="6" fill="currentColor" opacity="0.12" stroke="currentColor" stroke-width="2"/>
+      <ellipse cx="10.5" cy="10.5" rx="1.5" ry="2" fill="currentColor" opacity="0.3" transform="rotate(-15 10.5 10.5)"/>
+      <circle cx="12" cy="14" r="1.2" fill="currentColor" opacity="0.55"/>
+    `,
+  },
+  marker_combat: {
+    color: "#ab47bc",   // violet
+    paths: `
+      <polygon points="12,3.5 15,10 22,10 16.5,14.5 18.5,21 12,17 5.5,21 7.5,14.5 2,10 9,10" fill="currentColor" opacity="0.12" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+      <circle cx="12" cy="12.5" r="1.5" fill="currentColor" opacity="0.6"/>
+    `,
+  },
+  marker_loot: {
+    color: "#ffd54f",   // yellow
+    paths: `
+      <polygon points="12,3 15.5,8.5 21.5,10 17,15 18,21 12,18 6,21 7,15 2.5,10 8.5,8.5" fill="currentColor" opacity="0.12" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+      <circle cx="12" cy="13" r="2" fill="currentColor" opacity="0.5"/>
+    `,
+  },
+
+  // ── Trophies — lens/prism shapes, brighter than markers ──────────────────
+  trophy_exploration: {
+    color: "#f4a840",
+    paths: `
+      <ellipse cx="12" cy="13" rx="7.5" ry="8.5" fill="currentColor" opacity="0.12" stroke="currentColor" stroke-width="2.5"/>
+      <path d="M4.5 13 C4.5 8.5 7.5 5 12 5 C16.5 5 19.5 8.5 19.5 13" fill="currentColor" opacity="0.2"/>
+      <ellipse cx="10" cy="10" rx="2.5" ry="3.5" fill="currentColor" opacity="0.2" transform="rotate(-20 10 10)"/>
+      <path d="M8 16 C9.5 18 14.5 18 16 16" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" fill="none" opacity="0.5"/>
+    `,
+  },
+  trophy_harvesting: {
+    color: "#66bb6a",
+    paths: `
+      <polygon points="12,2.5 20,8 18,20 6,20 4,8" fill="currentColor" opacity="0.12" stroke="currentColor" stroke-width="2.5" stroke-linejoin="round"/>
+      <path d="M4 8 L20 8" stroke="currentColor" stroke-width="1.5" opacity="0.45"/>
+      <path d="M12 2.5 L18 8 L16 20" stroke="currentColor" stroke-width="1.2" opacity="0.3" fill="none"/>
+      <circle cx="12" cy="14" r="2" fill="currentColor" opacity="0.5"/>
+    `,
+  },
+  trophy_crafting: {
+    color: "#9e9e9e",
+    paths: `
+      <polygon points="12,2.5 19.5,7 19.5,17 12,21.5 4.5,17 4.5,7" fill="currentColor" opacity="0.12" stroke="currentColor" stroke-width="2.5" stroke-linejoin="round"/>
+      <path d="M4.5 7 L19.5 17" stroke="currentColor" stroke-width="1.2" opacity="0.35" fill="none"/>
+      <path d="M19.5 7 L4.5 17" stroke="currentColor" stroke-width="1.2" opacity="0.35" fill="none"/>
+      <circle cx="12" cy="12" r="2" fill="currentColor" opacity="0.5"/>
+    `,
+  },
+  trophy_survival: {
+    color: "#ef5350",
+    paths: `
+      <ellipse cx="12" cy="13" rx="7" ry="9" fill="currentColor" opacity="0.12" stroke="currentColor" stroke-width="2.5"/>
+      <path d="M12 4 L12 7.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" opacity="0.5"/>
+      <ellipse cx="9.5" cy="10" rx="2.5" ry="3.5" fill="currentColor" opacity="0.2" transform="rotate(-20 9.5 10)"/>
+      <path d="M8 16 C9.5 18.5 14.5 18.5 16 16" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" fill="none" opacity="0.55"/>
+    `,
+  },
+  trophy_combat: {
+    color: "#ab47bc",
+    paths: `
+      <polygon points="12,2 17,8.5 15.5,15.5 9,18 4.5,12.5 7,5.5" fill="currentColor" opacity="0.12" stroke="currentColor" stroke-width="2.5" stroke-linejoin="round"/>
+      <path d="M7 5.5 L15.5 15.5" stroke="currentColor" stroke-width="1.2" opacity="0.3" fill="none"/>
+      <path d="M17 8.5 L4.5 12.5" stroke="currentColor" stroke-width="1.2" opacity="0.3" fill="none"/>
+      <circle cx="12" cy="11" r="2.5" fill="currentColor" opacity="0.5"/>
+    `,
+  },
+  trophy_loot: {
+    color: "#ffd54f",
+    paths: `
+      <polygon points="12,2 17.5,7 20.5,13 17.5,19 6.5,19 3.5,13 6.5,7" fill="currentColor" opacity="0.12" stroke="currentColor" stroke-width="2.5" stroke-linejoin="round"/>
+      <path d="M6.5 7 L17.5 19" stroke="currentColor" stroke-width="1.2" opacity="0.3" fill="none"/>
+      <path d="M17.5 7 L6.5 19" stroke="currentColor" stroke-width="1.2" opacity="0.3" fill="none"/>
+      <circle cx="12" cy="13" r="2.5" fill="currentColor" opacity="0.55"/>
+    `,
+  },
+
+  // ── Gem Trophies — studded versions, richer shapes ────────────────────────
+  gem_trophy_exploration: {
+    color: "#f4a840",
+    paths: `
+      <ellipse cx="12" cy="13" rx="7.5" ry="8.5" fill="currentColor" opacity="0.15" stroke="currentColor" stroke-width="2.5"/>
+      <path d="M4.5 13 C4.5 8.5 7.5 5 12 5 C16.5 5 19.5 8.5 19.5 13" fill="currentColor" opacity="0.2"/>
+      <circle cx="7.5"  cy="9.5"  r="1.5" fill="currentColor" opacity="0.75"/>
+      <circle cx="12"   cy="6"    r="1.5" fill="currentColor" opacity="0.75"/>
+      <circle cx="16.5" cy="9.5"  r="1.5" fill="currentColor" opacity="0.75"/>
+      <circle cx="12"   cy="20"   r="1.2" fill="currentColor" opacity="0.6"/>
+    `,
+  },
+  gem_trophy_harvesting: {
+    color: "#66bb6a",
+    paths: `
+      <polygon points="12,2.5 20,8 18,20 6,20 4,8" fill="currentColor" opacity="0.15" stroke="currentColor" stroke-width="2.5" stroke-linejoin="round"/>
+      <path d="M4 8 L20 8" stroke="currentColor" stroke-width="1.5" opacity="0.4"/>
+      <circle cx="8"  cy="5.5" r="1.5" fill="currentColor" opacity="0.75"/>
+      <circle cx="12" cy="4"   r="1.5" fill="currentColor" opacity="0.75"/>
+      <circle cx="16" cy="5.5" r="1.5" fill="currentColor" opacity="0.75"/>
+      <circle cx="12" cy="14"  r="2"   fill="currentColor" opacity="0.6"/>
+    `,
+  },
+  gem_trophy_crafting: {
+    color: "#9e9e9e",
+    paths: `
+      <polygon points="12,2.5 19.5,7 19.5,17 12,21.5 4.5,17 4.5,7" fill="currentColor" opacity="0.15" stroke="currentColor" stroke-width="2.5" stroke-linejoin="round"/>
+      <circle cx="12"   cy="2.5"  r="1.5" fill="currentColor" opacity="0.75"/>
+      <circle cx="19.5" cy="7"    r="1.5" fill="currentColor" opacity="0.75"/>
+      <circle cx="19.5" cy="17"   r="1.5" fill="currentColor" opacity="0.75"/>
+      <circle cx="12"   cy="21.5" r="1.5" fill="currentColor" opacity="0.75"/>
+      <circle cx="4.5"  cy="17"   r="1.5" fill="currentColor" opacity="0.75"/>
+      <circle cx="4.5"  cy="7"    r="1.5" fill="currentColor" opacity="0.75"/>
+    `,
+  },
+  gem_trophy_survival: {
+    color: "#ef5350",
+    paths: `
+      <ellipse cx="12" cy="13" rx="7" ry="9" fill="currentColor" opacity="0.15" stroke="currentColor" stroke-width="2.5"/>
+      <path d="M12 4 L12 7.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" opacity="0.5"/>
+      <circle cx="7"  cy="8"    r="1.5" fill="currentColor" opacity="0.75"/>
+      <circle cx="17" cy="8"    r="1.5" fill="currentColor" opacity="0.75"/>
+      <circle cx="5"  cy="15"   r="1.5" fill="currentColor" opacity="0.75"/>
+      <circle cx="19" cy="15"   r="1.5" fill="currentColor" opacity="0.75"/>
+      <circle cx="12" cy="21.5" r="1.5" fill="currentColor" opacity="0.75"/>
+    `,
+  },
+  gem_trophy_combat: {
+    color: "#ab47bc",
+    paths: `
+      <polygon points="12,2 17,8.5 15.5,15.5 9,18 4.5,12.5 7,5.5" fill="currentColor" opacity="0.15" stroke="currentColor" stroke-width="2.5" stroke-linejoin="round"/>
+      <circle cx="12"  cy="2"    r="1.5" fill="currentColor" opacity="0.75"/>
+      <circle cx="17"  cy="8.5"  r="1.5" fill="currentColor" opacity="0.75"/>
+      <circle cx="15.5" cy="15.5" r="1.5" fill="currentColor" opacity="0.75"/>
+      <circle cx="9"   cy="18"   r="1.5" fill="currentColor" opacity="0.75"/>
+      <circle cx="4.5" cy="12.5" r="1.5" fill="currentColor" opacity="0.75"/>
+      <circle cx="7"   cy="5.5"  r="1.5" fill="currentColor" opacity="0.75"/>
+      <circle cx="12"  cy="10"   r="2"   fill="currentColor" opacity="0.6"/>
+    `,
+  },
+  gem_trophy_loot: {
+    color: "#ffd54f",
+    paths: `
+      <polygon points="12,2 17.5,7 20.5,13 17.5,19 6.5,19 3.5,13 6.5,7" fill="currentColor" opacity="0.15" stroke="currentColor" stroke-width="2.5" stroke-linejoin="round"/>
+      <circle cx="12"  cy="2"    r="1.5" fill="currentColor" opacity="0.75"/>
+      <circle cx="17.5" cy="7"   r="1.5" fill="currentColor" opacity="0.75"/>
+      <circle cx="6.5" cy="7"    r="1.5" fill="currentColor" opacity="0.75"/>
+      <circle cx="12"  cy="13"   r="2.5" fill="currentColor" opacity="0.6"/>
+    `,
+  },
+};
 interface ItemIconProps {
   id: string;
   size?: number;

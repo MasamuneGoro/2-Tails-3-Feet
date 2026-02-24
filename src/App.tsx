@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import type { BlotMarkCategory, BlotMarkId, BlotMarkState, BlotState, CraftPreview, CraftResult, EatSapResult, HarvestMethodId, HarvestPreview, HarvestResult, HarvestStorableResult, JourneyPreview, JourneyResult, PlayerState, PoiId, Screen, GemTrophyItemId, TrophyItemId, MarkerItemId } from "./types";
-import { playSfx, unlockAudio, preloadAll } from "./sound";
+import { playSfx, unlockAudio, preloadAll, playBgm, stopBgm, setBgmVolume, getBgmVolume } from "./sound";
 import { startBattle, getAvailableMoves, executeMove, resolveBattle } from "./combat";
 import type { BattleState, BattleResult, CreatureId } from "./types";
 import { CreatureIcon, ItemIcon, PoiImage, PoiIcon, FilamentGateImage } from "./visuals";
@@ -668,6 +668,7 @@ const START_PLAYER: PlayerState = {
 export default function App() {
   const [player, setPlayer] = useState<PlayerState>(() => structuredClone(START_PLAYER));
   const [screen, setScreen] = useState<Screen>("HUB");
+  const [bgmVolume, setBgmVolumeState] = useState<number>(getBgmVolume());
 
   const [journeyPreview, setJourneyPreview] = useState<JourneyPreview | null>(null);
   const [journeyResult, setJourneyResult] = useState<JourneyResult | null>(null);
@@ -887,6 +888,24 @@ export default function App() {
   useEffect(() => {
     if (screen === "DEAD") playSfx("sfx_dead");
     if (screen === "EXHAUSTED") playSfx("sfx_exhausted");
+  }, [screen]);
+
+  // BGM: drive track based on active screen
+  useEffect(() => {
+    if (screen === "BATTLE") {
+      playBgm("battle");
+    } else if (
+      screen === "PREVIEW_JOURNEY" ||
+      screen === "SUMMARY_JOURNEY" ||
+      screen === "POI" ||
+      screen === "PREVIEW_HARVEST" ||
+      screen === "SUMMARY_HARVEST" ||
+      screen === "SUMMARY_BATTLE"
+    ) {
+      playBgm("journey");
+    } else {
+      playBgm("hub");
+    }
   }, [screen]);
   function snapshotStorableQty(inv: typeof player.inventory): Record<string, number> {
     const snap: Record<string, number> = {};
@@ -1806,6 +1825,29 @@ export default function App() {
         >
           ? How it works
         </button>
+      </div>
+
+      <div style={{ borderTop: "1px solid #2a2a2a", paddingTop: 10 }}>
+        <div style={{ fontSize: "0.7rem", opacity: 0.4, letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: 7 }}>
+          Music
+        </div>
+        <input
+          type="range"
+          min={0}
+          max={1}
+          step={0.01}
+          value={bgmVolume}
+          onChange={(e) => {
+            const v = parseFloat(e.target.value);
+            setBgmVolumeState(v);
+            setBgmVolume(v);
+          }}
+          style={{ width: "100%", accentColor: "#7ecba1", cursor: "pointer" }}
+        />
+        <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.65rem", opacity: 0.35, marginTop: 2 }}>
+          <span>off</span>
+          <span>loud</span>
+        </div>
       </div>
 
       <div style={{ borderTop: "1px solid #2a2a2a", paddingTop: 10 }}>

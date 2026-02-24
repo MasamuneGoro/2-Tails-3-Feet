@@ -132,6 +132,99 @@ export function playSfx(id: SfxId, delayMs = 0) {
   }, delayMs);
 }
 
+// ─── BGM Manager ──────────────────────────────────────────────────────────────
+
+export type BgmTrack = "hub" | "journey" | "battle";
+
+const BATTLE_VARIANTS = ["battle_1", "battle_2", "battle_3", "battle_4"] as const;
+
+let bgmCurrent: BgmTrack | null = null;
+let bgmElement: HTMLAudioElement | null = null;
+let bgmVolume = 0.35; // default BGM volume (lower than SFX)
+let bgmFadeTimer: ReturnType<typeof setTimeout> | null = null;
+
+function getBgmSrc(track: BgmTrack): string {
+  if (track === "battle") {
+    const variant = BATTLE_VARIANTS[Math.floor(Math.random() * BATTLE_VARIANTS.length)];
+    return `/bgm/${variant}.mp3`;
+  }
+  return `/bgm/${track}.mp3`;
+}
+
+function fadeOutAndStop(el: HTMLAudioElement, onDone?: () => void) {
+  const step = el.volume / 20;
+  const interval = setInterval(() => {
+    if (el.volume <= step) {
+      el.pause();
+      el.volume = 0;
+      clearInterval(interval);
+      onDone?.();
+    } else {
+      el.volume = Math.max(0, el.volume - step);
+    }
+  }, 25);
+}
+
+export function setBgmVolume(v: number) {
+  bgmVolume = Math.max(0, Math.min(1, v));
+  if (bgmElement && !bgmElement.paused) {
+    bgmElement.volume = bgmVolume;
+  }
+}
+
+export function getBgmVolume(): number {
+  return bgmVolume;
+}
+
+export function playBgm(track: BgmTrack) {
+  if (!unlocked) return;
+  if (bgmCurrent === track && bgmElement && !bgmElement.paused) return;
+
+  if (bgmFadeTimer) { clearTimeout(bgmFadeTimer); bgmFadeTimer = null; }
+
+  const startNew = () => {
+    bgmCurrent = track;
+    const el = new Audio(getBgmSrc(track));
+    el.loop = true;
+    el.volume = 0;
+    el.preload = "auto";
+    bgmElement = el;
+    el.play().then(() => {
+      // Fade in
+      const target = bgmVolume;
+      const step = target / 20;
+      const interval = setInterval(() => {
+        if (el.volume >= target - step) {
+          el.volume = target;
+          clearInterval(interval);
+        } else {
+          el.volume = Math.min(target, el.volume + step);
+        }
+      }, 25);
+    }).catch(() => {});
+  };
+
+  if (bgmElement && !bgmElement.paused) {
+    const old = bgmElement;
+    bgmElement = null;
+    bgmCurrent = null;
+    fadeOutAndStop(old, startNew);
+  } else {
+    startNew();
+  }
+}
+
+export function stopBgm() {
+  if (bgmElement && !bgmElement.paused) {
+    const old = bgmElement;
+    bgmElement = null;
+    bgmCurrent = null;
+    fadeOutAndStop(old);
+  }
+}
+
+// ─── SFX Volumes ──────────────────────────────────────────────────────────────
+
 const VOLUMES: Partial<Record<SfxId, number>> = {
   sfx_click:          0.5,
   sfx_transition:     0.4,

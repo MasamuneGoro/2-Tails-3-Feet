@@ -636,7 +636,7 @@ export const MOVES: Record<MoveId, PlayerMove> = {
     id: "drill_thorax",
     label: "Find the hollow and bore in",
     tools: ["eq_hand_drill"],
-    requiredSituation: "moth_descending",
+    forbiddenFlags: ["thorax_open"],
     effect: {
       composureDelta: [25, 35],
       integrityDelta: -20,

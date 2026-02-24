@@ -3,7 +3,7 @@ import type { BlotMarkCategory, BlotMarkId, BlotMarkState, BlotState, CraftPrevi
 import { playSfx, unlockAudio, preloadAll } from "./sound";
 import { startBattle, getAvailableMoves, executeMove, resolveBattle } from "./combat";
 import type { BattleState, BattleResult, CreatureId } from "./types";
-import { CreatureIcon, ItemIcon, PoiImage, PoiIcon } from "./visuals";
+import { CreatureIcon, ItemIcon, PoiImage, PoiIcon, FilamentGateImage } from "./visuals";
 import { BIOME_LEVEL, CREATURES, EVENTS, FOODS, ITEMS, MOVES, POIS, RECIPES, RESOURCES, SITUATION_TEXT, getSituationText, MARKERS, TROPHIES, GEM_TROPHIES, BIOMASS_ITEM, CATEGORY_MARKER, CATEGORY_TROPHY, TROPHY_TO_GEM, CATEGORY_GATE_MARK, GEM_TROPHY_RECIPES, GATE_REQUIRED_GEM_TROPHIES, BIOMASS_VALUES } from "./gameData";
 import {
   canCraft, getFoodName, getItemName, getResourceName, listUnlockedRecipes,
@@ -538,7 +538,13 @@ function StaminaRecoveryLine({ raw, recovery }: { raw: number; recovery: import(
 
 function SatietyLine({ raw, restored }: { raw: number; restored: number }) {
   if (restored === 0) return <>−{raw}</>;
-  const net = Math.max(0, raw - restored);
+  const net = raw - restored;
+  if (net < 0) {
+    return <span>−{raw} <span style={{ opacity: 0.6, fontSize: "0.85em" }}>(+{restored} Chomper)</span> = <span style={{ color: "#4caf50" }}>+{Math.abs(net)}</span></span>;
+  }
+  if (net === 0) {
+    return <span>−{raw} <span style={{ opacity: 0.6, fontSize: "0.85em" }}>(+{restored} Chomper)</span> = ±0</span>;
+  }
   return <span>−{raw} <span style={{ opacity: 0.6, fontSize: "0.85em" }}>(+{restored} Chomper)</span> = −{net}</span>;
 }
 
@@ -590,7 +596,8 @@ function StatBar({ value, max, kind, netRange }: StatBarProps) {
   const costZoneLeft = netLoPct !== null ? netLoPct : fillPct;
   const costZoneWidth = fillPct - costZoneLeft;
   const hasCost = costZoneWidth > 0.1;
-  const tickColor = kind === "satiety" ? "#7dff8a" : "#ffe566";
+  // Tick color: a slightly brighter/lighter version of fillColor for contrast
+  const tickColor = fillColor;
 
   let rangeLabel: string | null = null;
   if (netLo !== null && netHi !== null) {
@@ -702,6 +709,10 @@ export default function App() {
   // Gate state
   const [gateEncounterPending, setGateEncounterPending] = useState(false); // set during journey if gate should trigger
   const [biomassTotal, setBiomassTotal] = useState(0); // accumulated biomass (not in player inventory — tracked separately)
+  const [gateTab, setGateTab] = useState<"trophies" | "mouth">("trophies"); // active tab in gate screen
+  const [mouthFeedCount, setMouthFeedCount] = useState(0); // total number of items fed to the Hungry Mouth
+  const [mouthFeedConfirm, setMouthFeedConfirm] = useState<{ itemId: string; qty: number } | null>(null); // pending confirmation
+  const [mouthBulkQty, setMouthBulkQty] = useState<Record<string, number>>({}); // bulk feed qty per item
 
   const [returnScreen, setReturnScreen] = useState<Screen>("HUB");
   const [expandedItem, setExpandedItem] = useState<string | null>(null);
@@ -777,6 +788,10 @@ export default function App() {
     setNewRevealIds([]);
     setGateEncounterPending(false);
     setBiomassTotal(0);
+    setGateTab("trophies");
+    setMouthFeedCount(0);
+    setMouthFeedConfirm(null);
+    setMouthBulkQty({});
   }
 
   /** Snapshot qty of each storable food stack before an action */
@@ -1196,6 +1211,20 @@ export default function App() {
   function ignorePendingGate() {
     setGateEncounterPending(false);
     // Proceed to enterPoi — caller must call enterPoi after
+  }
+
+  function feedToMouth(itemId: string, qty: number) {
+    const value = BIOMASS_VALUES[itemId];
+    if (!value) return;
+    const next = structuredClone(player);
+    const available = invGet(next.inventory, itemId as import("./types").ResourceId)?.qty ?? 0;
+    const actualQty = Math.min(qty, available);
+    if (actualQty <= 0) return;
+    invRemove(next.inventory, itemId as import("./types").ResourceId, actualQty);
+    setBiomassTotal(prev => prev + value * actualQty);
+    setMouthFeedCount(prev => prev + actualQty);
+    setPlayer(next);
+    setMouthFeedConfirm(null);
   }
 
   function liquidateItem(itemId: string, qty: number) {
@@ -1699,7 +1728,7 @@ export default function App() {
           const hasNewReveal = newRevealIds.length > 0;
           const hasPending = !marksViewed && (hasNewEarned || hasNewReveal);
           const earnedCount = Object.keys(markState.earned).length;
-          const unclaimedCount = Object.keys(markState.earned).filter(id => !markState.claimedMarkers?.[id as import("./types").BlotMarkId]).length;
+          const unclaimedCount = Object.keys(markState.earned).filter(id => markState.revealed[id as import("./types").BlotMarkId] && !markState.claimedMarkers?.[id as import("./types").BlotMarkId]).length;
           const hasUnclaimed = unclaimedCount > 0;
           // Priority: new-earn pulse > new-reveal subtle pulse > unclaimed ambient glow
           const glowStyle = hasPending ? (hasNewEarned
@@ -1758,12 +1787,6 @@ export default function App() {
         })()}
       </div>
 
-      <div style={{ borderTop: "1px solid #2a2a2a", paddingTop: 10 }}>
-        <button className="btn" style={{ width: "100%", fontSize: "0.8rem", opacity: 0.6 }} onClick={reset}>
-          Reset Run
-        </button>
-      </div>
-
       <div style={{ marginTop: "auto", paddingTop: 10 }}>
         <button
           style={{
@@ -1774,6 +1797,12 @@ export default function App() {
           onClick={() => setHowItWorksOpen(true)}
         >
           ? How it works
+        </button>
+      </div>
+
+      <div style={{ borderTop: "1px solid #2a2a2a", paddingTop: 10 }}>
+        <button className="btn" style={{ width: "100%", fontSize: "0.8rem", opacity: 0.6 }} onClick={reset}>
+          Reset Run
         </button>
       </div>
     </div>
@@ -1927,13 +1956,18 @@ export default function App() {
                       <>
                         {rankedEntries.length > 0 && (
                           <div style={{ marginBottom: 10, display: "flex", flexDirection: "column", gap: 3 }}>
-                            {rankedEntries.map(({ tier, tool, discovered }) => (
-                              <div key={tier} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: "0.78rem" }}>
-                                <span style={{ width: 64, textAlign: "right", opacity: discovered ? 1 : 0.35, color: discovered ? tierColors[tier] : "#888", fontWeight: 600 }}>
+                            {rankedEntries.map(({ tier, method, tool, discovered }) => (
+                              <div key={method} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: "0.78rem" }}>
+                                <span style={{ width: 64, textAlign: "right", opacity: discovered ? 1 : 0.35, color: discovered ? tierColors[tier] : "#888", fontWeight: 600, flexShrink: 0 }}>
                                   {discovered ? tierLabels[tier] : "???"}
                                 </span>
-                                <span style={{ opacity: 0.25, fontSize: "0.65rem" }}>▸</span>
-                                <span style={{ opacity: discovered ? 0.85 : 0.3, fontStyle: discovered ? "normal" : "italic" }}>
+                                <span style={{ opacity: 0.25, fontSize: "0.65rem", flexShrink: 0 }}>▸</span>
+                                {discovered && tool && (
+                                  <span style={{ flexShrink: 0, opacity: 0.7 }}>
+                                    <ItemIcon id={tool.id} size={13} />
+                                  </span>
+                                )}
+                                <span style={{ opacity: discovered ? 0.85 : 0.3, fontStyle: discovered ? "normal" : "italic", minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                                   {discovered ? (tool?.name ?? "—") : "not yet tried"}
                                 </span>
                               </div>
@@ -2617,7 +2651,7 @@ export default function App() {
         return (
           <div style={{ marginTop: 16, borderTop: "1px solid #2a2a2a", paddingTop: 14 }}>
             <div style={{ fontSize: "0.7rem", opacity: 0.4, letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: 8 }}>Passage Trophies</div>
-            <p className="small" style={{ opacity: 0.5, marginBottom: 10 }}>Embed your trophies and markers into passage-worthy gems. Requires Resin Glob per marker embedded.</p>
+            <p className="small" style={{ opacity: 0.5, marginBottom: 10 }}>Embed your trophies and markers into passage-worthy gems.</p>
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               {availableGems.map(gemId => {
                 const recipe = GEM_TROPHY_RECIPES[gemId];
@@ -2630,20 +2664,33 @@ export default function App() {
                   <div key={gemId} style={{ background: "#161616", borderRadius: 10, border: `1px solid ${can ? catColor + "40" : "#1e1e1e"}`, borderLeft: `3px solid ${can ? catColor : "#333"}`, padding: "12px 14px", opacity: alreadyHave ? 0.5 : can ? 1 : 0.6 }}>
                     <div style={{ fontWeight: 600, fontSize: "0.92rem", color: catColor, marginBottom: 4 }}>{GEM_TROPHIES[gemId].name}</div>
                     <div style={{ fontSize: "0.75rem", opacity: 0.55, marginBottom: 8, fontStyle: "italic" }}>{GEM_TROPHIES[gemId].flavor}</div>
-                    <div style={{ fontSize: "0.72rem", opacity: 0.6, marginBottom: 8 }}>
-                      Needs: {TROPHIES[recipe.trophyInput].name} ×1 · {MARKERS[recipe.markerInput].name} ×{recipe.markerQty} · Resin Glob ×{recipe.resinQty} · Tinker Shaft equipped
-                      <span style={{ marginLeft: 8, color: (invGet(player.inventory, recipe.trophyInput)?.qty ?? 0) >= 1 ? catColor : "#666" }}>
-                        Trophy: {invGet(player.inventory, recipe.trophyInput)?.qty ?? 0}
-                      </span>
-                      <span style={{ marginLeft: 6, color: (invGet(player.inventory, recipe.markerInput)?.qty ?? 0) >= recipe.markerQty ? catColor : "#666" }}>
-                        Markers: {invGet(player.inventory, recipe.markerInput)?.qty ?? 0}/{recipe.markerQty}
-                      </span>
-                      <span style={{ marginLeft: 6, color: (invGet(player.inventory, "resin_glob")?.qty ?? 0) >= recipe.resinQty ? catColor : "#666" }}>
-                        Resin: {invGet(player.inventory, "resin_glob")?.qty ?? 0}/{recipe.resinQty}
-                      </span>
-                      <span style={{ marginLeft: 6, color: hasTinker ? catColor : "#666" }}>
-                        {hasTinker ? "✓ Tinker Shaft" : "✗ Tinker Shaft"}
-                      </span>
+                    <div style={{ fontSize: "0.72rem", marginBottom: 8 }}>
+                      {/* Requirements row */}
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center", marginBottom: 4 }}>
+                        <span style={{ opacity: 0.45 }}>Needs:</span>
+                        {[
+                          { id: recipe.trophyInput as string, name: TROPHIES[recipe.trophyInput].name, qty: 1 },
+                          { id: recipe.markerInput as string, name: MARKERS[recipe.markerInput].name, qty: recipe.markerQty },
+                          { id: "resin_glob", name: "Resin Glob", qty: recipe.resinQty },
+                        ].map(req => (
+                          <span key={req.id} style={{ display: "inline-flex", alignItems: "center", gap: 3, padding: "2px 6px", borderRadius: 6, background: "#1a1a1a", border: "1px solid #2a2a2a" }}>
+                            <ItemIcon id={req.id} size={12} />
+                            <span style={{ opacity: 0.7 }}>{req.name} ×{req.qty}</span>
+                          </span>
+                        ))}
+                      </div>
+                      {/* Conditions satisfied row */}
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: 4, alignItems: "center" }}>
+                        {[
+                          { label: `Trophy ×${invGet(player.inventory, recipe.trophyInput)?.qty ?? 0}`, met: (invGet(player.inventory, recipe.trophyInput)?.qty ?? 0) >= 1 },
+                          { label: `Markers ${invGet(player.inventory, recipe.markerInput)?.qty ?? 0}/${recipe.markerQty}`, met: (invGet(player.inventory, recipe.markerInput)?.qty ?? 0) >= recipe.markerQty },
+                          { label: `Resin ${invGet(player.inventory, "resin_glob")?.qty ?? 0}/${recipe.resinQty}`, met: (invGet(player.inventory, "resin_glob")?.qty ?? 0) >= recipe.resinQty },
+                        ].map((cond, i) => (
+                          <span key={i} style={{ fontSize: "0.68rem", padding: "1px 6px", borderRadius: 4, background: cond.met ? "#0a1a0a" : "#1a0a0a", border: `1px solid ${cond.met ? "#2e5c2e" : "#3a1a1a"}`, color: cond.met ? "#7ecba1" : "#888" }}>
+                            {cond.met ? "✓" : "✗"} {cond.label}
+                          </span>
+                        ))}
+                      </div>
                     </div>
                     {alreadyHave ? (
                       <div style={{ fontSize: "0.78rem", color: catColor, opacity: 0.6 }}>✓ Already crafted</div>
@@ -3197,7 +3244,7 @@ export default function App() {
                         animation: isNewReveal
                           ? "markRevealFadeIn 0.6s ease both"
                           : hasUnclaimed
-                          ? `unclaimedPulse-${cat} 2.5s ease-in-out infinite`
+                          ? `unclaimedPulse-${cat} 1.2s ease-in-out infinite`
                           : undefined,
                       }}>
                         {/* Clickable header row */}
@@ -3614,8 +3661,6 @@ export default function App() {
     );
   })();
 
-  // ── Screen routing ────────────────────────────────────────────────────────
-
   // ── Gate screen ───────────────────────────────────────────────────────────
   const gateScreen = (() => {
     const slotted = markState.gateSlottedTrophies ?? [];
@@ -3627,22 +3672,98 @@ export default function App() {
       return qty > 0;
     });
 
-    return (
-      <div className="card">
-        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
-          <button onClick={() => setScreen("HUB")} style={{ background: "none", border: "none", color: "#9e8ab0", cursor: "pointer", fontSize: "0.9rem", padding: "4px 8px", borderRadius: 6, fontWeight: 600 }}>← Back</button>
-          <h2 style={{ margin: 0 }}>The Filament Gate</h2>
-        </div>
+    const hasUsedMouth = mouthFeedCount > 0;
 
-        <div style={{ background: "#0d0d18", border: "1px solid #3a2a5a", borderRadius: 12, padding: "14px 16px", marginBottom: 16 }}>
-          <p style={{ fontStyle: "italic", opacity: 0.8, margin: 0, lineHeight: 1.6, fontSize: "0.9rem" }}>
-            Thin upright filaments in an arch, each ending in a socket. Three sockets glow faintly. It doesn't fit the biome. It releases pheromones you can smell from anywhere.
-          </p>
-        </div>
+    const mouthFlavourText = hasUsedMouth
+      ? "It has tasted your things. It doesn't seem done. The opening is slick, faintly warm."
+      : "Something protrudes from one side of the arch — a ring of hardened resin, pointed inward. It looks hungry. For your items.";
 
-        {/* Trophy slots — required 3 */}
+    const mouthTabContent = (
+      <div>
+        <p style={{ fontStyle: "italic", opacity: 0.75, lineHeight: 1.6, fontSize: "0.88rem", marginBottom: 16 }}>
+          {mouthFlavourText}
+        </p>
+
+        {/* Confirmation overlay */}
+        {mouthFeedConfirm && (
+          <div style={{
+            background: "#0d0810", border: "1px solid #4a1a6a", borderRadius: 12,
+            padding: "16px 18px", marginBottom: 14,
+          }}>
+            <div style={{ fontSize: "0.8rem", opacity: 0.5, marginBottom: 8, letterSpacing: "0.08em", textTransform: "uppercase" }}>Feed?</div>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
+              <ItemIcon id={mouthFeedConfirm.itemId} size={22} />
+              <span style={{ fontWeight: 600 }}>
+                {mouthFeedConfirm.itemId.startsWith("eq_") ? (ITEMS[mouthFeedConfirm.itemId]?.name ?? mouthFeedConfirm.itemId)
+                  : (RESOURCES[mouthFeedConfirm.itemId as import("./types").ResourceId]?.name ?? mouthFeedConfirm.itemId)} ×{mouthFeedConfirm.qty}
+              </span>
+              <span style={{ opacity: 0.5, fontSize: "0.8rem" }}>→ +{(BIOMASS_VALUES[mouthFeedConfirm.itemId] ?? 0) * mouthFeedConfirm.qty} Biomass</span>
+            </div>
+            <div style={{ display: "flex", gap: 10 }}>
+              <button
+                onClick={() => feedToMouth(mouthFeedConfirm.itemId, mouthFeedConfirm.qty)}
+                style={{ padding: "9px 20px", borderRadius: 9, fontWeight: 700, fontSize: "0.88rem", border: "1px solid #9c27b0", background: "#1a0a2a", color: "#ce93d8", cursor: "pointer" }}
+              >Yes</button>
+              <button
+                onClick={() => setMouthFeedConfirm(null)}
+                style={{ padding: "9px 20px", borderRadius: 9, fontSize: "0.88rem", border: "1px solid #3a3a3a", background: "#141414", color: "#888", cursor: "pointer" }}
+              >No</button>
+            </div>
+          </div>
+        )}
+
+        {/* Feed items */}
+        {liquidatableItems.length === 0 ? (
+          <p className="small" style={{ opacity: 0.35, fontStyle: "italic" }}>Nothing in your inventory to feed it.</p>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+            {liquidatableItems.map(id => {
+              const qty = invGet(player.inventory, id as import("./types").ResourceId)?.qty ?? 0;
+              const val = BIOMASS_VALUES[id] ?? 0;
+              const name = id.startsWith("eq_") ? (ITEMS[id]?.name ?? id)
+                : (RESOURCES[id as import("./types").ResourceId]?.name ?? id);
+              const bulkQty = mouthBulkQty[id] ?? 1;
+              const canBulk = hasUsedMouth && qty > 1;
+              return (
+                <div key={id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 10px", background: "#0e0e0e", borderRadius: 8, border: "1px solid #1e1e1e" }}>
+                  <ItemIcon id={id} size={18} />
+                  <span style={{ flex: 1, fontSize: "0.85rem", opacity: 0.85 }}>{name} <span style={{ opacity: 0.45 }}>×{qty}</span></span>
+                  <span style={{ fontSize: "0.72rem", opacity: 0.4 }}>{val} ea</span>
+                  {!canBulk ? (
+                    <button
+                      onClick={() => setMouthFeedConfirm({ itemId: id, qty: 1 })}
+                      style={{ padding: "4px 12px", borderRadius: 6, fontSize: "0.75rem", fontWeight: 600, border: "1px solid #5a1a7a", background: "#1a0828", color: "#ce93d8", cursor: "pointer" }}
+                    >Feed ×1</button>
+                  ) : (
+                    <div style={{ display: "flex", gap: 5, alignItems: "center" }}>
+                      <input
+                        type="number" min={1} max={qty}
+                        value={bulkQty}
+                        onChange={e => setMouthBulkQty(prev => ({ ...prev, [id]: Math.max(1, Math.min(qty, parseInt(e.target.value) || 1)) }))}
+                        style={{ width: 44, padding: "3px 6px", borderRadius: 5, background: "#1a1a1a", border: "1px solid #3a3a3a", color: "#eaeaea", fontSize: "0.78rem" }}
+                      />
+                      <button
+                        onClick={() => setMouthFeedConfirm({ itemId: id, qty: bulkQty })}
+                        style={{ padding: "4px 10px", borderRadius: 6, fontSize: "0.75rem", fontWeight: 600, border: "1px solid #5a1a7a", background: "#1a0828", color: "#ce93d8", cursor: "pointer" }}
+                      >Feed → +{val * bulkQty}</button>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    );
+
+    const trophiesTabContent = (
+      <div>
+        {/* Required sockets */}
         <div style={{ marginBottom: 16 }}>
           <div style={{ fontSize: "0.7rem", opacity: 0.4, letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: 10 }}>Required Sockets</div>
+          <p style={{ fontSize: "0.82rem", fontStyle: "italic", opacity: 0.6, marginBottom: 10, lineHeight: 1.5 }}>
+            The empty sockets call out for the trophies — but not in their raw form. It likes them shiny. With gems.
+          </p>
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             {required.map(gemId => {
               const isSlotted = slotted.includes(gemId);
@@ -3650,23 +3771,33 @@ export default function App() {
               const catColor = CATEGORY_COLOR[recipe.category];
               const hasInInventory = (invGet(player.inventory, gemId)?.qty ?? 0) >= 1;
               return (
-                <div key={gemId} style={{
-                  background: isSlotted ? catColor + "12" : "#111",
-                  border: `1px solid ${isSlotted ? catColor + "60" : "#2a2a2a"}`,
-                  borderLeft: `3px solid ${isSlotted ? catColor : "#333"}`,
-                  borderRadius: 10, padding: "12px 14px",
-                  display: "flex", alignItems: "center", gap: 12,
-                }}>
+                <div
+                  key={gemId}
+                  style={{
+                    background: isSlotted ? catColor + "12" : "#111",
+                    border: `1px solid ${isSlotted ? catColor + "60" : "#2a2a2a"}`,
+                    borderLeft: `3px solid ${isSlotted ? catColor : "#333"}`,
+                    borderRadius: 10, padding: "12px 14px",
+                    display: "flex", alignItems: "center", gap: 12,
+                    cursor: "default",
+                  }}
+                >
+                  <div style={{ flexShrink: 0 }}>
+                    <ItemIcon id={gemId} size={22} />
+                  </div>
                   <div style={{ flex: 1 }}>
                     <div style={{ fontWeight: 600, color: isSlotted ? catColor : "#888", fontSize: "0.92rem", marginBottom: 2 }}>
                       {GEM_TROPHIES[gemId].name}
                     </div>
+                    <div style={{ fontSize: "0.73rem", opacity: 0.55, fontStyle: "italic", lineHeight: 1.4 }}>
+                      {GEM_TROPHIES[gemId].flavor}
+                    </div>
                     {isSlotted ? (
-                      <div style={{ fontSize: "0.75rem", color: catColor, opacity: 0.7 }}>✓ Seated in the socket</div>
+                      <div style={{ fontSize: "0.72rem", color: catColor, opacity: 0.7, marginTop: 4 }}>✓ Seated in the socket</div>
                     ) : hasInInventory ? (
-                      <div style={{ fontSize: "0.75rem", opacity: 0.5 }}>In your inventory — ready to slot</div>
+                      <div style={{ fontSize: "0.72rem", opacity: 0.5, marginTop: 4 }}>In your inventory — ready to slot</div>
                     ) : (
-                      <div style={{ fontSize: "0.75rem", opacity: 0.4, fontStyle: "italic" }}>
+                      <div style={{ fontSize: "0.72rem", opacity: 0.4, fontStyle: "italic", marginTop: 4 }}>
                         {(invGet(player.inventory, recipe.trophyInput)?.qty ?? 0) === 0
                           ? `Earn the gate mark: ${recipe.category} category`
                           : `Craft via Craft menu — needs markers + resin`
@@ -3678,11 +3809,9 @@ export default function App() {
                     <button
                       onClick={() => slotGemTrophy(gemId)}
                       style={{ padding: "8px 16px", borderRadius: 8, fontSize: "0.85rem", fontWeight: 700, border: `1px solid ${catColor}`, background: catColor + "18", color: catColor, cursor: "pointer" }}
-                    >
-                      Seat it
-                    </button>
+                    >Seat it</button>
                   )}
-                  {isSlotted && <span style={{ fontSize: "1.2rem" }}>◆</span>}
+                  {isSlotted && <span style={{ fontSize: "1.2rem", color: catColor }}>◆</span>}
                 </div>
               );
             })}
@@ -3712,23 +3841,23 @@ export default function App() {
                       borderRadius: 10, padding: "12px 14px",
                       display: "flex", alignItems: "center", gap: 12,
                     }}>
+                      <div style={{ flexShrink: 0 }}><ItemIcon id={gemId} size={22} /></div>
                       <div style={{ flex: 1 }}>
                         <div style={{ fontWeight: 600, color: isSlotted ? catColor : "#888", fontSize: "0.92rem", marginBottom: 2 }}>{GEM_TROPHIES[gemId].name}</div>
+                        <div style={{ fontSize: "0.73rem", opacity: 0.55, fontStyle: "italic", lineHeight: 1.4 }}>{GEM_TROPHIES[gemId].flavor}</div>
                         {isSlotted ? (
-                          <div style={{ fontSize: "0.75rem", color: catColor, opacity: 0.7 }}>✓ Seated</div>
+                          <div style={{ fontSize: "0.72rem", color: catColor, opacity: 0.7, marginTop: 4 }}>✓ Seated</div>
                         ) : (
-                          <div style={{ fontSize: "0.75rem", opacity: 0.5 }}>Optional — rewards deferred</div>
+                          <div style={{ fontSize: "0.72rem", opacity: 0.5, marginTop: 4 }}>Optional — rewards deferred</div>
                         )}
                       </div>
                       {!isSlotted && hasInInventory && (
                         <button
                           onClick={() => slotGemTrophy(gemId)}
                           style={{ padding: "8px 16px", borderRadius: 8, fontSize: "0.85rem", fontWeight: 700, border: `1px solid ${catColor}`, background: catColor + "18", color: catColor, cursor: "pointer" }}
-                        >
-                          Seat it
-                        </button>
+                        >Seat it</button>
                       )}
-                      {isSlotted && <span style={{ fontSize: "1.2rem" }}>◆</span>}
+                      {isSlotted && <span style={{ fontSize: "1.2rem", color: catColor }}>◆</span>}
                     </div>
                   );
                 })}
@@ -3737,7 +3866,7 @@ export default function App() {
           );
         })()}
 
-        {/* Activation — if all required slotted */}
+        {/* Activation */}
         {allRequired && !markState.gateUnlocked && (
           <div style={{ background: "#0a1a14", border: "1px solid #3a5a3a", borderRadius: 12, padding: "14px 16px", marginBottom: 16 }}>
             <p style={{ fontStyle: "italic", opacity: 0.85, margin: 0, marginBottom: 12, lineHeight: 1.6, fontSize: "0.9rem" }}>
@@ -3745,7 +3874,6 @@ export default function App() {
             </p>
           </div>
         )}
-
         {allRequired && (
           <div style={{ marginBottom: 16 }}>
             <button
@@ -3756,51 +3884,50 @@ export default function App() {
                 color: "#7ecba1", cursor: "pointer", letterSpacing: "0.05em",
                 boxShadow: "0 0 20px #7ecba120",
               }}
-            >
-              Pass through the arch
-            </button>
+            >Pass through the arch</button>
           </div>
         )}
+      </div>
+    );
 
-        {/* Biomass liquidation */}
-        <div style={{ borderTop: "1px solid #2a2a2a", paddingTop: 14 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-            <div style={{ fontSize: "0.7rem", opacity: 0.4, letterSpacing: "0.12em", textTransform: "uppercase" }}>Liquidate</div>
-            <div style={{ fontSize: "0.88rem", color: "#7ecba1", fontWeight: 700 }}>Biomass: {biomassTotal}</div>
-          </div>
-          <p className="small" style={{ opacity: 0.45, marginBottom: 10 }}>
-            The Gate doesn't eat — it renders. Push items into the side channel. Comes out the other end as Biomass. You don't know why yet.
-          </p>
-          {liquidatableItems.length === 0 ? (
-            <p className="small" style={{ opacity: 0.35, fontStyle: "italic" }}>Nothing liquidatable in inventory.</p>
-          ) : (
-            <div>
-              <div style={{ display: "flex", flexDirection: "column", gap: 5, marginBottom: 10 }}>
-                {liquidatableItems.map(id => {
-                  const qty = invGet(player.inventory, id as import("./types").ResourceId)?.qty ?? 0;
-                  const val = BIOMASS_VALUES[id] ?? 0;
-                  const name = id.startsWith("eq_") ? (ITEMS[id]?.name ?? id)
-                    : id.startsWith("mat_") || id === "resin_glob" || id === "fiber_clump" || id === "brittle_stone"
-                    ? (RESOURCES[id as import("./types").ResourceId]?.name ?? id) : id;
-                  return (
-                    <div key={id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "7px 10px", background: "#0e0e0e", borderRadius: 8 }}>
-                      <span style={{ flex: 1, fontSize: "0.85rem" }}>{name} ×{qty}</span>
-                      <span style={{ fontSize: "0.75rem", opacity: 0.5 }}>{val} each</span>
-                      <button onClick={() => liquidateItem(id, 1)} style={{ padding: "4px 10px", borderRadius: 6, fontSize: "0.75rem", border: "1px solid #3a3a3a", background: "#1a1a1a", color: "#aaa", cursor: "pointer" }}>×1 → {val}</button>
-                      <button onClick={() => liquidateItem(id, qty)} style={{ padding: "4px 10px", borderRadius: 6, fontSize: "0.75rem", border: "1px solid #3a5a3a", background: "#0e1a0e", color: "#7ecba1", cursor: "pointer" }}>All → {val * qty}</button>
-                    </div>
-                  );
-                })}
-              </div>
-              <button
-                onClick={liquidateAll}
-                style={{ padding: "9px 18px", borderRadius: 9, fontSize: "0.85rem", fontWeight: 600, border: "1px solid #4a4a4a", background: "#1a1a1a", color: "#ccc", cursor: "pointer" }}
-              >
-                Liquidate everything → +{liquidatableItems.reduce((s, id) => s + (BIOMASS_VALUES[id] ?? 0) * (invGet(player.inventory, id as import("./types").ResourceId)?.qty ?? 0), 0)} Biomass
-              </button>
-            </div>
-          )}
+    return (
+      <div className="card">
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
+          <button onClick={() => setScreen("HUB")} style={{ background: "none", border: "none", color: "#9e8ab0", cursor: "pointer", fontSize: "0.9rem", padding: "4px 8px", borderRadius: 6, fontWeight: 600 }}>← Back</button>
+          <h2 style={{ margin: 0 }}>The Filament Gate</h2>
         </div>
+
+        {/* Gate art */}
+        <div style={{ marginBottom: 14, borderRadius: 10, overflow: "hidden" }}>
+          <FilamentGateImage height={200} />
+        </div>
+
+        <div style={{ background: "#0d0d18", border: "1px solid #3a2a5a", borderRadius: 12, padding: "12px 16px", marginBottom: 14 }}>
+          <p style={{ fontStyle: "italic", opacity: 0.8, margin: 0, lineHeight: 1.6, fontSize: "0.88rem" }}>
+            Thin upright filaments in an arch, each ending in a socket. Three sockets glow faintly. It doesn't fit the biome. It releases pheromones you can smell from anywhere.{hasUsedMouth ? " A protrusion on one side glistens faintly, still hungry." : " Something protrudes from one side — a ring of hardened resin, pointed inward."}
+          </p>
+        </div>
+
+        {/* Tab buttons */}
+        <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
+          {(["trophies", "mouth"] as const).map(tab => (
+            <button
+              key={tab}
+              onClick={() => setGateTab(tab)}
+              style={{
+                flex: 1, padding: "10px 14px", borderRadius: 10, fontWeight: 600, fontSize: "0.9rem", cursor: "pointer",
+                border: gateTab === tab ? "1px solid #7b5ea7" : "1px solid #2a2a2a",
+                background: gateTab === tab ? "#1a0d2e" : "#141414",
+                color: gateTab === tab ? "#c8a8e8" : "#666",
+              }}
+            >
+              {tab === "trophies" ? "Trophies" : "Hungry Mouth"}
+              {tab === "mouth" && hasUsedMouth && <span style={{ marginLeft: 6, fontSize: "0.65rem", opacity: 0.6 }}>▸ {mouthFeedCount} fed</span>}
+            </button>
+          ))}
+        </div>
+
+        {gateTab === "trophies" ? trophiesTabContent : mouthTabContent}
       </div>
     );
   })();

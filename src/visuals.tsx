@@ -830,6 +830,124 @@ const POI_DRAW: Record<string, DrawFn> = {
   },
 };
 
+// ─── FilamentGateImage component ─────────────────────────────────────────────
+export function FilamentGateImage({ width = 440, height = 160 }: { width?: number; height?: number }) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    const w = canvas.width, h = canvas.height;
+    ctx.clearRect(0, 0, w, h);
+
+    // Background gradient - deep purple-black
+    const bg = ctx.createLinearGradient(0, 0, 0, h);
+    bg.addColorStop(0, "#0a0612");
+    bg.addColorStop(0.5, "#080410");
+    bg.addColorStop(1, "#050208");
+    ctx.fillStyle = bg; ctx.fillRect(0, 0, w, h);
+
+    // Subtle ground plane
+    const ground = ctx.createLinearGradient(0, h * 0.72, 0, h);
+    ground.addColorStop(0, "transparent");
+    ground.addColorStop(1, "rgba(40,20,60,0.4)");
+    ctx.fillStyle = ground; ctx.fillRect(0, h * 0.72, w, h * 0.28);
+
+    // Arch frame — two side pillars
+    const pillarW = w * 0.04;
+    const archTop = h * 0.08;
+    const archBase = h * 0.78;
+    const leftX = w * 0.28;
+    const rightX = w * 0.72;
+
+    // Pillar glow halos
+    const glowL = ctx.createRadialGradient(leftX, h*0.45, 0, leftX, h*0.45, w*0.12);
+    glowL.addColorStop(0, "rgba(120,80,200,0.18)"); glowL.addColorStop(1, "transparent");
+    ctx.fillStyle = glowL; ctx.fillRect(0,0,w,h);
+    const glowR = ctx.createRadialGradient(rightX, h*0.45, 0, rightX, h*0.45, w*0.12);
+    glowR.addColorStop(0, "rgba(120,80,200,0.18)"); glowR.addColorStop(1, "transparent");
+    ctx.fillStyle = glowR; ctx.fillRect(0,0,w,h);
+
+    // Left pillar
+    const lpGrad = ctx.createLinearGradient(leftX - pillarW, 0, leftX + pillarW, 0);
+    lpGrad.addColorStop(0, "#1a0e2e"); lpGrad.addColorStop(0.5, "#2e1a4a"); lpGrad.addColorStop(1, "#1a0e2e");
+    ctx.fillStyle = lpGrad;
+    ctx.beginPath(); ctx.roundRect(leftX - pillarW, archTop, pillarW*2, archBase - archTop, 3); ctx.fill();
+    ctx.strokeStyle = "rgba(160,100,220,0.5)"; ctx.lineWidth = 1.5; ctx.stroke();
+
+    // Right pillar
+    const rpGrad = ctx.createLinearGradient(rightX - pillarW, 0, rightX + pillarW, 0);
+    rpGrad.addColorStop(0, "#1a0e2e"); rpGrad.addColorStop(0.5, "#2e1a4a"); rpGrad.addColorStop(1, "#1a0e2e");
+    ctx.fillStyle = rpGrad;
+    ctx.beginPath(); ctx.roundRect(rightX - pillarW, archTop, pillarW*2, archBase - archTop, 3); ctx.fill();
+    ctx.strokeStyle = "rgba(160,100,220,0.5)"; ctx.lineWidth = 1.5; ctx.stroke();
+
+    // Arch crown curved top beam
+    ctx.beginPath();
+    ctx.moveTo(leftX - pillarW, archTop + 8);
+    ctx.bezierCurveTo(leftX, archTop - h*0.06, rightX, archTop - h*0.06, rightX + pillarW, archTop + 8);
+    ctx.strokeStyle = "rgba(180,120,255,0.7)"; ctx.lineWidth = 4; ctx.stroke();
+
+    // Glowing filaments hanging from arch
+    const filamentPositions = [0.38, 0.47, 0.53, 0.62].map(f => w * f);
+    const socketY = h * 0.52;
+    filamentPositions.forEach((fx, i) => {
+      const filamentTopY = archTop + 14;
+      const fGrad = ctx.createLinearGradient(fx, filamentTopY, fx, socketY - 10);
+      fGrad.addColorStop(0, "rgba(160,100,220,0.6)"); fGrad.addColorStop(1, "rgba(120,60,180,0.9)");
+      ctx.strokeStyle = fGrad; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.moveTo(fx, filamentTopY); ctx.lineTo(fx, socketY - 10); ctx.stroke();
+
+      const sGlow = ctx.createRadialGradient(fx, socketY, 0, fx, socketY, i < 3 ? 10 : 6);
+      sGlow.addColorStop(0, i < 3 ? "rgba(220,160,255,0.6)" : "rgba(80,40,100,0.3)"); sGlow.addColorStop(1, "transparent");
+      ctx.fillStyle = sGlow; ctx.beginPath(); ctx.arc(fx, socketY, i < 3 ? 10 : 6, 0, Math.PI*2); ctx.fill();
+      ctx.strokeStyle = i < 3 ? "rgba(200,140,255,0.9)" : "rgba(100,60,140,0.5)"; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(fx, socketY, 5, 0, Math.PI*2); ctx.stroke();
+      if (i < 3) { ctx.fillStyle = "rgba(200,140,255,0.4)"; ctx.beginPath(); ctx.arc(fx, socketY, 3, 0, Math.PI*2); ctx.fill(); }
+    });
+
+    // Hungry mouth protruding from the arch (lower-left section)
+    const mouthX = w * 0.36, mouthY = h * 0.67, mouthW = w * 0.07, mouthH = h * 0.055;
+    ctx.fillStyle = "#2a1640"; ctx.strokeStyle = "rgba(140,80,180,0.6)"; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.ellipse(mouthX, mouthY, mouthW, mouthH, 0, 0, Math.PI*2); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = "rgba(220,180,255,0.55)";
+    for (let t = -2; t <= 2; t++) {
+      const tx = mouthX + t * (mouthW * 0.35);
+      ctx.beginPath(); ctx.moveTo(tx - mouthW*0.1, mouthY - mouthH*0.2);
+      ctx.lineTo(tx, mouthY - mouthH*0.78); ctx.lineTo(tx + mouthW*0.1, mouthY - mouthH*0.2);
+      ctx.closePath(); ctx.fill();
+    }
+
+    // Ambient glow in center
+    const centerGlow = ctx.createRadialGradient(w*0.5, h*0.45, 0, w*0.5, h*0.45, w*0.22);
+    centerGlow.addColorStop(0, "rgba(100,60,180,0.15)"); centerGlow.addColorStop(1, "transparent");
+    ctx.fillStyle = centerGlow; ctx.fillRect(0,0,w,h);
+
+    // Floating dust particles
+    ctx.fillStyle = "rgba(200,160,255,0.4)";
+    [[w*0.35,h*0.35,1.5],[w*0.52,h*0.25,2],[w*0.65,h*0.38,1.2],[w*0.42,h*0.28,1.8],[w*0.6,h*0.22,1.4]].forEach(([x,y,r]) => {
+      ctx.beginPath(); ctx.arc(x,y,r,0,Math.PI*2); ctx.fill();
+    });
+  }, []);
+
+  return (
+    <div style={{ position: "relative", width: "100%", lineHeight: 0 }}>
+      <canvas
+        ref={canvasRef}
+        width={width}
+        height={height}
+        style={{ width: "100%", height: height / 2, display: "block", borderRadius: "10px 10px 0 0" }}
+      />
+      <div style={{
+        position: "absolute", bottom: 0, left: 0, right: 0, height: "50%",
+        background: "linear-gradient(to bottom, transparent, #111)",
+        pointerEvents: "none",
+      }} />
+    </div>
+  );
+}
+
 // ─── PoiImage component ───────────────────────────────────────────────────────
 interface PoiImageProps {
   poiId: PoiId;

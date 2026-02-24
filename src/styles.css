@@ -234,28 +234,28 @@ hr {
 
 /* ── Unclaimed reward pulse — one per category colour ─────────────────── */
 @keyframes unclaimedPulse-Exploration {
-  0%, 100% { box-shadow: 0 0 6px #c8a96e30, 0 0 2px #c8a96e20; }
-  50%       { box-shadow: 0 0 16px #c8a96e70, 0 0 6px #c8a96e50; }
+  0%, 100% { box-shadow: 0 0 10px #7ecba150, 0 0 20px #7ecba130; }
+  50%       { box-shadow: 0 0 28px #7ecba1cc, 0 0 50px #7ecba180; }
 }
 @keyframes unclaimedPulse-Harvesting {
-  0%, 100% { box-shadow: 0 0 6px #7ecba130, 0 0 2px #7ecba120; }
-  50%       { box-shadow: 0 0 16px #7ecba170, 0 0 6px #7ecba150; }
+  0%, 100% { box-shadow: 0 0 10px #c8a96e50, 0 0 20px #c8a96e30; }
+  50%       { box-shadow: 0 0 28px #c8a96ecc, 0 0 50px #c8a96e80; }
 }
 @keyframes unclaimedPulse-Crafting {
-  0%, 100% { box-shadow: 0 0 6px #a07ed430, 0 0 2px #a07ed420; }
-  50%       { box-shadow: 0 0 16px #a07ed470, 0 0 6px #a07ed450; }
+  0%, 100% { box-shadow: 0 0 10px #7eb8cb50, 0 0 20px #7eb8cb30; }
+  50%       { box-shadow: 0 0 28px #7eb8cbcc, 0 0 50px #7eb8cb80; }
 }
 @keyframes unclaimedPulse-Survival {
-  0%, 100% { box-shadow: 0 0 6px #e5737330, 0 0 2px #e5737320; }
-  50%       { box-shadow: 0 0 16px #e5737370, 0 0 6px #e5737350; }
+  0%, 100% { box-shadow: 0 0 10px #f5c84250, 0 0 20px #f5c84230; }
+  50%       { box-shadow: 0 0 28px #f5c842cc, 0 0 50px #f5c84280; }
 }
 @keyframes unclaimedPulse-Combat {
-  0%, 100% { box-shadow: 0 0 6px #ce93d830, 0 0 2px #ce93d820; }
-  50%       { box-shadow: 0 0 16px #ce93d870, 0 0 6px #ce93d850; }
+  0%, 100% { box-shadow: 0 0 10px #ce93d850, 0 0 20px #ce93d830; }
+  50%       { box-shadow: 0 0 28px #ce93d8cc, 0 0 50px #ce93d880; }
 }
 @keyframes unclaimedPulse-Loot {
-  0%, 100% { box-shadow: 0 0 6px #f5c84230, 0 0 2px #f5c84220; }
-  50%       { box-shadow: 0 0 16px #f5c84270, 0 0 6px #f5c84250; }
+  0%, 100% { box-shadow: 0 0 10px #80cbc450, 0 0 20px #80cbc430; }
+  50%       { box-shadow: 0 0 28px #80cbc4cc, 0 0 50px #80cbc480; }
 }
 
 /* Marks button unclaimed-rewards ambient glow (slower than new-earn pulse) */

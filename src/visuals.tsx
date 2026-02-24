@@ -731,3 +731,142 @@ export function PoiIcon({ poiId, quality = "common", size = 80 }: PoiIconProps) 
     />
   );
 }
+
+// ─── Creature canvas illustrations ───────────────────────────────────────────
+const CREATURE_DRAW: Record<string, (ctx: CanvasRenderingContext2D, w: number, h: number) => void> = {
+  creature_gloop_moth(ctx, w, h) {
+    // Dark background
+    const bg = ctx.createLinearGradient(0, 0, 0, h);
+    bg.addColorStop(0, "#0e0810");
+    bg.addColorStop(1, "#06040a");
+    ctx.fillStyle = bg; ctx.fillRect(0, 0, w, h);
+
+    const cx = w * 0.5, cy = h * 0.5;
+
+    // Soft purple ambient glow behind moth
+    const glow = ctx.createRadialGradient(cx, cy, 0, cx, cy, w * 0.45);
+    glow.addColorStop(0, "rgba(140,80,180,0.18)");
+    glow.addColorStop(1, "transparent");
+    ctx.fillStyle = glow; ctx.fillRect(0, 0, w, h);
+
+    // Left wing
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.fillStyle = "rgba(160,110,200,0.22)";
+    ctx.strokeStyle = "rgba(180,130,220,0.55)";
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.bezierCurveTo(-w*0.12, -h*0.28, -w*0.42, -h*0.32, -w*0.46, -h*0.08);
+    ctx.bezierCurveTo(-w*0.44, h*0.1, -w*0.22, h*0.18, 0, h*0.06);
+    ctx.closePath();
+    ctx.fill(); ctx.stroke();
+    // Wing vein
+    ctx.strokeStyle = "rgba(200,160,240,0.3)";
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(0, 0); ctx.bezierCurveTo(-w*0.2, -h*0.12, -w*0.38, -h*0.14, -w*0.42, -h*0.04); ctx.stroke();
+
+    // Right wing (mirror)
+    ctx.fillStyle = "rgba(160,110,200,0.22)";
+    ctx.strokeStyle = "rgba(180,130,220,0.55)";
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.bezierCurveTo(w*0.12, -h*0.28, w*0.42, -h*0.32, w*0.46, -h*0.08);
+    ctx.bezierCurveTo(w*0.44, h*0.1, w*0.22, h*0.18, 0, h*0.06);
+    ctx.closePath();
+    ctx.fill(); ctx.stroke();
+    ctx.strokeStyle = "rgba(200,160,240,0.3)";
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(0, 0); ctx.bezierCurveTo(w*0.2, -h*0.12, w*0.38, -h*0.14, w*0.42, -h*0.04); ctx.stroke();
+
+    // Lower left wing
+    ctx.fillStyle = "rgba(130,85,170,0.18)";
+    ctx.strokeStyle = "rgba(160,110,200,0.4)";
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    ctx.moveTo(0, h*0.04);
+    ctx.bezierCurveTo(-w*0.1, h*0.16, -w*0.3, h*0.26, -w*0.28, h*0.18);
+    ctx.bezierCurveTo(-w*0.22, h*0.24, -w*0.08, h*0.2, 0, h*0.12);
+    ctx.closePath();
+    ctx.fill(); ctx.stroke();
+
+    // Lower right wing
+    ctx.beginPath();
+    ctx.moveTo(0, h*0.04);
+    ctx.bezierCurveTo(w*0.1, h*0.16, w*0.3, h*0.26, w*0.28, h*0.18);
+    ctx.bezierCurveTo(w*0.22, h*0.24, w*0.08, h*0.2, 0, h*0.12);
+    ctx.closePath();
+    ctx.fill(); ctx.stroke();
+
+    // Body
+    ctx.fillStyle = "#3a2450";
+    ctx.strokeStyle = "rgba(180,140,220,0.5)";
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.ellipse(0, h*0.05, w*0.055, h*0.18, 0, 0, Math.PI*2);
+    ctx.fill(); ctx.stroke();
+
+    // Head
+    ctx.fillStyle = "#4a2e60";
+    ctx.beginPath();
+    ctx.ellipse(0, -h*0.14, w*0.06, h*0.07, 0, 0, Math.PI*2);
+    ctx.fill();
+
+    // Antennae
+    ctx.strokeStyle = "rgba(200,160,240,0.6)";
+    ctx.lineWidth = 1;
+    ctx.lineCap = "round";
+    ctx.beginPath(); ctx.moveTo(-w*0.02, -h*0.19); ctx.bezierCurveTo(-w*0.08, -h*0.3, -w*0.18, -h*0.34, -w*0.22, -h*0.32); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(w*0.02, -h*0.19); ctx.bezierCurveTo(w*0.08, -h*0.3, w*0.18, -h*0.34, w*0.22, -h*0.32); ctx.stroke();
+    // Antennae tips (knobs)
+    ctx.fillStyle = "rgba(220,180,255,0.7)";
+    ctx.beginPath(); ctx.arc(-w*0.22, -h*0.32, w*0.018, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(w*0.22, -h*0.32, w*0.018, 0, Math.PI*2); ctx.fill();
+
+    // Wax drip from underside
+    ctx.strokeStyle = "rgba(200,160,60,0.5)";
+    ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(-w*0.015, h*0.22); ctx.bezierCurveTo(-w*0.015, h*0.28, -w*0.01, h*0.32, -w*0.01, h*0.36); ctx.stroke();
+    ctx.fillStyle = "rgba(210,170,50,0.55)";
+    ctx.beginPath(); ctx.ellipse(-w*0.01, h*0.37, w*0.018, h*0.02, 0, 0, Math.PI*2); ctx.fill();
+
+    ctx.restore();
+  },
+};
+
+// ─── CreatureIcon component ───────────────────────────────────────────────────
+interface CreatureIconProps {
+  creatureId: string;
+  size?: number;
+}
+
+export function CreatureIcon({ creatureId, size = 72 }: CreatureIconProps) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    const drawFn = CREATURE_DRAW[creatureId];
+    if (!drawFn) return;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    drawFn(ctx, canvas.width, canvas.height);
+  }, [creatureId]);
+
+  return (
+    <canvas
+      ref={canvasRef}
+      width={size * 2}
+      height={size * 2}
+      style={{
+        width: size,
+        height: size,
+        display: "block",
+        borderRadius: 10,
+        border: "1px solid rgba(140,80,180,0.35)",
+      }}
+    />
+  );
+}

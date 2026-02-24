@@ -3,7 +3,7 @@ import type { BlotState, CraftPreview, CraftResult, EatSapResult, HarvestMethodI
 import { playSfx, unlockAudio, preloadAll } from "./sound";
 import { startBattle, getAvailableMoves, executeMove, resolveBattle } from "./combat";
 import type { BattleState, BattleResult, CreatureId } from "./types";
-import { ItemIcon, PoiImage, PoiIcon } from "./visuals";
+import { CreatureIcon, ItemIcon, PoiImage, PoiIcon } from "./visuals";
 import { BIOME_LEVEL, CREATURES, EVENTS, FOODS, ITEMS, MOVES, POIS, RECIPES, RESOURCES, SITUATION_TEXT, getSituationText } from "./gameData";
 import {
   canCraft, getFoodName, getItemName, getResourceName, listUnlockedRecipes,
@@ -495,8 +495,14 @@ export default function App() {
   function genJourney(mode: "explore" | "findFood") {
     setDecayedFoodAlert(null);
     const saved = mode === "explore" ? savedExploreRoll : savedFoodRoll;
-    const pv = saved ?? makeJourneyPreview(player, mode, chomperAutoEnabled);
+    let pv = saved ?? makeJourneyPreview(player, mode, chomperAutoEnabled);
     if (!saved) {
+      // Roll moth encounter: 35% common resin POI, 70% uncommon resin POI
+      const mothPois: PoiId[] = ["poi_resin_node", "poi_resin_hollow", "poi_sap_weep"];
+      const isResin = mothPois.includes(pv.poi.id);
+      const chance = isResin ? (pv.poi.quality === "uncommon" ? 0.70 : 0.35) : 0;
+      const mothEncountered = Math.random() < chance;
+      pv = { ...pv, mothEncountered };
       if (mode === "explore") setSavedExploreRoll(pv);
       else setSavedFoodRoll(pv);
     }
@@ -509,7 +515,8 @@ export default function App() {
     const snap = snapshotStorableQty(player.inventory);
     const next = structuredClone(player);
     const res = resolveJourney(next, journeyPreview, chomperAutoEnabled);
-    setPlayer(next); setJourneyResult(res);
+    const resWithMoth = { ...res, mothEncountered: journeyPreview.mothEncountered ?? false };
+    setPlayer(next); setJourneyResult(resWithMoth);
     checkDecayAlert(snap, next.inventory, res.foodConsumed);
     setActivePoi(null); setActiveBlot(null);
     setLastEatResult(null); setLastStorableResult(null);
@@ -540,6 +547,27 @@ export default function App() {
     setMultiHarvestResults([]);
     setScoopExpanded(false);
     setScreen("HUB");
+  }
+
+  function avoidCreature() {
+    if (!journeyResult) return;
+    // 20 stamina cost to slip past
+    const next = structuredClone(player);
+    next.stats.stamina = clamp(next.stats.stamina - 20, 0, next.stats.maxStamina);
+    setPlayer(next);
+    enterPoi();
+  }
+
+  function huntCreatureFromJourney() {
+    if (!journeyResult) return;
+    // Enter battle; on finish, return to journey summary with mothDefeated flag
+    const state = startBattle("creature_gloop_moth");
+    setBattleState(state);
+    setBattleResult(null);
+    setBattleLog([]);
+    // Mark that we came from journey summary so we know where to go back
+    setReturnScreen("SUMMARY_JOURNEY");
+    setScreen("BATTLE");
   }
 
   // ── Harvest ───────────────────────────────────────────────────────────────
@@ -695,25 +723,38 @@ export default function App() {
     if (moveId === "flee") {
       const fleeCost = MOVES["flee"].effect.staminaCost;
       const stateWithFleeCost = { ...battleState, staminaCostAccrued: battleState.staminaCostAccrued + fleeCost };
-      const { result, updatedPlayer } = resolveBattle(stateWithFleeCost, "fled", player);
+      const { updatedPlayer } = resolveBattle(stateWithFleeCost, "fled", player);
       setPlayer(updatedPlayer);
-      setBattleResult(result);
       setBattleState(null);
-      setScreen("SUMMARY_BATTLE");
+      if (returnScreen === "SUMMARY_JOURNEY" && journeyResult) {
+        // Fled: moth is still there — clear mothEncountered so Arrive is available, no defeated line
+        setJourneyResult({ ...journeyResult, mothEncountered: false, mothDefeated: false });
+        setReturnScreen("HUB");
+        setScreen("SUMMARY_JOURNEY");
+      } else {
+        setBattleResult(null);
+        setScreen("HUB");
+      }
       return;
     }
     const { nextState, log } = executeMove(battleState, moveId, player);
     setBattleLog(log);
     if (nextState.composure <= 0) {
-      // Determine end reason: if mostly precision moves, disarmed; else collapsed
       const precisionMoves: import("./types").MoveId[] = ["comb_glands", "laced_jab", "drill_resonance", "eat_wax_raw", "eat_soft_tissue"];
       const precisionCount = nextState.movesUsed.filter(m => precisionMoves.includes(m)).length;
       const endReason = precisionCount >= 2 ? "disarmed" : "collapsed";
       const { result, updatedPlayer } = resolveBattle(nextState, endReason, player);
       setPlayer(updatedPlayer);
-      setBattleResult(result);
       setBattleState(null);
-      setScreen("SUMMARY_BATTLE");
+      if (returnScreen === "SUMMARY_JOURNEY" && journeyResult) {
+        setJourneyResult({ ...journeyResult, mothEncountered: false, mothDefeated: true });
+        setBattleResult(null);
+        setReturnScreen("HUB");
+        setScreen("SUMMARY_JOURNEY");
+      } else {
+        setBattleResult(result);
+        setScreen("SUMMARY_BATTLE");
+      }
     } else {
       setBattleState(nextState);
     }
@@ -1360,6 +1401,13 @@ export default function App() {
               return n === 0 ? "None expected" : n === 1 ? "1 event may occur" : `${n} events may occur`;
             })()}
           </div>
+          {journeyPreview.mothEncountered && <>
+            <div>Wild Creature</div>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <CreatureIcon creatureId="creature_gloop_moth" size={28} />
+              <span style={{ color: "#ce93d8" }}>Gloop Moth spotted</span>
+            </div>
+          </>}
         </div>
       </div>
 
@@ -1434,10 +1482,47 @@ export default function App() {
         </FadeIn>
       )}
 
+      {/* Moth encounter line */}
+      {(journeyResult.mothEncountered || journeyResult.mothDefeated) && (
+        <FadeIn delay={510}>
+          <div style={{ display: "flex", alignItems: "center", gap: 12, background: journeyResult.mothDefeated ? "#0a120a" : "#0e0814", border: `1px solid ${journeyResult.mothDefeated ? "#2e5c2e" : "#4a1e6a"}`, borderRadius: 10, padding: "10px 14px" }}>
+            <CreatureIcon creatureId="creature_gloop_moth" size={36} />
+            <div>
+              <div style={{ fontSize: "0.8rem", fontWeight: 600, color: journeyResult.mothDefeated ? "#81c784" : "#ce93d8" }}>
+                {journeyResult.mothDefeated ? "Wild Creature — remains left behind" : "Wild Creature encountered!"}
+              </div>
+              <div style={{ fontSize: "0.75rem", opacity: 0.55, marginTop: 2 }}>
+                {journeyResult.mothDefeated ? "Something was here. It isn't anymore." : "A Gloop Moth is feeding nearby."}
+              </div>
+            </div>
+          </div>
+        </FadeIn>
+      )}
+
       <FadeIn delay={540}>
-        <div className="row">
-          <button className="btn" style={{ background: "#1a2e1a", border: "1px solid #4caf50", color: "#7ecba1", fontWeight: 600, padding: "12px 22px" }} onClick={enterPoi} disabled={journeyResult.outcome !== "ok"}>Arrive</button>
-        </div>
+        {journeyResult.mothEncountered && journeyResult.outcome === "ok" ? (
+          <>
+            <div className="row" style={{ marginTop: 12 }}>
+              <button
+                className="btn"
+                style={{ background: "#1a0a1a", border: "2px solid #9c27b0", color: "#ce93d8", fontWeight: 700, padding: "12px 22px" }}
+                onClick={huntCreatureFromJourney}
+              >Hunt Creature</button>
+              <button
+                className="btn"
+                style={{ opacity: 0.7, padding: "12px 22px" }}
+                onClick={avoidCreature}
+              >Avoid Creature</button>
+            </div>
+            <div style={{ marginTop: 6, fontSize: "0.73rem", opacity: 0.38, textAlign: "center" }}>
+              Avoiding costs −20 stamina
+            </div>
+          </>
+        ) : (
+          <div className="row">
+            <button className="btn" style={{ background: "#1a2e1a", border: "1px solid #4caf50", color: "#7ecba1", fontWeight: 600, padding: "12px 22px" }} onClick={enterPoi} disabled={journeyResult.outcome !== "ok"}>Arrive</button>
+          </div>
+        )}
 
         {journeyResult.outcome !== "ok" && (
           <div className="notice">

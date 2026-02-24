@@ -204,6 +204,7 @@ export interface JourneyPreview {
   poi: { id: PoiId; quality: Quality };
   surfacedEvents: EventId[];
   blot: BlotState;
+  mothEncountered?: boolean;
 }
 
 export interface JourneyResult {
@@ -221,6 +222,8 @@ export interface JourneyResult {
   softSapEaten?: { satietyRestored: number; units: number };
   blot: BlotState;
   outcome: "ok" | "exhausted" | "dead";
+  mothEncountered?: boolean;
+  mothDefeated?: boolean;  // set after hunt, replaces encounter line
 }
 
 export interface HarvestPreview {

@@ -241,16 +241,20 @@ export function makeJourneyPreview(player: PlayerState, mode: "explore" | "findF
         .filter((s) => typeof s.id === "string" && s.id.startsWith("food_") && FOODS[s.id as FoodId]?.storable && s.qty > 0)
         .map((s) => s.id as FoodId)
     ));
-    let maxSatietyPerPeriod = 0;
+    let minSatietyRestored = 0;
+    let maxSatietyRestored = 0;
     for (const id of storableIds) {
       const available = invGet(player.inventory, id)?.qty ?? 0;
       const minUnits = Math.min(totalPeriodsLower * chomperCount, available);
       const maxUnits = Math.min(totalPeriodsUpper * chomperCount, available);
       estFoodConsumed.push({ foodId: id, unitsRange: [minUnits, maxUnits] });
-      maxSatietyPerPeriod += FOODS[id].satietyRestored * Math.min(chomperCount, available);
+      minSatietyRestored += FOODS[id].satietyRestored * minUnits;
+      maxSatietyRestored += FOODS[id].satietyRestored * maxUnits;
     }
-    const maxRestored = Math.min(baseSatietyCostRange[1], maxSatietyPerPeriod);
-    satietyRestoredRange = [0, maxRestored];
+    satietyRestoredRange = [
+      Math.min(baseSatietyCostRange[0], minSatietyRestored),
+      Math.min(baseSatietyCostRange[1], maxSatietyRestored),
+    ];
   }
 
   const blot = generateBlot(poiId, quality);
@@ -482,15 +486,20 @@ export function makeHarvestPreview(player: PlayerState, poiId: PoiId, method: Ha
         .filter((s) => typeof s.id === "string" && s.id.startsWith("food_") && FOODS[s.id as FoodId]?.storable && s.qty > 0)
         .map((s) => s.id as FoodId)
     ));
+    let minSatietyRestored = 0;
     let maxSatietyRestored = 0;
     for (const id of storableIds) {
       const available = invGet(player.inventory, id)?.qty ?? 0;
       const minUnits = Math.min(periodsRange[0] * chomperCount, available);
       const maxUnits = Math.min(periodsRange[1] * chomperCount, available);
       estFoodConsumed.push({ foodId: id, unitsRange: [minUnits, maxUnits] });
+      minSatietyRestored += FOODS[id].satietyRestored * minUnits;
       maxSatietyRestored += FOODS[id].satietyRestored * maxUnits;
     }
-    satietyRestoredRange = [0, Math.min(satietyCostRange[1], maxSatietyRestored)];
+    satietyRestoredRange = [
+      Math.min(satietyCostRange[0], minSatietyRestored),
+      Math.min(satietyCostRange[1], maxSatietyRestored),
+    ];
   }
 
   return { poiId, method, periodsRange, satietyCostRange, satietyRestoredRange, staminaCostRange, staminaRecoveryPerPeriodRange, yieldRange, estFoodConsumed, efficiencyLabel: effLabel };
@@ -567,7 +576,8 @@ export function makeCraftPreview(player: PlayerState, recipeId: string, chomperA
       maxSatietyRestored += FOODS[id].satietyRestored * units;
     }
     const rawSatiety = r.craftPeriods * r.satietyPerPeriod;
-    satietyRestoredRange = [0, Math.min(rawSatiety, maxSatietyRestored)];
+    const restored = Math.min(rawSatiety, maxSatietyRestored);
+    satietyRestoredRange = [restored, restored];
   }
   const curlerCount = countEquippedTail(player, "eq_tail_curler");
   const staminaRecoveryTotal = curlerCount * (ITEMS.eq_tail_curler.effects?.staminaRecoveryPerPeriodWorking ?? ITEMS.eq_tail_curler.effects?.staminaRecoveryPerPeriod ?? 0) * r.craftPeriods;

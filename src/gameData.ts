@@ -249,7 +249,7 @@ export const FOODS: Record<
 };
 
 export const ITEMS: Record<
-  ItemId,
+  string,
   {
     id: ItemId;
     name: string;
@@ -376,6 +376,135 @@ export const RECIPES: Record<
     staminaPerPeriod: 20,
     requiresTinker: true,
   },
+};
+
+// ─── Progression Items — Markers, Trophies, Gem-Embedded Trophies, Biomass ────
+
+import type { BlotMarkCategory, GemTrophyItemId, MarkerItemId, ProgressionItemId, TrophyItemId } from "./types";
+
+export type ProgressionItemDef = {
+  id: ProgressionItemId;
+  name: string;
+  flavor: string;
+  category?: BlotMarkCategory; // for markers/trophies/gem trophies
+  kind: "marker" | "trophy" | "gem_trophy" | "biomass";
+};
+
+export const MARKERS: Record<MarkerItemId, ProgressionItemDef> = {
+  marker_exploration: { id: "marker_exploration", kind: "marker", category: "Exploration", name: "Exploration Marker", flavor: "A pale amber bead, still faintly warm. You found your way." },
+  marker_harvesting:  { id: "marker_harvesting",  kind: "marker", category: "Harvesting",  name: "Harvesting Marker",  flavor: "A rough green chip, edges scored from use. Something gave way." },
+  marker_crafting:    { id: "marker_crafting",    kind: "marker", category: "Crafting",    name: "Crafting Marker",    flavor: "A flat grey shard with one clean face. Shaped, not broken." },
+  marker_survival:    { id: "marker_survival",    kind: "marker", category: "Survival",    name: "Survival Marker",    flavor: "A dull red nodule. The body remembers what the mind tried to forget." },
+  marker_combat:      { id: "marker_combat",      kind: "marker", category: "Combat",      name: "Combat Marker",      flavor: "A dark violet splinter, dense for its size. Something ended." },
+  marker_loot:        { id: "marker_loot",        kind: "marker", category: "Loot",        name: "Loot Marker",        flavor: "A clear yellow fleck, almost translucent. Taken cleanly." },
+};
+
+export const TROPHIES: Record<TrophyItemId, ProgressionItemDef> = {
+  trophy_exploration: { id: "trophy_exploration", kind: "trophy", category: "Exploration", name: "Exploration Trophy", flavor: "A clouded amber lens, perfect on one face. The terrain is in it somewhere." },
+  trophy_harvesting:  { id: "trophy_harvesting",  kind: "trophy", category: "Harvesting",  name: "Harvesting Trophy",  flavor: "A scored green prism, every face worked. It knows what tools feel like." },
+  trophy_crafting:    { id: "trophy_crafting",    kind: "trophy", category: "Crafting",    name: "Crafting Trophy",    flavor: "A grey octahedron, seamless. You didn't find this — you arrived at it." },
+  trophy_survival:    { id: "trophy_survival",    kind: "trophy", category: "Survival",    name: "Survival Trophy",    flavor: "A dark red ovoid, heavier than it looks. It has been very close to the edge." },
+  trophy_combat:      { id: "trophy_combat",      kind: "trophy", category: "Combat",      name: "Combat Trophy",      flavor: "A violet shard the size of a knuckle, warm to the touch. Something is still in it." },
+  trophy_loot:        { id: "trophy_loot",        kind: "trophy", category: "Loot",        name: "Loot Trophy",        flavor: "A clear yellow tetrahedron. The best possible outcome, made solid." },
+};
+
+export const GEM_TROPHIES: Record<GemTrophyItemId, ProgressionItemDef> = {
+  gem_trophy_exploration: { id: "gem_trophy_exploration", kind: "gem_trophy", category: "Exploration", name: "Gem-Embedded Exploration Trophy", flavor: "The amber lens, now studded with its markers. Each bead is a step you remembered." },
+  gem_trophy_harvesting:  { id: "gem_trophy_harvesting",  kind: "gem_trophy", category: "Harvesting",  name: "Gem-Embedded Harvesting Trophy",  flavor: "The green prism, inlaid with scored chips. Every method, crystallised." },
+  gem_trophy_crafting:    { id: "gem_trophy_crafting",    kind: "gem_trophy", category: "Crafting",    name: "Gem-Embedded Crafting Trophy",    flavor: "The grey octahedron, set with clean grey shards. It hums faintly when you hold it still." },
+  gem_trophy_survival:    { id: "gem_trophy_survival",    kind: "gem_trophy", category: "Survival",    name: "Gem-Embedded Survival Trophy",    flavor: "The red ovoid, laced with red nodules. Dense. It has been through things." },
+  gem_trophy_combat:      { id: "gem_trophy_combat",      kind: "gem_trophy", category: "Combat",      name: "Gem-Embedded Combat Trophy",      flavor: "The violet shard set deep with seven splinters. It vibrates slightly if you listen." },
+  gem_trophy_loot:        { id: "gem_trophy_loot",        kind: "gem_trophy", category: "Loot",        name: "Gem-Embedded Loot Trophy",        flavor: "The yellow tetrahedron, set with two clear flecks. Perfectly transparent." },
+};
+
+export const BIOMASS_ITEM: ProgressionItemDef = {
+  id: "biomass", kind: "biomass", name: "Biomass",
+  flavor: "Dense, dark paste. The Gate rendered it from what you gave. It smells faintly sweet. You don't know why yet.",
+};
+
+// Maps BlotMarkCategory → which MarkerItemId it produces
+export const CATEGORY_MARKER: Record<BlotMarkCategory, MarkerItemId> = {
+  Exploration: "marker_exploration",
+  Harvesting:  "marker_harvesting",
+  Crafting:    "marker_crafting",
+  Survival:    "marker_survival",
+  Combat:      "marker_combat",
+  Loot:        "marker_loot",
+};
+
+// Maps BlotMarkCategory → which TrophyItemId it produces (gate mark reward)
+export const CATEGORY_TROPHY: Record<BlotMarkCategory, TrophyItemId> = {
+  Exploration: "trophy_exploration",
+  Harvesting:  "trophy_harvesting",
+  Crafting:    "trophy_crafting",
+  Survival:    "trophy_survival",
+  Combat:      "trophy_combat",
+  Loot:        "trophy_loot",
+};
+
+// Maps TrophyItemId → GemTrophyItemId
+export const TROPHY_TO_GEM: Record<TrophyItemId, GemTrophyItemId> = {
+  trophy_exploration: "gem_trophy_exploration",
+  trophy_harvesting:  "gem_trophy_harvesting",
+  trophy_crafting:    "gem_trophy_crafting",
+  trophy_survival:    "gem_trophy_survival",
+  trophy_combat:      "gem_trophy_combat",
+  trophy_loot:        "gem_trophy_loot",
+};
+
+// The gate mark for each category — earning this mark gives a Trophy instead of a Marker
+export const CATEGORY_GATE_MARK = {
+  Exploration: "mark_visit_all_poi",
+  Harvesting:  "mark_all_methods",
+  Crafting:    "mark_craft_all_tools",
+  Survival:    "mark_low_satiety_survive",
+  Combat:      "mark_first_win",
+  Loot:        "mark_full_corpse",
+} as const;
+
+// Gem-Embedded Trophy recipes (require Tinker Shaft)
+// Input format: Trophy + all markers for that category + 1 resin per marker
+export interface GemTrophyRecipe {
+  id: string;
+  category: BlotMarkCategory;
+  output: GemTrophyItemId;
+  trophyInput: TrophyItemId;
+  markerInput: MarkerItemId;
+  markerQty: number; // how many markers required (= max markers for that category)
+  resinQty: number;  // = markerQty
+}
+
+export const GEM_TROPHY_RECIPES: Record<GemTrophyItemId, GemTrophyRecipe> = {
+  gem_trophy_exploration: { id: "rcp_gem_exploration", category: "Exploration", output: "gem_trophy_exploration", trophyInput: "trophy_exploration", markerInput: "marker_exploration", markerQty: 2, resinQty: 2 },
+  gem_trophy_harvesting:  { id: "rcp_gem_harvesting",  category: "Harvesting",  output: "gem_trophy_harvesting",  trophyInput: "trophy_harvesting",  markerInput: "marker_harvesting",  markerQty: 3, resinQty: 3 },
+  gem_trophy_crafting:    { id: "rcp_gem_crafting",    category: "Crafting",    output: "gem_trophy_crafting",    trophyInput: "trophy_crafting",    markerInput: "marker_crafting",    markerQty: 2, resinQty: 2 },
+  gem_trophy_survival:    { id: "rcp_gem_survival",    category: "Survival",    output: "gem_trophy_survival",    trophyInput: "trophy_survival",    markerInput: "marker_survival",    markerQty: 2, resinQty: 2 },
+  gem_trophy_combat:      { id: "rcp_gem_combat",      category: "Combat",      output: "gem_trophy_combat",      trophyInput: "trophy_combat",      markerInput: "marker_combat",      markerQty: 7, resinQty: 7 },
+  gem_trophy_loot:        { id: "rcp_gem_loot",        category: "Loot",        output: "gem_trophy_loot",        trophyInput: "trophy_loot",        markerInput: "marker_loot",        markerQty: 2, resinQty: 2 },
+};
+
+// The 3 Gem-Embedded Trophies required to unlock the Gate passage
+export const GATE_REQUIRED_GEM_TROPHIES: GemTrophyItemId[] = [
+  "gem_trophy_exploration",
+  "gem_trophy_harvesting",
+  "gem_trophy_combat",
+];
+
+// Biomass conversion table — items that can be liquidated at the Gate
+export const BIOMASS_VALUES: Partial<Record<string, number>> = {
+  // Resources
+  resin_glob:           2,
+  fiber_clump:          2,
+  brittle_stone:        4,
+  mat_wing_membrane:    10,
+  mat_crystallised_wax: 70,
+  // Equipment (craftable only — tinker shaft, shoes, deferred items not listed)
+  eq_fiber_comb:        12,
+  eq_sticky_scoop:      12,
+  eq_crude_hammerhead:  18,
+  eq_hand_drill:        18,
+  eq_chomper:           28,
+  eq_tail_curler:       28,
 };
 
 // ─── Situation hint text ───────────────────────────────────────────────────────

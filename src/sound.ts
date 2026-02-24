@@ -27,6 +27,10 @@ const SFX_IDS = [
   "sfx_exhausted",
   "sfx_dead",
   "sfx_level_up",
+  "sfx_marker_claim",
+  "sfx_trophy_earned",
+  "sfx_gate_slot",
+  "sfx_gate_activate",
 ] as const;
 
 export type SfxId = typeof SFX_IDS[number];
@@ -92,6 +96,10 @@ const DURATIONS: Partial<Record<SfxId, number>> = {
   sfx_exhausted:       940,
   sfx_dead:           1540,
   sfx_level_up:       1540,
+  sfx_marker_claim:    650,
+  sfx_trophy_earned:  1540,
+  sfx_gate_slot:       940,
+  sfx_gate_activate:  2500,
 };
 
 export function playSfx(id: SfxId, delayMs = 0) {
@@ -152,4 +160,8 @@ const VOLUMES: Partial<Record<SfxId, number>> = {
   sfx_exhausted:      0.75,
   sfx_dead:           0.8,
   sfx_level_up:       0.75,
+  sfx_marker_claim:   0.6,
+  sfx_trophy_earned:  0.8,
+  sfx_gate_slot:      0.65,
+  sfx_gate_activate:  0.9,
 };

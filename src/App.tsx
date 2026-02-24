@@ -1,10 +1,10 @@
 import React, { useEffect, useMemo, useState } from "react";
-import type { BlotMarkCategory, BlotMarkId, BlotMarkState, BlotState, CraftPreview, CraftResult, EatSapResult, HarvestMethodId, HarvestPreview, HarvestResult, HarvestStorableResult, JourneyPreview, JourneyResult, PlayerState, PoiId, Screen } from "./types";
+import type { BlotMarkCategory, BlotMarkId, BlotMarkState, BlotState, CraftPreview, CraftResult, EatSapResult, HarvestMethodId, HarvestPreview, HarvestResult, HarvestStorableResult, JourneyPreview, JourneyResult, PlayerState, PoiId, Screen, GemTrophyItemId, TrophyItemId, MarkerItemId } from "./types";
 import { playSfx, unlockAudio, preloadAll } from "./sound";
 import { startBattle, getAvailableMoves, executeMove, resolveBattle } from "./combat";
 import type { BattleState, BattleResult, CreatureId } from "./types";
 import { CreatureIcon, ItemIcon, PoiImage, PoiIcon } from "./visuals";
-import { BIOME_LEVEL, CREATURES, EVENTS, FOODS, ITEMS, MOVES, POIS, RECIPES, RESOURCES, SITUATION_TEXT, getSituationText } from "./gameData";
+import { BIOME_LEVEL, CREATURES, EVENTS, FOODS, ITEMS, MOVES, POIS, RECIPES, RESOURCES, SITUATION_TEXT, getSituationText, MARKERS, TROPHIES, GEM_TROPHIES, BIOMASS_ITEM, CATEGORY_MARKER, CATEGORY_TROPHY, TROPHY_TO_GEM, CATEGORY_GATE_MARK, GEM_TROPHY_RECIPES, GATE_REQUIRED_GEM_TROPHIES, BIOMASS_VALUES } from "./gameData";
 import {
   canCraft, getFoodName, getItemName, getResourceName, listUnlockedRecipes,
   makeCraftPreview, makeHarvestPreview, makeJourneyPreview, methodsAvailableFromEquipment,
@@ -98,6 +98,10 @@ function makeInitialMarkState(): BlotMarkState {
     lowestSatietySeen: Infinity,
     hasSeenLowSatiety: false,
     toolsCrafted: new Set(),
+    claimedMarkers: {},
+    gateDiscovered: false,
+    gateUnlocked: false,
+    gateSlottedTrophies: [],
   };
 }
 
@@ -695,6 +699,10 @@ export default function App() {
   const [flyingMarkCategory, setFlyingMarkCategory] = useState<{ category: BlotMarkCategory; key: number } | null>(null);
   const [newRevealIds, setNewRevealIds] = useState<BlotMarkId[]>([]); // IDs newly revealed, for shimmer
 
+  // Gate state
+  const [gateEncounterPending, setGateEncounterPending] = useState(false); // set during journey if gate should trigger
+  const [biomassTotal, setBiomassTotal] = useState(0); // accumulated biomass (not in player inventory — tracked separately)
+
   const [returnScreen, setReturnScreen] = useState<Screen>("HUB");
   const [expandedItem, setExpandedItem] = useState<string | null>(null);
   const [expandedMark, setExpandedMark] = useState<BlotMarkId | null>(null);
@@ -767,6 +775,8 @@ export default function App() {
     if (toastTimerRef.current) { clearTimeout(toastTimerRef.current); toastTimerRef.current = null; }
     setFlyingMarkCategory(null);
     setNewRevealIds([]);
+    setGateEncounterPending(false);
+    setBiomassTotal(0);
   }
 
   /** Snapshot qty of each storable food stack before an action */
@@ -894,6 +904,16 @@ export default function App() {
   }
 
   // ── Blot Mark helpers ─────────────────────────────────────────────────────
+  function cloneMarkState(ms: BlotMarkState): BlotMarkState {
+    const next = structuredClone(ms) as BlotMarkState;
+    next.poisVisited = new Set(ms.poisVisited);
+    next.distinctMethodsUsed = new Set(ms.distinctMethodsUsed);
+    next.toolsCrafted = new Set(ms.toolsCrafted);
+    next.claimedMarkers = { ...ms.claimedMarkers };
+    next.gateSlottedTrophies = [...(ms.gateSlottedTrophies ?? [])];
+    return next;
+  }
+
   function triggerMarks(
     updatedPlayer: PlayerState,
     updatedMarkState: BlotMarkState,
@@ -904,6 +924,8 @@ export default function App() {
     ms.poisVisited = new Set(updatedMarkState.poisVisited);
     ms.distinctMethodsUsed = new Set(updatedMarkState.distinctMethodsUsed);
     ms.toolsCrafted = new Set(updatedMarkState.toolsCrafted);
+    ms.claimedMarkers = { ...updatedMarkState.claimedMarkers };
+    ms.gateSlottedTrophies = [...(updatedMarkState.gateSlottedTrophies ?? [])];
 
     const newlyEarned = computeEarnedMarks(ms, updatedPlayer, context);
     for (const id of newlyEarned) ms.earned[id] = true;
@@ -1018,10 +1040,7 @@ export default function App() {
     else setSavedFoodRoll(null);
 
     // Track blot marks
-    const ms = structuredClone(markState) as BlotMarkState;
-    ms.poisVisited = new Set(markState.poisVisited);
-    ms.distinctMethodsUsed = new Set(markState.distinctMethodsUsed);
-    ms.toolsCrafted = new Set(markState.toolsCrafted);
+    const ms = cloneMarkState(markState);
     ms.poisVisited.add(journeyPreview.poi.id);
     // Track low satiety
     if (next.stats.satiety < next.stats.maxSatiety * 0.3) ms.hasSeenLowSatiety = true;
@@ -1035,6 +1054,14 @@ export default function App() {
       setMarkState(ms2);
     } else {
       setMarkState(newMs);
+    }
+
+    // Gate discovery: if gate not yet discovered, count trophies in inventory (raw + gem-embedded)
+    if (!newMs.gateDiscovered && journeyPreview.mode === "explore") {
+      const trophyCount = countTrophiesInInventory(next.inventory);
+      if (trophyCount >= 3 && Math.random() < 0.30) {
+        setGateEncounterPending(true);
+      }
     }
 
     setScreen("SUMMARY_JOURNEY");
@@ -1069,12 +1096,131 @@ export default function App() {
     const next = structuredClone(player);
     next.stats.stamina = clamp(next.stats.stamina - 20, 0, next.stats.maxStamina);
     setPlayer(next);
-    const ms = structuredClone(markState) as BlotMarkState;
-    ms.poisVisited = new Set(markState.poisVisited);
-    ms.distinctMethodsUsed = new Set(markState.distinctMethodsUsed);
-    ms.toolsCrafted = new Set(markState.toolsCrafted);
+    const ms = cloneMarkState(markState);
     setMarkState(triggerMarks(next, ms, { justAvoided: true }));
     enterPoi();
+  }
+
+  // ── Gate helpers ──────────────────────────────────────────────────────────
+  function countTrophiesInInventory(inv: typeof player.inventory): number {
+    let count = 0;
+    for (const s of inv) {
+      const id = s.id as string;
+      if (id.startsWith("trophy_") || id.startsWith("gem_trophy_")) count += s.qty;
+    }
+    return count;
+  }
+
+  function hasGateAccess(ms: BlotMarkState): boolean {
+    return ms.gateDiscovered;
+  }
+
+  function claimMarker(markId: BlotMarkId) {
+    const mark = BLOT_MARKS[markId];
+    const cat = mark.category;
+    const gateMarkId = CATEGORY_GATE_MARK[cat] as BlotMarkId;
+    const isGateMark = markId === gateMarkId;
+
+    const ms = cloneMarkState(markState);
+    ms.claimedMarkers[markId] = true;
+
+    const next = structuredClone(player);
+    if (isGateMark) {
+      // Give Trophy
+      const trophyId = CATEGORY_TROPHY[cat];
+      invAdd(next.inventory, trophyId, 1);
+      playSfx("sfx_trophy_earned");
+    } else {
+      // Give Marker
+      const markerId = CATEGORY_MARKER[cat];
+      invAdd(next.inventory, markerId, 1);
+      playSfx("sfx_marker_claim");
+    }
+    setPlayer(next);
+    setMarkState(ms);
+  }
+
+  function craftGemTrophy(gemId: GemTrophyItemId) {
+    const recipe = GEM_TROPHY_RECIPES[gemId];
+    const next = structuredClone(player);
+    // Check requirements
+    const trophyQty = invGet(next.inventory, recipe.trophyInput)?.qty ?? 0;
+    const markerQty = invGet(next.inventory, recipe.markerInput)?.qty ?? 0;
+    const resinQty = invGet(next.inventory, "resin_glob")?.qty ?? 0;
+    if (trophyQty < 1 || markerQty < recipe.markerQty || resinQty < recipe.resinQty) return;
+    invRemove(next.inventory, recipe.trophyInput, 1);
+    invRemove(next.inventory, recipe.markerInput, recipe.markerQty);
+    invRemove(next.inventory, "resin_glob", recipe.resinQty);
+    invAdd(next.inventory, recipe.output, 1);
+    setPlayer(next);
+    playSfx("sfx_craft_success");
+  }
+
+  function canCraftGemTrophy(gemId: GemTrophyItemId): boolean {
+    const recipe = GEM_TROPHY_RECIPES[gemId];
+    const trophyQty = invGet(player.inventory, recipe.trophyInput)?.qty ?? 0;
+    const markerQty = invGet(player.inventory, recipe.markerInput)?.qty ?? 0;
+    const resinQty = invGet(player.inventory, "resin_glob")?.qty ?? 0;
+    return trophyQty >= 1 && markerQty >= recipe.markerQty && resinQty >= recipe.resinQty;
+  }
+
+  function slotGemTrophy(gemId: GemTrophyItemId) {
+    const next = structuredClone(player);
+    const qty = invGet(next.inventory, gemId)?.qty ?? 0;
+    if (qty < 1) return;
+    invRemove(next.inventory, gemId, 1);
+    const ms = cloneMarkState(markState);
+    if (!ms.gateSlottedTrophies.includes(gemId)) ms.gateSlottedTrophies.push(gemId);
+    // Check if gate now unlocked (all 3 required trophies slotted)
+    const allRequired = GATE_REQUIRED_GEM_TROPHIES.every(id => ms.gateSlottedTrophies.includes(id));
+    if (allRequired) {
+      ms.gateUnlocked = true;
+      playSfx("sfx_gate_activate");
+    } else {
+      playSfx("sfx_gate_slot");
+    }
+    setPlayer(next);
+    setMarkState(ms);
+  }
+
+  function discoverGate() {
+    const ms = cloneMarkState(markState);
+    ms.gateDiscovered = true;
+    setMarkState(ms);
+    setGateEncounterPending(false);
+    setScreen("GATE");
+  }
+
+  function ignorePendingGate() {
+    setGateEncounterPending(false);
+    // Proceed to enterPoi — caller must call enterPoi after
+  }
+
+  function liquidateItem(itemId: string, qty: number) {
+    const value = BIOMASS_VALUES[itemId];
+    if (!value) return;
+    const next = structuredClone(player);
+    const available = invGet(next.inventory, itemId as import("./types").ResourceId)?.qty ?? 0;
+    const actualQty = Math.min(qty, available);
+    if (actualQty <= 0) return;
+    invRemove(next.inventory, itemId as import("./types").ResourceId, actualQty);
+    setBiomassTotal(prev => prev + value * actualQty);
+    setPlayer(next);
+  }
+
+  function liquidateAll() {
+    const next = structuredClone(player);
+    let gained = 0;
+    for (const [itemId, value] of Object.entries(BIOMASS_VALUES)) {
+      if (!value) continue;
+      const qty = invGet(next.inventory, itemId as import("./types").ResourceId)?.qty ?? 0;
+      if (qty > 0) {
+        invRemove(next.inventory, itemId as import("./types").ResourceId, qty);
+        gained += value * qty;
+      }
+    }
+    setBiomassTotal(prev => prev + gained);
+    setPlayer(next);
   }
 
   function huntCreatureFromJourney() {
@@ -1087,10 +1233,7 @@ export default function App() {
     // Mark that we came from journey summary so we know where to go back
     setReturnScreen("SUMMARY_JOURNEY");
     // Wire blot mark for choosing to hunt
-    const ms = structuredClone(markState) as BlotMarkState;
-    ms.poisVisited = new Set(markState.poisVisited);
-    ms.distinctMethodsUsed = new Set(markState.distinctMethodsUsed);
-    ms.toolsCrafted = new Set(markState.toolsCrafted);
+    const ms = cloneMarkState(markState);
     setMarkState(triggerMarks(player, ms, { justHunted: true }));
     setScreen("BATTLE");
   }
@@ -1121,10 +1264,7 @@ export default function App() {
       setActiveBlot({ ...activeBlot, harvestCharges: Math.max(0, activeBlot.harvestCharges - 1) });
 
     // Track blot marks
-    const ms = structuredClone(markState) as BlotMarkState;
-    ms.poisVisited = new Set(markState.poisVisited);
-    ms.distinctMethodsUsed = new Set(markState.distinctMethodsUsed);
-    ms.toolsCrafted = new Set(markState.toolsCrafted);
+    const ms = cloneMarkState(markState);
     ms.distinctMethodsUsed.add(harvestPreview.method);
     if (next.stats.satiety < next.stats.maxSatiety * 0.3) ms.hasSeenLowSatiety = true;
     setMarkState(triggerMarks(next, ms, { justHarvested: { methods: [harvestPreview.method] } }));
@@ -1171,10 +1311,7 @@ export default function App() {
     checkDecayAlert(snap, next.inventory, allConsumed);
 
     // Track blot marks
-    const ms = structuredClone(markState) as BlotMarkState;
-    ms.poisVisited = new Set(markState.poisVisited);
-    ms.distinctMethodsUsed = new Set(markState.distinctMethodsUsed);
-    ms.toolsCrafted = new Set(markState.toolsCrafted);
+    const ms = cloneMarkState(markState);
     for (const m of methods) ms.distinctMethodsUsed.add(m);
     if (next.stats.satiety < next.stats.maxSatiety * 0.3) ms.hasSeenLowSatiety = true;
     setMarkState(triggerMarks(next, ms, { justHarvested: { methods } }));
@@ -1192,10 +1329,7 @@ export default function App() {
     const result = eatSapAtBlot(next, blotCopy);
     setPlayer(next); setActiveBlot(blotCopy); setLastEatResult(result);
     // Track eat on site
-    const ms = structuredClone(markState) as BlotMarkState;
-    ms.poisVisited = new Set(markState.poisVisited);
-    ms.distinctMethodsUsed = new Set(markState.distinctMethodsUsed);
-    ms.toolsCrafted = new Set(markState.toolsCrafted);
+    const ms = cloneMarkState(markState);
     setMarkState(triggerMarks(next, ms, { justAte: { onSite: true } }));
   }
   function doHarvestStorable() {
@@ -1238,10 +1372,7 @@ export default function App() {
       setCraftFlashItem(res.crafted.itemId);
 
       // Track blot marks for crafting
-      const ms = structuredClone(markState) as BlotMarkState;
-      ms.poisVisited = new Set(markState.poisVisited);
-      ms.distinctMethodsUsed = new Set(markState.distinctMethodsUsed);
-      ms.toolsCrafted = new Set(markState.toolsCrafted);
+      const ms = cloneMarkState(markState);
       if (HARVESTING_TOOLS.includes(res.crafted.itemId)) ms.toolsCrafted.add(res.crafted.itemId);
       if (next.stats.satiety < next.stats.maxSatiety * 0.3) ms.hasSeenLowSatiety = true;
       setMarkState(triggerMarks(next, ms, { justCrafted: { itemId: res.crafted.itemId } }));
@@ -1266,10 +1397,7 @@ export default function App() {
     const res = resolveRecover(next, periods, chomperAutoEnabled);
     setPlayer(next); setRecoverSummary(res);
     checkDecayAlert(snap, next.inventory, res.foodConsumed);
-    const ms = structuredClone(markState) as BlotMarkState;
-    ms.poisVisited = new Set(markState.poisVisited);
-    ms.distinctMethodsUsed = new Set(markState.distinctMethodsUsed);
-    ms.toolsCrafted = new Set(markState.toolsCrafted);
+    const ms = cloneMarkState(markState);
     setMarkState(triggerMarks(next, ms, { justRecovered: true }));
     setScreen("SUMMARY_RECOVER");
   }
@@ -1322,10 +1450,7 @@ export default function App() {
       setBattleState(null);
 
       // Wire blot marks for combat win
-      const ms = structuredClone(markState) as BlotMarkState;
-      ms.poisVisited = new Set(markState.poisVisited);
-      ms.distinctMethodsUsed = new Set(markState.distinctMethodsUsed);
-      ms.toolsCrafted = new Set(markState.toolsCrafted);
+      const ms = cloneMarkState(markState);
       const uniqueMoves = new Set(nextState.movesUsed).size;
       const allDropIds = [...result.midBattleDrops, ...result.corpseDrops].map(d => d.id as string);
       let ms2 = triggerMarks(updatedPlayer, ms, {
@@ -2011,6 +2136,22 @@ export default function App() {
         <button style={hubBtnStyle("craft")} onClick={openCraft} disabled={dead || exhausted}>Craft</button>
         <button style={hubBtnStyle("layDown")} onClick={previewRecover} disabled={dead}>Lay Down</button>
       </div>
+      {markState.gateDiscovered && (
+        <div className="row" style={{ marginTop: 8 }}>
+          <button
+            style={{
+              padding: "10px 18px", borderRadius: 10, fontSize: "0.9rem", fontWeight: 600,
+              border: markState.gateUnlocked ? "1px solid #7ecba1" : "1px solid #3a2a4a",
+              background: markState.gateUnlocked ? "#0a1a14" : "#120d1a",
+              color: markState.gateUnlocked ? "#7ecba1" : "#9e8ab0",
+              cursor: "pointer",
+            }}
+            onClick={() => setScreen("GATE")}
+          >
+            {markState.gateUnlocked ? "⊳ The Filament Gate (Open)" : "⊳ The Filament Gate"}
+          </button>
+        </div>
+      )}
       <div className="notice" style={{ marginTop: 12 }}>
         <span className="small">Hunger ends you. Fatigue stops you. The sticky world clings on.</span>
       </div>
@@ -2214,8 +2355,33 @@ export default function App() {
             </div>
           </>
         ) : (
-          <div className="row">
-            <button className="btn" style={{ background: "#1a2e1a", border: "1px solid #4caf50", color: "#7ecba1", fontWeight: 600, padding: "12px 22px" }} onClick={enterPoi} disabled={journeyResult.outcome !== "ok"}>Arrive</button>
+          <div>
+            {/* Gate encounter pending */}
+            {gateEncounterPending && !markState.gateDiscovered && (
+              <div style={{ background: "#0d0d18", border: "1px solid #3a2a5a", borderLeft: "3px solid #7b5ea7", borderRadius: 10, padding: "14px 16px", marginBottom: 12 }}>
+                <div style={{ fontSize: "0.68rem", opacity: 0.5, letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: 6 }}>Something unusual</div>
+                <p style={{ fontStyle: "italic", opacity: 0.85, marginBottom: 10, fontSize: "0.9rem" }}>
+                  On the way back, you sense something you haven't before — thin vertical structures in the resin, arranged in an arch. Filaments, ending in hollow sockets. The smell is unlike anything here.
+                </p>
+                <div style={{ display: "flex", gap: 10 }}>
+                  <button
+                    style={{ padding: "9px 16px", borderRadius: 9, fontSize: "0.88rem", fontWeight: 700, border: "1px solid #7b5ea7", background: "#1a0d2e", color: "#c8a8e8", cursor: "pointer" }}
+                    onClick={discoverGate}
+                  >
+                    Investigate the arch
+                  </button>
+                  <button
+                    style={{ padding: "9px 16px", borderRadius: 9, fontSize: "0.88rem", border: "1px solid #333", background: "#141414", color: "#888", cursor: "pointer" }}
+                    onClick={() => { setGateEncounterPending(false); }}
+                  >
+                    Keep moving
+                  </button>
+                </div>
+              </div>
+            )}
+            <div className="row">
+              <button className="btn" style={{ background: "#1a2e1a", border: "1px solid #4caf50", color: "#7ecba1", fontWeight: 600, padding: "12px 22px" }} onClick={enterPoi} disabled={journeyResult.outcome !== "ok"}>Arrive</button>
+            </div>
           </div>
         )}
 
@@ -2423,6 +2589,59 @@ export default function App() {
           );
         })}
       </div>
+      {/* ── Gem-Embedded Trophy crafting ── */}
+      {(() => {
+        const gemIds = Object.keys(GEM_TROPHY_RECIPES) as GemTrophyItemId[];
+        const availableGems = gemIds.filter(gemId => {
+          const recipe = GEM_TROPHY_RECIPES[gemId];
+          return (invGet(player.inventory, recipe.trophyInput)?.qty ?? 0) >= 1;
+        });
+        if (availableGems.length === 0) return null;
+        return (
+          <div style={{ marginTop: 16, borderTop: "1px solid #2a2a2a", paddingTop: 14 }}>
+            <div style={{ fontSize: "0.7rem", opacity: 0.4, letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: 8 }}>Passage Trophies</div>
+            <p className="small" style={{ opacity: 0.5, marginBottom: 10 }}>Embed your trophies and markers into passage-worthy gems. Requires Resin Glob per marker embedded.</p>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {availableGems.map(gemId => {
+                const recipe = GEM_TROPHY_RECIPES[gemId];
+                const cat = recipe.category;
+                const catColor = CATEGORY_COLOR[cat];
+                const can = canCraftGemTrophy(gemId);
+                const alreadyHave = (invGet(player.inventory, gemId)?.qty ?? 0) > 0;
+                return (
+                  <div key={gemId} style={{ background: "#161616", borderRadius: 10, border: `1px solid ${can ? catColor + "40" : "#1e1e1e"}`, borderLeft: `3px solid ${can ? catColor : "#333"}`, padding: "12px 14px", opacity: alreadyHave ? 0.5 : can ? 1 : 0.6 }}>
+                    <div style={{ fontWeight: 600, fontSize: "0.92rem", color: catColor, marginBottom: 4 }}>{GEM_TROPHIES[gemId].name}</div>
+                    <div style={{ fontSize: "0.75rem", opacity: 0.55, marginBottom: 8, fontStyle: "italic" }}>{GEM_TROPHIES[gemId].flavor}</div>
+                    <div style={{ fontSize: "0.72rem", opacity: 0.6, marginBottom: 8 }}>
+                      Needs: {TROPHIES[recipe.trophyInput].name} ×1 · {MARKERS[recipe.markerInput].name} ×{recipe.markerQty} · Resin Glob ×{recipe.resinQty}
+                      <span style={{ marginLeft: 8, color: (invGet(player.inventory, recipe.trophyInput)?.qty ?? 0) >= 1 ? catColor : "#666" }}>
+                        Trophy: {invGet(player.inventory, recipe.trophyInput)?.qty ?? 0}
+                      </span>
+                      <span style={{ marginLeft: 6, color: (invGet(player.inventory, recipe.markerInput)?.qty ?? 0) >= recipe.markerQty ? catColor : "#666" }}>
+                        Markers: {invGet(player.inventory, recipe.markerInput)?.qty ?? 0}/{recipe.markerQty}
+                      </span>
+                      <span style={{ marginLeft: 6, color: (invGet(player.inventory, "resin_glob")?.qty ?? 0) >= recipe.resinQty ? catColor : "#666" }}>
+                        Resin: {invGet(player.inventory, "resin_glob")?.qty ?? 0}/{recipe.resinQty}
+                      </span>
+                    </div>
+                    {alreadyHave ? (
+                      <div style={{ fontSize: "0.78rem", color: catColor, opacity: 0.6 }}>✓ Already crafted</div>
+                    ) : (
+                      <button
+                        disabled={!can}
+                        onClick={() => craftGemTrophy(gemId)}
+                        style={{ padding: "8px 18px", borderRadius: 8, fontSize: "0.85rem", fontWeight: 700, border: can ? `1px solid ${catColor}` : "1px solid #333", background: can ? catColor + "18" : "#141414", color: can ? catColor : "#444", cursor: can ? "pointer" : "not-allowed" }}
+                      >
+                        {can ? "Embed" : "Missing materials"}
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })()}
       <div className="row" style={{ marginTop: 14 }}>
         {(() => {
           const anyCraftable = unlockedRecipes.some(rid =>
@@ -2956,6 +3175,36 @@ export default function App() {
                               }
                               {BLOT_MARK_HOW[id]}
                             </div>
+                            {/* Claim button */}
+                            {isEarned && !markState.claimedMarkers?.[id] && (() => {
+                              const gateMarkId = CATEGORY_GATE_MARK[cat] as BlotMarkId;
+                              const isTrophy = id === gateMarkId;
+                              return (
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); claimMarker(id); }}
+                                  style={{
+                                    marginTop: 10,
+                                    padding: "7px 14px", borderRadius: 8, fontSize: "0.8rem",
+                                    border: `1px solid ${isTrophy ? catColor : catColor + "80"}`,
+                                    background: isTrophy ? catColor + "22" : catColor + "11",
+                                    color: catColor, cursor: "pointer", fontWeight: 600,
+                                    display: "flex", alignItems: "center", gap: 6,
+                                  }}
+                                >
+                                  <span>{isTrophy ? "🏆" : "◆"}</span>
+                                  <span>{isTrophy ? `Claim ${TROPHIES[CATEGORY_TROPHY[cat]].name}` : `Claim ${MARKERS[CATEGORY_MARKER[cat]].name}`}</span>
+                                </button>
+                              );
+                            })()}
+                            {isEarned && markState.claimedMarkers?.[id] && (() => {
+                              const gateMarkId = CATEGORY_GATE_MARK[cat] as BlotMarkId;
+                              const isTrophy = id === gateMarkId;
+                              return (
+                                <div style={{ marginTop: 8, fontSize: "0.75rem", opacity: 0.4, fontStyle: "italic" }}>
+                                  {isTrophy ? "Trophy collected." : "Marker collected."}
+                                </div>
+                              );
+                            })()}
                           </div>
                         )}
                       </div>
@@ -3276,6 +3525,232 @@ export default function App() {
   })();
 
   // ── Screen routing ────────────────────────────────────────────────────────
+
+  // ── Gate screen ───────────────────────────────────────────────────────────
+  const gateScreen = (() => {
+    const slotted = markState.gateSlottedTrophies ?? [];
+    const required = GATE_REQUIRED_GEM_TROPHIES;
+    const allRequired = required.every(id => slotted.includes(id));
+
+    const liquidatableItems = Object.keys(BIOMASS_VALUES).filter(id => {
+      const qty = invGet(player.inventory, id as import("./types").ResourceId)?.qty ?? 0;
+      return qty > 0;
+    });
+
+    return (
+      <div className="card">
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
+          <button onClick={() => setScreen("HUB")} style={{ background: "none", border: "none", color: "#9e8ab0", cursor: "pointer", fontSize: "0.9rem", padding: "4px 8px", borderRadius: 6, fontWeight: 600 }}>← Back</button>
+          <h2 style={{ margin: 0 }}>The Filament Gate</h2>
+        </div>
+
+        <div style={{ background: "#0d0d18", border: "1px solid #3a2a5a", borderRadius: 12, padding: "14px 16px", marginBottom: 16 }}>
+          <p style={{ fontStyle: "italic", opacity: 0.8, margin: 0, lineHeight: 1.6, fontSize: "0.9rem" }}>
+            Thin upright filaments in an arch, each ending in a socket. Three sockets glow faintly. It doesn't fit the biome. It releases pheromones you can smell from anywhere.
+          </p>
+        </div>
+
+        {/* Trophy slots — required 3 */}
+        <div style={{ marginBottom: 16 }}>
+          <div style={{ fontSize: "0.7rem", opacity: 0.4, letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: 10 }}>Required Sockets</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {required.map(gemId => {
+              const isSlotted = slotted.includes(gemId);
+              const recipe = GEM_TROPHY_RECIPES[gemId];
+              const catColor = CATEGORY_COLOR[recipe.category];
+              const hasInInventory = (invGet(player.inventory, gemId)?.qty ?? 0) >= 1;
+              return (
+                <div key={gemId} style={{
+                  background: isSlotted ? catColor + "12" : "#111",
+                  border: `1px solid ${isSlotted ? catColor + "60" : "#2a2a2a"}`,
+                  borderLeft: `3px solid ${isSlotted ? catColor : "#333"}`,
+                  borderRadius: 10, padding: "12px 14px",
+                  display: "flex", alignItems: "center", gap: 12,
+                }}>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontWeight: 600, color: isSlotted ? catColor : "#888", fontSize: "0.92rem", marginBottom: 2 }}>
+                      {GEM_TROPHIES[gemId].name}
+                    </div>
+                    {isSlotted ? (
+                      <div style={{ fontSize: "0.75rem", color: catColor, opacity: 0.7 }}>✓ Seated in the socket</div>
+                    ) : hasInInventory ? (
+                      <div style={{ fontSize: "0.75rem", opacity: 0.5 }}>In your inventory — ready to slot</div>
+                    ) : (
+                      <div style={{ fontSize: "0.75rem", opacity: 0.4, fontStyle: "italic" }}>
+                        {(invGet(player.inventory, recipe.trophyInput)?.qty ?? 0) === 0
+                          ? `Earn the gate mark: ${recipe.category} category`
+                          : `Craft via Craft menu — needs markers + resin`
+                        }
+                      </div>
+                    )}
+                  </div>
+                  {!isSlotted && hasInInventory && (
+                    <button
+                      onClick={() => slotGemTrophy(gemId)}
+                      style={{ padding: "8px 16px", borderRadius: 8, fontSize: "0.85rem", fontWeight: 700, border: `1px solid ${catColor}`, background: catColor + "18", color: catColor, cursor: "pointer" }}
+                    >
+                      Seat it
+                    </button>
+                  )}
+                  {isSlotted && <span style={{ fontSize: "1.2rem" }}>◆</span>}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Optional trophy slots */}
+        {(() => {
+          const optional = Object.keys(GEM_TROPHIES).filter(id => !required.includes(id as GemTrophyItemId)) as GemTrophyItemId[];
+          const hasAny = optional.some(id => (invGet(player.inventory, id)?.qty ?? 0) >= 1 || slotted.includes(id));
+          if (!hasAny) return null;
+          return (
+            <div style={{ marginBottom: 16 }}>
+              <div style={{ fontSize: "0.7rem", opacity: 0.4, letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: 10 }}>Optional Sockets</div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {optional.map(gemId => {
+                  const isSlotted = slotted.includes(gemId);
+                  const recipe = GEM_TROPHY_RECIPES[gemId];
+                  const catColor = CATEGORY_COLOR[recipe.category];
+                  const hasInInventory = (invGet(player.inventory, gemId)?.qty ?? 0) >= 1;
+                  if (!hasInInventory && !isSlotted) return null;
+                  return (
+                    <div key={gemId} style={{
+                      background: isSlotted ? catColor + "12" : "#111",
+                      border: `1px solid ${isSlotted ? catColor + "60" : "#2a2a2a"}`,
+                      borderLeft: `3px solid ${isSlotted ? catColor : "#333"}`,
+                      borderRadius: 10, padding: "12px 14px",
+                      display: "flex", alignItems: "center", gap: 12,
+                    }}>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontWeight: 600, color: isSlotted ? catColor : "#888", fontSize: "0.92rem", marginBottom: 2 }}>{GEM_TROPHIES[gemId].name}</div>
+                        {isSlotted ? (
+                          <div style={{ fontSize: "0.75rem", color: catColor, opacity: 0.7 }}>✓ Seated</div>
+                        ) : (
+                          <div style={{ fontSize: "0.75rem", opacity: 0.5 }}>Optional — rewards deferred</div>
+                        )}
+                      </div>
+                      {!isSlotted && hasInInventory && (
+                        <button
+                          onClick={() => slotGemTrophy(gemId)}
+                          style={{ padding: "8px 16px", borderRadius: 8, fontSize: "0.85rem", fontWeight: 700, border: `1px solid ${catColor}`, background: catColor + "18", color: catColor, cursor: "pointer" }}
+                        >
+                          Seat it
+                        </button>
+                      )}
+                      {isSlotted && <span style={{ fontSize: "1.2rem" }}>◆</span>}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })()}
+
+        {/* Activation — if all required slotted */}
+        {allRequired && !markState.gateUnlocked && (
+          <div style={{ background: "#0a1a14", border: "1px solid #3a5a3a", borderRadius: 12, padding: "14px 16px", marginBottom: 16 }}>
+            <p style={{ fontStyle: "italic", opacity: 0.85, margin: 0, marginBottom: 12, lineHeight: 1.6, fontSize: "0.9rem" }}>
+              The filaments retract into the resin. The sockets invert — they push rather than receive. A tone you feel in your back legs. The arch is open. It was waiting for proof, not permission.
+            </p>
+          </div>
+        )}
+
+        {allRequired && (
+          <div style={{ marginBottom: 16 }}>
+            <button
+              onClick={() => setScreen("PHASE_COMPLETE")}
+              style={{
+                width: "100%", padding: "16px 24px", borderRadius: 12, fontSize: "1.1rem", fontWeight: 700,
+                border: "2px solid #7ecba1", background: "linear-gradient(160deg, #0a2a1a 0%, #081410 100%)",
+                color: "#7ecba1", cursor: "pointer", letterSpacing: "0.05em",
+                boxShadow: "0 0 20px #7ecba120",
+              }}
+            >
+              Pass through the arch
+            </button>
+          </div>
+        )}
+
+        {/* Biomass liquidation */}
+        <div style={{ borderTop: "1px solid #2a2a2a", paddingTop: 14 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+            <div style={{ fontSize: "0.7rem", opacity: 0.4, letterSpacing: "0.12em", textTransform: "uppercase" }}>Liquidate</div>
+            <div style={{ fontSize: "0.88rem", color: "#7ecba1", fontWeight: 700 }}>Biomass: {biomassTotal}</div>
+          </div>
+          <p className="small" style={{ opacity: 0.45, marginBottom: 10 }}>
+            The Gate doesn't eat — it renders. Push items into the side channel. Comes out the other end as Biomass. You don't know why yet.
+          </p>
+          {liquidatableItems.length === 0 ? (
+            <p className="small" style={{ opacity: 0.35, fontStyle: "italic" }}>Nothing liquidatable in inventory.</p>
+          ) : (
+            <div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 5, marginBottom: 10 }}>
+                {liquidatableItems.map(id => {
+                  const qty = invGet(player.inventory, id as import("./types").ResourceId)?.qty ?? 0;
+                  const val = BIOMASS_VALUES[id] ?? 0;
+                  const name = id.startsWith("eq_") ? (ITEMS[id]?.name ?? id)
+                    : id.startsWith("mat_") || id === "resin_glob" || id === "fiber_clump" || id === "brittle_stone"
+                    ? (RESOURCES[id as import("./types").ResourceId]?.name ?? id) : id;
+                  return (
+                    <div key={id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "7px 10px", background: "#0e0e0e", borderRadius: 8 }}>
+                      <span style={{ flex: 1, fontSize: "0.85rem" }}>{name} ×{qty}</span>
+                      <span style={{ fontSize: "0.75rem", opacity: 0.5 }}>{val} each</span>
+                      <button onClick={() => liquidateItem(id, 1)} style={{ padding: "4px 10px", borderRadius: 6, fontSize: "0.75rem", border: "1px solid #3a3a3a", background: "#1a1a1a", color: "#aaa", cursor: "pointer" }}>×1 → {val}</button>
+                      <button onClick={() => liquidateItem(id, qty)} style={{ padding: "4px 10px", borderRadius: 6, fontSize: "0.75rem", border: "1px solid #3a5a3a", background: "#0e1a0e", color: "#7ecba1", cursor: "pointer" }}>All → {val * qty}</button>
+                    </div>
+                  );
+                })}
+              </div>
+              <button
+                onClick={liquidateAll}
+                style={{ padding: "9px 18px", borderRadius: 9, fontSize: "0.85rem", fontWeight: 600, border: "1px solid #4a4a4a", background: "#1a1a1a", color: "#ccc", cursor: "pointer" }}
+              >
+                Liquidate everything → +{liquidatableItems.reduce((s, id) => s + (BIOMASS_VALUES[id] ?? 0) * (invGet(player.inventory, id as import("./types").ResourceId)?.qty ?? 0), 0)} Biomass
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  })();
+
+  // ── Phase Complete screen ─────────────────────────────────────────────────
+  const phaseCompleteScreen = (
+    <div className="card" style={{ textAlign: "center", maxWidth: 560, margin: "0 auto" }}>
+      <div style={{ fontSize: "0.75rem", opacity: 0.35, letterSpacing: "0.18em", textTransform: "uppercase", marginBottom: 24 }}>Biome 2</div>
+      <p style={{ fontStyle: "italic", opacity: 0.65, lineHeight: 1.8, marginBottom: 12, fontSize: "0.95rem" }}>
+        The arch closes behind you.
+      </p>
+      <p style={{ fontStyle: "italic", opacity: 0.65, lineHeight: 1.8, marginBottom: 24, fontSize: "0.95rem" }}>
+        The air here is different. You don't know what's ahead.
+      </p>
+      <p style={{ fontStyle: "italic", opacity: 0.4, lineHeight: 1.8, marginBottom: 32, fontSize: "0.95rem" }}>
+        Neither do we — yet.
+      </p>
+      <div style={{ marginBottom: 32 }}>
+        <h2 style={{ fontSize: "1.4rem", marginBottom: 8 }}>You've completed Phase 1 of 2 Tails 3 Feet.</h2>
+        <p style={{ opacity: 0.6, lineHeight: 1.7, marginBottom: 8, fontSize: "0.9rem" }}>
+          This is as far as the game goes for now.
+        </p>
+        <p style={{ opacity: 0.6, lineHeight: 1.7, fontSize: "0.9rem" }}>
+          If you made it here, you did something most players won't.
+        </p>
+      </div>
+      <div style={{ background: "#0e1218", border: "1px solid #2a3a4a", borderRadius: 12, padding: "16px 20px", marginBottom: 32 }}>
+        <p style={{ opacity: 0.8, fontWeight: 600, marginBottom: 4 }}>Contact the creator to claim your reward.</p>
+        <p style={{ opacity: 0.4, fontSize: "0.85rem", fontStyle: "italic" }}>[contact detail placeholder]</p>
+      </div>
+      <button
+        onClick={reset}
+        style={{ padding: "14px 36px", borderRadius: 12, background: "#141414", border: "1px solid #3a3a3a", color: "#888", fontSize: "0.95rem", fontWeight: 600, cursor: "pointer", letterSpacing: "0.05em" }}
+      >
+        Return to Start
+      </button>
+    </div>
+  );
+
+  // ── Screen routing ────────────────────────────────────────────────────────
   let body: React.ReactNode = null;
   if (dead) body = deadScreen;
   else if (exhausted && !["SUMMARY_JOURNEY","SUMMARY_HARVEST","SUMMARY_CRAFT","SUMMARY_RECOVER","PREVIEW_RECOVER","BATTLE","SUMMARY_BATTLE"].includes(screen))
@@ -3300,6 +3775,8 @@ export default function App() {
       case "MARKS": body = marksScreen; break;
       case "BATTLE": body = battleScreen; break;
       case "SUMMARY_BATTLE": body = battleSummaryScreen; break;
+      case "GATE": body = gateScreen; break;
+      case "PHASE_COMPLETE": body = phaseCompleteScreen; break;
       default: body = hub;
     }
   }

@@ -18,6 +18,35 @@ export type EventId =
   | "ev_need_scoop_for_rations";
 
 export type ResourceId = "resin_glob" | "fiber_clump" | "brittle_stone" | "mat_wing_membrane" | "mat_crystallised_wax";
+
+// ─── Markers, Trophies, Gem-Embedded Trophies, Biomass ───────────────────────
+export type MarkerItemId =
+  | "marker_exploration"
+  | "marker_harvesting"
+  | "marker_crafting"
+  | "marker_survival"
+  | "marker_combat"
+  | "marker_loot";
+
+export type TrophyItemId =
+  | "trophy_exploration"
+  | "trophy_harvesting"
+  | "trophy_crafting"
+  | "trophy_survival"
+  | "trophy_combat"
+  | "trophy_loot";
+
+export type GemTrophyItemId =
+  | "gem_trophy_exploration"
+  | "gem_trophy_harvesting"
+  | "gem_trophy_crafting"
+  | "gem_trophy_survival"
+  | "gem_trophy_combat"
+  | "gem_trophy_loot";
+
+export type SpecialItemId = "biomass";
+
+export type ProgressionItemId = MarkerItemId | TrophyItemId | GemTrophyItemId | SpecialItemId;
 export type FoodId = "food_soft_sap" | "food_resin_chew" | "food_dense_ration" | "food_moth_flesh" | "food_moth_paste" | "food_gloop_wax";
 
 // ─── Combat ───────────────────────────────────────────────────────────────────
@@ -128,7 +157,11 @@ export type ItemId =
   | "eq_fiber_comb"
   | "eq_hand_drill"
   | "eq_sticky_scoop"
-  | "eq_standard_shoe";
+  | "eq_standard_shoe"
+  | MarkerItemId
+  | TrophyItemId
+  | GemTrophyItemId
+  | SpecialItemId;
 
 export type Quality = "common" | "uncommon";
 
@@ -166,7 +199,9 @@ export type Screen =
   | "SKILLS"
   | "BATTLE"
   | "SUMMARY_BATTLE"
-  | "MARKS";
+  | "MARKS"
+  | "GATE"
+  | "PHASE_COMPLETE";
 
 export interface PlayerStats {
   satiety: number;
@@ -240,6 +275,12 @@ export interface BlotMarkState {
   lowestSatietySeen: number;
   hasSeenLowSatiety: boolean; // crossed 30% at least once
   toolsCrafted: Set<string>; // ItemIds of harvesting tools crafted
+  // Marker claim tracking — which gate marks have had their Trophy/Marker deposited
+  claimedMarkers: Partial<Record<BlotMarkId, true>>;
+  // Gate state
+  gateDiscovered: boolean;
+  gateUnlocked: boolean; // all 3 required gem trophies slotted
+  gateSlottedTrophies: GemTrophyItemId[]; // which gem trophies have been embedded
 }
 
 export interface PlayerState {

@@ -523,6 +523,37 @@ function CraftSuccessFlash({ itemId, origin, onDone }: { itemId: string; origin:
   );
 }
 
+function ClaimFlyToInventory({ id, origin, onDone }: { id: string; origin: { x: number; y: number }; onDone: () => void }) {
+  const ref = React.useRef<HTMLDivElement>(null);
+  React.useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    // Inventory button top-left sidebar area
+    const targetX = 100;
+    const targetY = 60;
+    el.style.left = `${origin.x}px`;
+    el.style.top = `${origin.y}px`;
+    el.style.transform = "translate(-50%, -50%) scale(1)";
+    el.style.opacity = "1";
+    const frame = requestAnimationFrame(() => {
+      el.style.transition = "left 680ms cubic-bezier(0.4,0,0.2,1), top 680ms cubic-bezier(0.4,0,0.2,1), transform 680ms ease-in, opacity 280ms ease-in 420ms";
+      el.style.left = `${targetX}px`;
+      el.style.top = `${targetY}px`;
+      el.style.transform = "translate(-50%, -50%) scale(0.2)";
+      el.style.opacity = "0";
+    });
+    const t = setTimeout(onDone, 800);
+    return () => { cancelAnimationFrame(frame); clearTimeout(t); };
+  }, [origin, onDone]);
+  return (
+    <div style={{ position: "fixed", inset: 0, zIndex: 200, pointerEvents: "none" }}>
+      <div ref={ref} style={{ position: "absolute", willChange: "left, top, transform, opacity" }}>
+        <ItemIcon id={id} size={32} />
+      </div>
+    </div>
+  );
+}
+
 function formatConsumed(consumed: { foodId: import("./types").FoodId; units: number }[]) {
   if (!consumed.length) return "None";
   return consumed.map((c) => `${FOODS[c.foodId].name} ×${c.units}`).join(", ");
@@ -706,7 +737,7 @@ export default function App() {
   const [toastDismissing, setToastDismissing] = useState(false);
   const [flyingMarkCategory, setFlyingMarkCategory] = useState<{ category: BlotMarkCategory; key: number } | null>(null);
   const [newRevealIds, setNewRevealIds] = useState<BlotMarkId[]>([]); // IDs newly revealed, for shimmer
-  const [flyingClaimItems, setFlyingClaimItems] = useState<{ id: string; key: number }[]>([]); // items flying to inventory on claim
+  const [flyingClaimItems, setFlyingClaimItems] = useState<{ id: string; key: number; origin: { x: number; y: number } }[]>([]); // items flying to inventory on claim
 
   // Gate state
   const [gateEncounterPending, setGateEncounterPending] = useState(false); // set during journey if gate should trigger
@@ -1170,7 +1201,7 @@ export default function App() {
     return ms.gateDiscovered;
   }
 
-  function claimMarker(markId: BlotMarkId) {
+  function claimMarker(markId: BlotMarkId, origin: { x: number; y: number }) {
     const mark = BLOT_MARKS[markId];
     const cat = mark.category;
     const gateMarkId = CATEGORY_GATE_MARK[cat] as BlotMarkId;
@@ -1198,7 +1229,7 @@ export default function App() {
     setMarkState(ms);
     // Trigger fly-to-inventory animation
     const key = Date.now();
-    setFlyingClaimItems(prev => [...prev, { id: claimedItemId, key }]);
+    setFlyingClaimItems(prev => [...prev, { id: claimedItemId, key, origin }]);
     setTimeout(() => setFlyingClaimItems(prev => prev.filter(f => f.key !== key)), 900);
   }
 
@@ -3379,7 +3410,11 @@ export default function App() {
                               const isTrophy = id === gateMarkId;
                               return (
                                 <button
-                                  onClick={(e) => { e.stopPropagation(); claimMarker(id); }}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    const rect = e.currentTarget.getBoundingClientRect();
+                                    claimMarker(id, { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 });
+                                  }}
                                   style={{
                                     marginTop: 10,
                                     padding: "7px 14px", borderRadius: 8, fontSize: "0.8rem",
@@ -4142,13 +4177,12 @@ export default function App() {
         })()}
         {/* Fly-to-inventory on claim */}
         {flyingClaimItems.map(f => (
-          <div key={f.key} style={{
-            position: "fixed", bottom: 80, left: "50%", transform: "translateX(-50%)",
-            pointerEvents: "none", zIndex: 200,
-            animation: "claimFlyToInv 800ms cubic-bezier(0.25, 0.1, 0.25, 1) both",
-          }}>
-            <ItemIcon id={f.id} size={36} />
-          </div>
+          <ClaimFlyToInventory
+            key={f.key}
+            id={f.id}
+            origin={f.origin}
+            onDone={() => setFlyingClaimItems(prev => prev.filter(p => p.key !== f.key))}
+          />
         ))}
       </div>
     </div>

@@ -1957,6 +1957,10 @@ export default function App() {
     <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 14, padding: "10px 0" }}>
       <StatBar value={player.stats.satiety} max={player.stats.maxSatiety} kind="satiety" netRange={previewOverlay?.satiety} />
       <StatBar value={player.stats.stamina} max={player.stats.maxStamina} kind="stamina" netRange={previewOverlay?.stamina} />
+      <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.8rem", opacity: 0.7 }}>
+        <span>Biomass</span>
+        <span style={{ color: biomassTotal > 0 ? "#a8d8a8" : undefined }}>{biomassTotal}</span>
+      </div>
       <span style={{ fontSize: "0.8rem", opacity: 0.45 }}>{BIOME_LEVEL.name}</span>
     </div>
   );
@@ -2666,7 +2670,7 @@ export default function App() {
 
   // ── Craft screens ─────────────────────────────────────────────────────────
   const CRAFT_TIERS: { label: string; ids: string[] }[] = [
-    { label: "Bare Minimum", ids: ["rcp_fiber_comb", "rcp_sticky_scoop"] },
+    { label: "Bare Minimum", ids: ["rcp_pointed_twig", "rcp_fiber_comb", "rcp_sticky_scoop"] },
     { label: "Getting Somewhere", ids: ["rcp_crude_hammerhead", "rcp_hand_drill"] },
     { label: "Now We're Talking", ids: ["rcp_chomper", "rcp_tail_curler"] },
   ];

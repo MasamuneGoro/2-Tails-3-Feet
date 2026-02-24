@@ -324,7 +324,7 @@ export const RECIPES: Record<
     craftPeriods: 2,
     satietyPerPeriod: 10,
     staminaPerPeriod: 15,
-    requiresTinker: false,
+    requiresTinker: true,
   },
   rcp_fiber_comb: {
     id: "rcp_fiber_comb",

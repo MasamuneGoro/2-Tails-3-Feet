@@ -549,7 +549,7 @@ function ClaimFlyToInventory({ id, origin, onDone }: { id: string; origin: { x: 
   return (
     <div style={{ position: "fixed", inset: 0, zIndex: 200, pointerEvents: "none" }}>
       <div ref={ref} style={{ position: "absolute", willChange: "left, top, transform, opacity" }}>
-        <ItemIcon id={id} size={32} />
+        <ItemIcon id={id} size={64} />
       </div>
     </div>
   );
@@ -744,6 +744,7 @@ export default function App() {
   const [gateEncounterPending, setGateEncounterPending] = useState(false); // set during journey if gate should trigger
   const [biomassTotal, setBiomassTotal] = useState(0); // accumulated biomass (not in player inventory — tracked separately)
   const [gateTab, setGateTab] = useState<"trophies" | "mouth">("trophies"); // active tab in gate screen
+  const [activeMarkTab, setActiveMarkTab] = useState<BlotMarkCategory>("Exploration"); // active tab in marks screen
   const [mouthFeedCount, setMouthFeedCount] = useState(0); // total number of items fed to the Hungry Mouth
   const [mouthFeedConfirm, setMouthFeedConfirm] = useState<{ itemId: string; qty: number } | null>(null); // pending confirmation
   const [mouthBulkQty, setMouthBulkQty] = useState<Record<string, number>>({}); // bulk feed qty per item
@@ -3318,6 +3319,16 @@ export default function App() {
   const marksScreen = (() => {
     const categories: BlotMarkCategory[] = ["Exploration", "Harvesting", "Crafting", "Survival", "Combat", "Loot"];
     const earnedCount = Object.keys(markState.earned).length;
+    const cat = activeMarkTab;
+    const catMarks = BLOT_MARK_ORDER.filter(id => BLOT_MARKS[id].category === cat);
+    const catColor = CATEGORY_COLOR[cat];
+
+    // Does a category have any unclaimed earned marks?
+    function catHasUnclaimed(c: BlotMarkCategory): boolean {
+      return BLOT_MARK_ORDER
+        .filter(id => BLOT_MARKS[id].category === c)
+        .some(id => !!markState.earned[id] && !markState.claimedMarkers?.[id]);
+    }
 
     return (
       <div style={{ background: "#111", borderRadius: 14, border: "1px solid #2a2a2a", overflow: "hidden" }}>
@@ -3326,20 +3337,67 @@ export default function App() {
           <div style={{ fontSize: "1.1rem", fontWeight: 700, letterSpacing: "0.05em" }}>Blot Marks</div>
           <div style={{ marginLeft: "auto", fontSize: "0.78rem", opacity: 0.4 }}>{earnedCount} / {BLOT_MARK_ORDER.length}</div>
         </div>
-        <div style={{ padding: "16px 18px", display: "flex", flexDirection: "column", gap: 18 }}>
-          {categories.map(cat => {
-            const catMarks = BLOT_MARK_ORDER.filter(id => BLOT_MARKS[id].category === cat);
-            const catColor = CATEGORY_COLOR[cat];
+
+        {/* Category tab bar */}
+        <div style={{
+          display: "flex", overflowX: "auto", gap: 0,
+          borderBottom: "1px solid #2a2a2a", background: "#0c0c0c",
+          scrollbarWidth: "none",
+        }}>
+          {categories.map(c => {
+            const cc = CATEGORY_COLOR[c];
+            const isActive = c === cat;
+            const hasUnclaimed = catHasUnclaimed(c);
             return (
-              <div key={cat}>
-                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
-                  <div style={{ color: catColor, opacity: 0.85 }}>
-                    <BlotMarkCategoryIcon category={cat} size={16} />
-                  </div>
-                  <div style={{ fontSize: "0.72rem", fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: catColor, opacity: 0.7 }}>{cat}</div>
+              <button
+                key={c}
+                onClick={() => { setActiveMarkTab(c); setExpandedMark(null); }}
+                style={{
+                  flex: "1 1 0", minWidth: 0,
+                  padding: "10px 4px 9px",
+                  background: isActive ? cc + "14" : "transparent",
+                  border: "none",
+                  borderBottom: isActive ? `2px solid ${cc}` : "2px solid transparent",
+                  cursor: "pointer",
+                  display: "flex", flexDirection: "column", alignItems: "center", gap: 3,
+                  transition: "background 0.15s, border-color 0.15s",
+                  position: "relative",
+                }}
+              >
+                <div style={{
+                  color: isActive ? cc : hasUnclaimed ? cc : "#555",
+                  opacity: isActive ? 1 : hasUnclaimed ? 0.9 : 0.6,
+                  filter: hasUnclaimed ? `drop-shadow(0 0 4px ${cc})` : "none",
+                  transition: "color 0.15s, opacity 0.15s, filter 0.15s",
+                }}>
+                  <BlotMarkCategoryIcon category={c} size={18} />
                 </div>
-                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                  {catMarks.map(id => {
+                <div style={{
+                  fontSize: "0.55rem", fontWeight: 700, letterSpacing: "0.08em",
+                  textTransform: "uppercase",
+                  color: isActive ? cc : hasUnclaimed ? cc : "#555",
+                  opacity: isActive ? 0.9 : hasUnclaimed ? 0.8 : 0.5,
+                  whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+                  maxWidth: "100%", padding: "0 2px",
+                }}>
+                  {c}
+                </div>
+                {/* Unclaimed dot */}
+                {hasUnclaimed && !isActive && (
+                  <div style={{
+                    position: "absolute", top: 5, right: "50%", transform: "translateX(8px)",
+                    width: 6, height: 6, borderRadius: "50%",
+                    background: cc,
+                    boxShadow: `0 0 5px ${cc}`,
+                  }} />
+                )}
+              </button>
+            );
+          })}
+        </div>
+
+        <div style={{ padding: "14px 18px", display: "flex", flexDirection: "column", gap: 6 }}>
+          {catMarks.map(id => {
                     const isEarned = !!markState.earned[id];
                     const isRevealed = !!markState.revealed[id];
                     const isNewReveal = newRevealIds.includes(id);
@@ -3473,10 +3531,6 @@ export default function App() {
                       </div>
                     );
                   })}
-                </div>
-              </div>
-            );
-          })}
         </div>
       </div>
     );

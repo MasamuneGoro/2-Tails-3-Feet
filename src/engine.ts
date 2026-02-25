@@ -473,8 +473,7 @@ export function resolveJourney(player: PlayerState, preview: JourneyPreview, cho
 
 export function methodsAvailableFromEquipment(player: PlayerState): HarvestMethodId[] {
   const ids = player.equipment.tailSlots.filter(Boolean) as ItemId[];
-  const methods = ids.map((id) => ITEMS[id]?.harvestingMethod).filter(Boolean) as HarvestMethodId[];
-  return Array.from(new Set(methods));
+  return ids.map((id) => ITEMS[id]?.harvestingMethod).filter(Boolean) as HarvestMethodId[];
 }
 
 export function recommendedMethod(poiId: PoiId): HarvestMethodId | null {
@@ -568,11 +567,7 @@ export function resolveHarvest(player: PlayerState, preview: HarvestPreview, cho
   const raw = randInt(base[0], base[1]);
   const skill = 1 + (skillLevel(player.xp[preview.method] ?? 0) - 1) * 0.08;
 
-  // Count how many tools providing this method are equipped — each swings independently
-  const toolIds = Object.keys(ITEMS) as ItemId[];
-  const toolForMethod = toolIds.find(id => ITEMS[id].harvestingMethod === preview.method);
-  const toolCount = toolForMethod ? countEquippedTail(player, toolForMethod) : 1;
-  const qty = Math.max(1, Math.floor(raw * eff * skill)) * Math.max(1, toolCount);
+  const qty = Math.max(1, Math.floor(raw * eff * skill));
 
   invAdd(player.inventory, poi.resourceId, qty);
   const gained = [{ id: poi.resourceId, qty }];

@@ -2121,14 +2121,16 @@ export default function App() {
                           const hasTools = tools.length > 0;
                           const label = hasTools
                             ? tools.length === 2
-                              ? `${methodVerbs[methods[0]] ?? "Harvest"} + ${methodVerbs[methods[1]] ?? "Harvest"}`
+                              ? methods[0] === methods[1]
+                                ? `${methodVerbs[methods[0]] ?? "Harvest"} × 2`
+                                : `${methodVerbs[methods[0]] ?? "Harvest"} + ${methodVerbs[methods[1]] ?? "Harvest"}`
                               : (methodVerbs[methods[0]] ?? "Harvest")
                             : "Harvest";
                           return (
                             <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8, marginTop: 4 }}>
                               {hasTools && (
                                 <p className="small" style={{ opacity: 0.6, margin: 0 }}>
-                                  {tools.map((t, i) => <span key={t!.id}><b>{t!.name}</b>{i < tools.length - 1 ? " + " : ""}</span>)}
+                                  {tools.map((t, i) => <span key={`${t!.id}-${i}`}><b>{t!.name}</b>{i < tools.length - 1 ? " + " : ""}</span>)}
                                   {tools.length === 2 ? " — both swing" : ""}
                                 </p>
                               )}

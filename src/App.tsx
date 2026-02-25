@@ -175,7 +175,7 @@ function computeEarnedMarks(ms: BlotMarkState, player: PlayerState, context: {
   if (context.justHarvested) {
     tryEarn("mark_first_harvest", true);
     tryEarn("mark_all_methods", ms.distinctMethodsUsed.size >= 5);
-    const level3Methods = Object.values(player.xp).filter(x => x >= 300).length; // level 3 = 300xp
+    const level3Methods = Object.values(player.xp).filter(x => skillLevel(x) >= 3).length;
     tryEarn("mark_harvest_proficiency", level3Methods >= 1);
     tryEarn("mark_all_proficiency", level3Methods >= 5);
   }
@@ -186,7 +186,7 @@ function computeEarnedMarks(ms: BlotMarkState, player: PlayerState, context: {
     const isEquipment = context.justCrafted.itemId === "eq_chomper" || context.justCrafted.itemId === "eq_tail_curler";
     tryEarn("mark_craft_equipment", isEquipment);
     // Check proficiency retroactively — in case player already hit level 3 before the mark revealed
-    const level3MethodsOnCraft = Object.values(player.xp).filter(x => x >= 300).length;
+    const level3MethodsOnCraft = Object.values(player.xp).filter(x => skillLevel(x) >= 3).length;
     tryEarn("mark_harvest_proficiency", level3MethodsOnCraft >= 1);
     tryEarn("mark_all_proficiency", level3MethodsOnCraft >= 5);
   }

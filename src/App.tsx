@@ -119,7 +119,7 @@ function computeRevealedMarks(ms: BlotMarkState, player: PlayerState): Set<BlotM
 
   if (e.mark_first_journey) revealed.add("mark_first_find_food");
   if (ms.poisVisited.size >= 3) revealed.add("mark_visit_all_poi");
-  if (ms.distinctMethodsUsed.size >= 2) revealed.add("mark_all_methods");
+  if (e.mark_first_harvest && ms.toolsCrafted.size >= 1) revealed.add("mark_all_methods");
   if (Object.values(player.xp).some(x => skillLevel(x) >= 2)) revealed.add("mark_harvest_proficiency"); // level 2
   if (e.mark_harvest_proficiency) revealed.add("mark_all_proficiency");
   if (ms.toolsCrafted.size >= 2) revealed.add("mark_craft_all_tools");
@@ -185,6 +185,10 @@ function computeEarnedMarks(ms: BlotMarkState, player: PlayerState, context: {
     tryEarn("mark_craft_all_tools", ms.toolsCrafted.size >= 5);
     const isEquipment = context.justCrafted.itemId === "eq_chomper" || context.justCrafted.itemId === "eq_tail_curler";
     tryEarn("mark_craft_equipment", isEquipment);
+    // Check proficiency retroactively — in case player already hit level 3 before the mark revealed
+    const level3MethodsOnCraft = Object.values(player.xp).filter(x => x >= 300).length;
+    tryEarn("mark_harvest_proficiency", level3MethodsOnCraft >= 1);
+    tryEarn("mark_all_proficiency", level3MethodsOnCraft >= 5);
   }
 
   if (context.justRecovered) {
@@ -1867,6 +1871,35 @@ export default function App() {
         })()}
       </div>
 
+      {/* ── Biomass counter — only appears after Hungry Mouth first fed ── */}
+      {mouthFeedCount > 0 && (() => {
+        const SOFT_CAP = 2000;
+        const fillPct = Math.min(100, (biomassTotal / SOFT_CAP) * 100);
+        const formatted = biomassTotal.toLocaleString();
+        return (
+          <div style={{ borderTop: "1px solid #2a2a2a", paddingTop: 10 }}>
+            <div style={{ fontSize: "0.7rem", opacity: 0.4, letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: 7 }}>
+              Biomass
+            </div>
+            <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 5 }}>
+              <span style={{ fontSize: "0.95rem", fontWeight: 700, color: "#ce93d8", letterSpacing: "0.03em" }}>
+                {formatted}
+              </span>
+            </div>
+            <div style={{ position: "relative", width: "100%", height: 6, background: "#1a0a2a", borderRadius: 4, overflow: "hidden" }}>
+              <div style={{
+                position: "absolute", left: 0, top: 0, bottom: 0,
+                width: `${fillPct}%`,
+                background: "linear-gradient(to right, #6a1b9a, #ab47bc)",
+                borderRadius: 4,
+                boxShadow: fillPct > 0 ? "0 0 6px #9c27b066" : "none",
+                transition: "width 0.4s ease",
+              }} />
+            </div>
+          </div>
+        );
+      })()}
+
       <div style={{ marginTop: "auto", paddingTop: 10 }}>
         <button
           style={{
@@ -1902,35 +1935,6 @@ export default function App() {
           <span>loud</span>
         </div>
       </div>
-
-      {/* ── Biomass counter — only appears after Hungry Mouth first fed ── */}
-      {mouthFeedCount > 0 && (() => {
-        const SOFT_CAP = 2000;
-        const fillPct = Math.min(100, (biomassTotal / SOFT_CAP) * 100);
-        const formatted = biomassTotal.toLocaleString();
-        return (
-          <div style={{ borderTop: "1px solid #2a2a2a", paddingTop: 10 }}>
-            <div style={{ fontSize: "0.7rem", opacity: 0.4, letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: 7 }}>
-              Biomass
-            </div>
-            <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 5 }}>
-              <span style={{ fontSize: "0.95rem", fontWeight: 700, color: "#ce93d8", letterSpacing: "0.03em" }}>
-                {formatted}
-              </span>
-            </div>
-            <div style={{ position: "relative", width: "100%", height: 6, background: "#1a0a2a", borderRadius: 4, overflow: "hidden" }}>
-              <div style={{
-                position: "absolute", left: 0, top: 0, bottom: 0,
-                width: `${fillPct}%`,
-                background: "linear-gradient(to right, #6a1b9a, #ab47bc)",
-                borderRadius: 4,
-                boxShadow: fillPct > 0 ? "0 0 6px #9c27b066" : "none",
-                transition: "width 0.4s ease",
-              }} />
-            </div>
-          </div>
-        );
-      })()}
 
       <div style={{ borderTop: "1px solid #2a2a2a", paddingTop: 10 }}>
         <button className="btn" style={{ width: "100%", fontSize: "0.8rem", opacity: 0.6 }} onClick={reset}>
@@ -3611,12 +3615,6 @@ export default function App() {
         {/* Move buttons */}
         <FadeIn delay={180}>
           <div style={{ fontSize: "0.68rem", opacity: 0.4, letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: 10 }}>Your move</div>
-          {/* Hint if no harvesting tools equipped */}
-          {availableMoveIds.filter(m => MOVES[m].tools.length > 0).length === 0 && (
-            <div style={{ background: "#1a1208", border: "1px solid #5c4000", borderRadius: 10, padding: "10px 14px", marginBottom: 12, fontSize: "0.82rem", color: "#c8a96e", fontStyle: "italic" }}>
-              No harvesting tools equipped. The ones you use out there — twig, comb, scoop — they work here too. Equip something before you hunt.
-            </div>
-          )}
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             {availableMoveIds.map((moveId) => {
               const move = MOVES[moveId];

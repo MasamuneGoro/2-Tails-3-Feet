@@ -11,7 +11,7 @@ import {
   prettyEvent, prettyPoi, prettyRecipe,
   resolveCraft, resolveHarvest, resolveJourney, recoverPreview, resolveRecover,
   invAdd, invGet, invRemove, clamp,
-  skillLevel, skillXpToNextLevel, skillXpForLevel, SKILL_MAX_LEVEL, SKILL_XP_PER_LEVEL,
+  skillLevel, skillXpToNextLevel, skillXpForLevel, skillXpForNextLevelCost, SKILL_MAX_LEVEL, SKILL_XP_PER_LEVEL,
   generateBlot, eatSapAtBlot, harvestStorableAtBlot, hasEquippedTail, countEquippedTail,
 } from "./engine";
 
@@ -120,7 +120,7 @@ function computeRevealedMarks(ms: BlotMarkState, player: PlayerState): Set<BlotM
   if (e.mark_first_journey) revealed.add("mark_first_find_food");
   if (ms.poisVisited.size >= 3) revealed.add("mark_visit_all_poi");
   if (ms.distinctMethodsUsed.size >= 2) revealed.add("mark_all_methods");
-  if (Object.values(player.xp).some(x => x >= 200)) revealed.add("mark_harvest_proficiency"); // level 2
+  if (Object.values(player.xp).some(x => skillLevel(x) >= 2)) revealed.add("mark_harvest_proficiency"); // level 2
   if (e.mark_harvest_proficiency) revealed.add("mark_all_proficiency");
   if (ms.toolsCrafted.size >= 2) revealed.add("mark_craft_all_tools");
   if (e.mark_craft_all_tools) revealed.add("mark_craft_equipment");
@@ -402,11 +402,12 @@ function MiniXPBar({ method, xpBefore, xpAfter }: {
   const methodNames: Record<import("./types").HarvestMethodId, string> = {
     poke: "Poke", smash: "Smash", tease: "Tease", drill: "Drill", scoop: "Scoop",
   };
-  const level = Math.min(10, Math.floor(xpAfter / 100) + 1);
-  const xpForLevel = (Math.floor(xpAfter / 100)) * 100;
-  const isMax = level >= 10;
-  const pctBefore = isMax ? 100 : Math.min(100, ((xpBefore - xpForLevel) / 100) * 100);
-  const pctAfter = isMax ? 100 : Math.min(100, ((xpAfter - xpForLevel) / 100) * 100);
+  const level = skillLevel(xpAfter);
+  const xpForLevel = skillXpForLevel(level);
+  const levelCost = skillXpForNextLevelCost(level);
+  const isMax = level >= SKILL_MAX_LEVEL;
+  const pctBefore = isMax ? 100 : Math.min(100, ((xpBefore - xpForLevel) / levelCost) * 100);
+  const pctAfter = isMax ? 100 : Math.min(100, ((xpAfter - xpForLevel) / levelCost) * 100);
   const ref = React.useRef<HTMLDivElement>(null);
   const [showPop, setShowPop] = React.useState(false);
   const xpGained = xpAfter - xpBefore;
@@ -3282,7 +3283,7 @@ export default function App() {
           const xp = player.xp[method] ?? 0;
           const level = skillLevel(xp);
           const xpForThis = skillXpForLevel(level);
-          const xpForNext = level >= SKILL_MAX_LEVEL ? xpForThis + SKILL_XP_PER_LEVEL : skillXpForLevel(level + 1);
+          const xpForNext = level >= SKILL_MAX_LEVEL ? xpForThis + skillXpForNextLevelCost(level) : skillXpForLevel(level + 1);
           const progress = level >= SKILL_MAX_LEVEL ? 100 : Math.round(((xp - xpForThis) / (xpForNext - xpForThis)) * 100);
           const methodNames: Record<import("./types").HarvestMethodId, string> = { poke: "Poke", smash: "Smash", tease: "Tease", drill: "Drill", scoop: "Scoop" };
           const toolIds: Record<import("./types").HarvestMethodId, string> = { poke: "eq_pointed_twig", smash: "eq_crude_hammerhead", tease: "eq_fiber_comb", drill: "eq_hand_drill", scoop: "eq_sticky_scoop" };

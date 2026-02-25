@@ -59,20 +59,57 @@ export function satietyBand(satiety: number, maxSatiety: number): "comfort" | "c
 }
 
 export const SKILL_MAX_LEVEL = 10;
-export const SKILL_XP_PER_LEVEL = 100;
+
+// XP required to level up from level N to N+1.
+// Level 1→2 costs 50 XP; each subsequent step is ceil(prev * 1.2).
+// Index 0 = cost to go from level 1 to 2, index 8 = cost to go from level 9 to 10.
+const SKILL_LEVEL_COSTS: number[] = (() => {
+  const costs: number[] = [];
+  let cost = 50;
+  for (let i = 0; i < SKILL_MAX_LEVEL - 1; i++) {
+    costs.push(cost);
+    cost = Math.ceil(cost * 1.2);
+  }
+  return costs;
+})();
+
+// Cumulative XP thresholds: SKILL_XP_THRESHOLDS[level - 1] = total XP needed to reach that level.
+// Level 1 = 0 XP, Level 2 = 50 XP, Level 3 = 110 XP, etc.
+const SKILL_XP_THRESHOLDS: number[] = (() => {
+  const thresholds: number[] = [0];
+  for (const cost of SKILL_LEVEL_COSTS) {
+    thresholds.push(thresholds[thresholds.length - 1] + cost);
+  }
+  return thresholds;
+})();
+
+// Kept for backward-compat export (used in App.tsx progress bar denominator).
+// Returns the cost to go from `level` to `level+1`.
+export const SKILL_XP_PER_LEVEL = 50; // smallest step, used as a fallback sentinel
 
 export function skillLevel(xp: number): number {
-  return Math.min(SKILL_MAX_LEVEL, Math.floor(xp / SKILL_XP_PER_LEVEL) + 1);
+  let level = 1;
+  for (let i = 1; i < SKILL_XP_THRESHOLDS.length; i++) {
+    if (xp >= SKILL_XP_THRESHOLDS[i]) level = i + 1;
+    else break;
+  }
+  return Math.min(SKILL_MAX_LEVEL, level);
+}
+
+export function skillXpForLevel(level: number): number {
+  return SKILL_XP_THRESHOLDS[Math.min(level - 1, SKILL_MAX_LEVEL - 1)];
 }
 
 export function skillXpToNextLevel(xp: number): number {
   const level = skillLevel(xp);
   if (level >= SKILL_MAX_LEVEL) return 0;
-  return level * SKILL_XP_PER_LEVEL - xp;
+  return SKILL_XP_THRESHOLDS[level] - xp;
 }
 
-export function skillXpForLevel(level: number): number {
-  return (level - 1) * SKILL_XP_PER_LEVEL;
+// Returns the total XP cost to go from current level to next level (for progress bar denominator).
+export function skillXpForNextLevelCost(level: number): number {
+  if (level >= SKILL_MAX_LEVEL) return SKILL_LEVEL_COSTS[SKILL_LEVEL_COSTS.length - 1];
+  return SKILL_LEVEL_COSTS[level - 1];
 }
 
 export function getItemName(id: ItemId) { return ITEMS[id]?.name ?? id; }

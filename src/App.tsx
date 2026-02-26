@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import type { BlotMarkCategory, BlotMarkId, BlotMarkState, BlotState, CraftPreview, CraftResult, EatSapResult, HarvestMethodId, HarvestPreview, HarvestResult, HarvestStorableResult, JourneyPreview, JourneyResult, PlayerState, PoiId, Screen, GemTrophyItemId, TrophyItemId, MarkerItemId } from "./types";
+import type { BlotMarkCategory, BlotMarkId, BlotMarkState, BlotState, CraftPreview, CraftResult, EatSapResult, HarvestMethodId, HarvestPreview, HarvestResult, HarvestStorableResult, JourneyPreview, JourneyResult, PlayerState, PoiId, Screen, GemTrophyItemId, TrophyItemId, MarkerItemId, SaveData, SerializedMarkState } from "./types";
 import { playSfx, unlockAudio, preloadAll, playBgm, stopBgm, setBgmVolume, getBgmVolume } from "./sound";
 import { startBattle, getAvailableMoves, executeMove, resolveBattle } from "./combat";
 import type { BattleState, BattleResult, CreatureId } from "./types";
@@ -88,6 +88,76 @@ const BLOT_MARK_ORDER: BlotMarkId[] = [
 ];
 
 const HARVESTING_TOOLS: string[] = ["eq_pointed_twig","eq_crude_hammerhead","eq_fiber_comb","eq_hand_drill","eq_sticky_scoop"];
+
+// ─── Save / Load helpers ──────────────────────────────────────────────────────
+
+const SAVE_KEY = "2t3f_save";
+const SAVE_VERSION = 1;
+
+function serializeMarkState(ms: BlotMarkState): SerializedMarkState {
+  return {
+    earned: { ...ms.earned },
+    revealed: { ...ms.revealed },
+    poisVisited: Array.from(ms.poisVisited),
+    distinctMethodsUsed: Array.from(ms.distinctMethodsUsed),
+    lowestSatietySeen: ms.lowestSatietySeen,
+    hasSeenLowSatiety: ms.hasSeenLowSatiety,
+    toolsCrafted: Array.from(ms.toolsCrafted),
+    claimedMarkers: { ...ms.claimedMarkers },
+    gateDiscovered: ms.gateDiscovered,
+    gateUnlocked: ms.gateUnlocked,
+    gateSlottedTrophies: [...ms.gateSlottedTrophies],
+  };
+}
+
+function deserializeMarkState(s: SerializedMarkState): BlotMarkState {
+  return {
+    earned: s.earned ?? {},
+    revealed: s.revealed ?? {},
+    poisVisited: new Set(s.poisVisited ?? []),
+    distinctMethodsUsed: new Set(s.distinctMethodsUsed ?? []),
+    lowestSatietySeen: s.lowestSatietySeen ?? Infinity,
+    hasSeenLowSatiety: s.hasSeenLowSatiety ?? false,
+    toolsCrafted: new Set(s.toolsCrafted ?? []),
+    claimedMarkers: s.claimedMarkers ?? {},
+    gateDiscovered: s.gateDiscovered ?? false,
+    gateUnlocked: s.gateUnlocked ?? false,
+    gateSlottedTrophies: s.gateSlottedTrophies ?? [],
+  };
+}
+
+function writeSave(data: SaveData) {
+  try {
+    localStorage.setItem(SAVE_KEY, JSON.stringify(data));
+  } catch {
+    // storage full or unavailable — silently ignore
+  }
+}
+
+function readSave(): SaveData | null {
+  try {
+    const raw = localStorage.getItem(SAVE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as SaveData;
+    if (parsed.version !== SAVE_VERSION) return null; // discard incompatible
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+function deleteSave() {
+  try { localStorage.removeItem(SAVE_KEY); } catch { /* ignore */ }
+}
+
+function formatSaveDate(iso: string): string {
+  try {
+    const d = new Date(iso);
+    return d.toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+  } catch {
+    return iso;
+  }
+}
 
 function makeInitialMarkState(): BlotMarkState {
   return {
@@ -760,6 +830,8 @@ export default function App() {
   const [scoopExpanded, setScoopExpanded] = useState(false);
   const [chomperAutoEnabled, setChomperAutoEnabled] = useState(true);
   const [decayedFoodAlert, setDecayedFoodAlert] = useState<string | null>(null); // food name that just fully rotted
+  const [saveExists, setSaveExists] = useState<string | null>(() => readSave()?.savedAt ?? null); // ISO timestamp or null
+  const [saveFlash, setSaveFlash] = useState(false); // brief flash on save button after saving
 
   const exhausted = player.stats.stamina <= 0;
   const dead = player.stats.satiety <= 0;
@@ -833,7 +905,72 @@ export default function App() {
     setMouthBulkQty({});
   }
 
-  /** Snapshot qty of each storable food stack before an action */
+  // ── Save / Load ───────────────────────────────────────────────────────────
+  function saveGame() {
+    const data: SaveData = {
+      version: SAVE_VERSION,
+      savedAt: new Date().toISOString(),
+      player: structuredClone(player),
+      markState: serializeMarkState(markState),
+      biomassTotal,
+      mouthFeedCount,
+      chomperAutoEnabled,
+    };
+    writeSave(data);
+    setSaveExists(data.savedAt);
+    setSaveFlash(true);
+    setTimeout(() => setSaveFlash(false), 1200);
+  }
+
+  function loadGame() {
+    const data = readSave();
+    if (!data) return;
+    setPlayer(structuredClone(data.player));
+    setMarkState(deserializeMarkState(data.markState));
+    setBiomassTotal(data.biomassTotal ?? 0);
+    setMouthFeedCount(data.mouthFeedCount ?? 0);
+    setChomperAutoEnabled(data.chomperAutoEnabled ?? true);
+    // Reset all transient state
+    setScreen("HUB");
+    setJourneyPreview(null); setJourneyResult(null);
+    setSavedExploreRoll(null); setSavedFoodRoll(null);
+    setActivePoi(null); setActiveBlot(null);
+    setLastEatResult(null); setLastStorableResult(null);
+    setMultiHarvestResults([]); setHarvestXpBefore({});
+    setHarvestPreview(null); setHarvestResult(null);
+    setCraftPreview(null); setCraftResult(null);
+    setRecoverState(null); setRecoverSummary(null);
+    setBattleState(null); setBattleResult(null); setBattleLog([]);
+    setScoopExpanded(false);
+    setDecayedFoodAlert(null);
+    setMarksViewed(false);
+    setToastQueue([]);
+    setActiveToast(null);
+    setToastDismissing(false);
+    if (toastTimerRef.current) { clearTimeout(toastTimerRef.current); toastTimerRef.current = null; }
+    setFlyingMarkCategory(null);
+    setNewRevealIds([]);
+    setGateEncounterPending(false);
+    setGateTab("trophies");
+    setMouthFeedConfirm(null);
+    setMouthBulkQty({});
+    setFlyingClaimItems([]);
+  }
+
+  function confirmDeleteSave() {
+    if (!window.confirm("Delete saved game? This cannot be undone.")) return;
+    deleteSave();
+    setSaveExists(null);
+  }
+
+  /** Reset run and clear save */
+  function resetAndClearSave() {
+    reset();
+    deleteSave();
+    setSaveExists(null);
+  }
+
+
 
   // Unlock audio on first interaction and preload all sounds
   const audioUnlocked = React.useRef(false);
@@ -1936,8 +2073,47 @@ export default function App() {
         </div>
       </div>
 
-      <div style={{ borderTop: "1px solid #2a2a2a", paddingTop: 10 }}>
-        <button className="btn" style={{ width: "100%", fontSize: "0.8rem", opacity: 0.6 }} onClick={reset}>
+      <div style={{ borderTop: "1px solid #2a2a2a", paddingTop: 10, display: "flex", flexDirection: "column", gap: 6 }}>
+        {/* Save button */}
+        <button
+          className="btn"
+          style={{
+            width: "100%", fontSize: "0.8rem",
+            background: saveFlash ? "#1a2e1a" : "#141414",
+            borderColor: saveFlash ? "#4caf5060" : "#2a2a2a",
+            color: saveFlash ? "#7ecba1" : "#eaeaea",
+            transition: "background 0.3s, color 0.3s, border-color 0.3s",
+          }}
+          onClick={saveGame}
+        >
+          {saveFlash ? "✓ Saved" : "Save Game"}
+        </button>
+        {saveExists && (
+          <div style={{ display: "flex", gap: 4 }}>
+            <button
+              className="btn"
+              style={{ flex: 1, fontSize: "0.75rem", opacity: 0.75 }}
+              onClick={loadGame}
+              title={`Load save from ${formatSaveDate(saveExists)}`}
+            >
+              Load Save
+            </button>
+            <button
+              className="btn"
+              style={{ fontSize: "0.75rem", opacity: 0.4, padding: "8px 10px" }}
+              onClick={confirmDeleteSave}
+              title="Delete saved game"
+            >
+              ✕
+            </button>
+          </div>
+        )}
+        {saveExists && (
+          <div style={{ fontSize: "0.65rem", opacity: 0.3, textAlign: "center", marginTop: -2 }}>
+            {formatSaveDate(saveExists)}
+          </div>
+        )}
+        <button className="btn" style={{ width: "100%", fontSize: "0.75rem", opacity: 0.4, marginTop: 2 }} onClick={resetAndClearSave}>
           Reset Run
         </button>
       </div>
@@ -3027,7 +3203,7 @@ export default function App() {
         Hunger won. Dust yourself off.
       </p>
       <button
-        onClick={reset}
+        onClick={resetAndClearSave}
         style={{
           marginTop: 12, padding: "14px 36px", borderRadius: 12,
           background: "#1a0505", border: "2px solid #e53935",
@@ -4148,7 +4324,7 @@ export default function App() {
         <p style={{ opacity: 0.4, fontSize: "0.85rem", fontStyle: "italic" }}>[contact detail placeholder]</p>
       </div>
       <button
-        onClick={reset}
+        onClick={resetAndClearSave}
         style={{ padding: "14px 36px", borderRadius: 12, background: "#141414", border: "1px solid #3a3a3a", color: "#888", fontSize: "0.95rem", fontWeight: 600, cursor: "pointer", letterSpacing: "0.05em" }}
       >
         Return to Start

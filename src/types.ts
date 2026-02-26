@@ -394,3 +394,30 @@ export interface HarvestStorableResult {
   xpGained: number;
   outcome: "ok" | "exhausted" | "dead";
 }
+
+// ─── Save / Load ──────────────────────────────────────────────────────────────
+
+/** BlotMarkState with Sets replaced by arrays for JSON serialization */
+export interface SerializedMarkState {
+  earned: Partial<Record<BlotMarkId, true>>;
+  revealed: Partial<Record<BlotMarkId, true>>;
+  poisVisited: PoiId[];
+  distinctMethodsUsed: HarvestMethodId[];
+  lowestSatietySeen: number;
+  hasSeenLowSatiety: boolean;
+  toolsCrafted: string[];
+  claimedMarkers: Partial<Record<BlotMarkId, true>>;
+  gateDiscovered: boolean;
+  gateUnlocked: boolean;
+  gateSlottedTrophies: GemTrophyItemId[];
+}
+
+export interface SaveData {
+  version: number;
+  savedAt: string;           // ISO timestamp
+  player: PlayerState;
+  markState: SerializedMarkState;
+  biomassTotal: number;
+  mouthFeedCount: number;
+  chomperAutoEnabled: boolean;
+}

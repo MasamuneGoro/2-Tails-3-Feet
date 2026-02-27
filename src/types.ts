@@ -214,7 +214,7 @@ export interface PlayerStats {
 
 export interface PlayerEquipmentState {
   tailSlots: [ItemId | null, ItemId | null];
-  shoe: ItemId;
+  footSlots: [ItemId | null, ItemId | null, ItemId | null];
 }
 
 export interface InventoryStack {

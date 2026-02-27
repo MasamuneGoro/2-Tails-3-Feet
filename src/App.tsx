@@ -3,7 +3,7 @@ import type { BlotMarkCategory, BlotMarkId, BlotMarkState, BlotState, CraftPrevi
 import { playSfx, unlockAudio, preloadAll, playBgm, stopBgm, setBgmVolume, getBgmVolume } from "./sound";
 import { startBattle, getAvailableMoves, executeMove, resolveBattle } from "./combat";
 import type { BattleState, BattleResult, CreatureId } from "./types";
-import { CreatureIcon, ItemIcon, PoiImage, PoiIcon, FilamentGateImage } from "./visuals";
+import { CreatureIcon, ItemIcon, PoiImage, PoiIcon, FilamentGateImage, PlayerCharacterEquipment } from "./visuals";
 import { BIOME_LEVEL, CREATURES, EVENTS, FOODS, ITEMS, MOVES, POIS, RECIPES, RESOURCES, SITUATION_TEXT, getSituationText, MARKERS, TROPHIES, GEM_TROPHIES, BIOMASS_ITEM, CATEGORY_MARKER, CATEGORY_TROPHY, TROPHY_TO_GEM, CATEGORY_GATE_MARK, GEM_TROPHY_RECIPES, GATE_REQUIRED_GEM_TROPHIES, BIOMASS_VALUES } from "./gameData";
 import {
   canCraft, getFoodName, getItemName, getResourceName, listUnlockedRecipes,
@@ -759,7 +759,7 @@ function StatBar({ value, max, kind, netRange }: StatBarProps) {
 const START_PLAYER: PlayerState = {
   biomeLevelId: "sticky_l1",
   stats: { satiety: 800, stamina: 1000, maxSatiety: 1000, maxStamina: 1000 },
-  equipment: { tailSlots: [null, null], shoe: "eq_standard_shoe" },
+  equipment: { tailSlots: [null, null], footSlots: [null, null, null] },
   inventory: [
     { id: "eq_tinker_shaft", qty: 1 },
     { id: "eq_tail_curler", qty: 1 },
@@ -864,6 +864,32 @@ export default function App() {
     next.equipment.tailSlots[slotIdx] = itemId;
     setPlayer(next);
     // Regenerate any active preview with new equipment
+    if (screen === "PREVIEW_JOURNEY" && journeyPreview) {
+      const pv = makeJourneyPreview(next, journeyPreview.mode, chomperAutoEnabled);
+      setJourneyPreview({ ...pv, poi: journeyPreview.poi, surfacedEvents: journeyPreview.surfacedEvents, mothEncountered: journeyPreview.mothEncountered });
+    } else if (screen === "PREVIEW_HARVEST" && harvestPreview) {
+      setHarvestPreview(makeHarvestPreview(next, harvestPreview.poiId, harvestPreview.method, chomperAutoEnabled));
+    } else if (screen === "PREVIEW_CRAFT" && craftPreview) {
+      setCraftPreview(makeCraftPreview(next, craftPreview.recipeId, chomperAutoEnabled));
+    }
+  }
+
+  function availableShoeIds(slotIdx: 0 | 1 | 2): import("./types").ItemId[] {
+    const otherSlots = player.equipment.footSlots.filter((_, i) => i !== slotIdx);
+    return player.inventory
+      .filter((st): st is { id: import("./types").ItemId; qty: number } =>
+        typeof st.id === "string" && (st.id as string).startsWith("eq_") && st.qty > 0 && isItemId(st.id) && ITEMS[st.id].slot === "shoe")
+      .filter((st) => {
+        const usedCount = otherSlots.filter(s => s === st.id).length;
+        return st.qty > usedCount;
+      })
+      .map((st) => st.id);
+  }
+
+  function equipFoot(slotIdx: 0 | 1 | 2, itemId: import("./types").ItemId | null) {
+    const next = structuredClone(player);
+    next.equipment.footSlots[slotIdx] = itemId;
+    setPlayer(next);
     if (screen === "PREVIEW_JOURNEY" && journeyPreview) {
       const pv = makeJourneyPreview(next, journeyPreview.mode, chomperAutoEnabled);
       setJourneyPreview({ ...pv, poi: journeyPreview.poi, surfacedEvents: journeyPreview.surfacedEvents, mothEncountered: journeyPreview.mothEncountered });
@@ -1806,6 +1832,20 @@ export default function App() {
     }}>
       <div style={{ fontSize: "0.75rem", opacity: 0.5, letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: 4 }}>Equipment</div>
 
+      {/* ── Player character SVG with slot zones ── */}
+      <PlayerCharacterEquipment
+        tailSlots={player.equipment.tailSlots}
+        footSlots={player.equipment.footSlots}
+        onTailClick={(slotIdx) => {
+          const el = document.getElementById(`tail-select-${slotIdx}`);
+          if (el) (el as HTMLSelectElement).focus();
+        }}
+        onFootClick={(slotIdx) => {
+          const el = document.getElementById(`foot-select-${slotIdx}`);
+          if (el) (el as HTMLSelectElement).focus();
+        }}
+      />
+
       {([0, 1] as (0 | 1)[]).map((slotIdx) => {
         const equipped = player.equipment.tailSlots[slotIdx];
         return (
@@ -1818,6 +1858,7 @@ export default function App() {
               </div>
             )}
             <select
+              id={`tail-select-${slotIdx}`}
               style={tailSelectStyle}
               value={equipped ?? ""}
               onChange={(e) => equipTail(slotIdx, (e.target.value || null) as any)}
@@ -1830,6 +1871,36 @@ export default function App() {
           </div>
         );
       })}
+
+      <div style={{ borderTop: "1px solid #2a2a2a", paddingTop: 10 }}>
+        <div style={{ fontSize: "0.75rem", opacity: 0.5, letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: 6 }}>Shoes</div>
+        {([0, 1, 2] as (0 | 1 | 2)[]).map((slotIdx) => {
+          const equipped = player.equipment.footSlots[slotIdx];
+          const label = slotIdx === 0 ? "Left foot" : slotIdx === 1 ? "Centre foot" : "Right foot";
+          return (
+            <div key={slotIdx} style={{ marginBottom: 8 }}>
+              <div style={{ fontSize: "0.78rem", opacity: 0.6, marginBottom: 3 }}>{label}</div>
+              {equipped && (
+                <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4, opacity: 0.85 }}>
+                  <ItemIcon id={equipped} size={16} />
+                  <span style={{ fontSize: "0.78rem" }}>{getItemName(equipped)}</span>
+                </div>
+              )}
+              <select
+                id={`foot-select-${slotIdx}`}
+                style={tailSelectStyle}
+                value={equipped ?? ""}
+                onChange={(e) => equipFoot(slotIdx, (e.target.value || null) as any)}
+              >
+                <option value="">— empty —</option>
+                {availableShoeIds(slotIdx).map((id) => (
+                  <option key={id} value={id}>{getItemName(id)}</option>
+                ))}
+              </select>
+            </div>
+          );
+        })}
+      </div>
 
       {chomperEquipped && (
         <div style={{ borderTop: "1px solid #2a2a2a", paddingTop: 10 }}>
@@ -3254,7 +3325,7 @@ export default function App() {
                     : id === "eq_tinker_shaft" ? "Crafting Type"
                     : null)
                   : null;
-                const equipped = player.equipment.tailSlots.includes(id) || player.equipment.shoe === id;
+                const equipped = player.equipment.tailSlots.includes(id) || player.equipment.footSlots.includes(id);
                 const subtitle = [slot, toolType, equipped ? "equipped" : null].filter(Boolean).join(" · ");
                 return (
                   <div key={id} style={{ background: "#161616", borderRadius: 10, border: "1px solid #2a2a2a", borderLeft: "3px solid #c8a96e", marginBottom: 6, overflow: "hidden" }}>

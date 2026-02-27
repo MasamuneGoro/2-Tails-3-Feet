@@ -1165,3 +1165,172 @@ export function CreatureIcon({ creatureId, size = 72 }: CreatureIconProps) {
     />
   );
 }
+
+// ─── Player Character Equipment SVG ──────────────────────────────────────────
+
+interface PlayerCharacterEquipmentProps {
+  tailSlots: [ItemId | null, ItemId | null];
+  footSlots: [ItemId | null, ItemId | null, ItemId | null];
+  onTailClick: (slotIdx: 0 | 1) => void;
+  onFootClick: (slotIdx: 0 | 1 | 2) => void;
+}
+
+export function PlayerCharacterEquipment({ tailSlots, footSlots, onTailClick, onFootClick }: PlayerCharacterEquipmentProps) {
+  const [hovered, setHovered] = React.useState<string | null>(null);
+
+  const slotOpacity = (filled: boolean, key: string) =>
+    hovered === key ? 1 : filled ? 0.9 : 0.3;
+
+  const slotFilter = (key: string) =>
+    hovered === key ? "brightness(1.5) drop-shadow(0 0 4px rgba(200,169,110,0.7))" : "none";
+
+  // ItemIcon overlay — rendered as a small SVG embedded in a foreignObject
+  function SlotIcon({ itemId, cx, cy }: { itemId: ItemId | null; cx: number; cy: number }) {
+    if (!itemId) return null;
+    return (
+      <foreignObject x={cx - 11} y={cy - 11} width={22} height={22} style={{ pointerEvents: "none", overflow: "visible" }}>
+        <div style={{ width: 22, height: 22, display: "flex", alignItems: "center", justifyContent: "center",
+          background: "rgba(0,0,0,0.55)", borderRadius: "50%", border: "1px solid rgba(255,255,255,0.2)" }}>
+          <ItemIcon id={itemId} size={14} />
+        </div>
+      </foreignObject>
+    );
+  }
+
+  // Slot indicator ring — shown when empty
+  function SlotRing({ cx, cy, r, filled, slotKey }: { cx: number; cy: number; r: number; filled: boolean; slotKey: string }) {
+    if (filled) return null;
+    return (
+      <circle
+        cx={cx} cy={cy} r={r}
+        fill="none"
+        stroke={hovered === slotKey ? "rgba(200,169,110,0.8)" : "rgba(255,255,255,0.25)"}
+        strokeWidth="1.5"
+        strokeDasharray="3 2"
+        style={{ pointerEvents: "none", transition: "stroke 0.15s" }}
+      />
+    );
+  }
+
+  return (
+    <svg
+      viewBox="0 0 180 175"
+      width="100%"
+      style={{ display: "block", maxWidth: 180 }}
+    >
+      {/* ── Body ── */}
+      {/* Body shadow */}
+      <ellipse cx="90" cy="122" rx="34" ry="10" fill="#000" opacity="0.25" />
+      {/* Main body dome */}
+      <ellipse cx="90" cy="96" rx="40" ry="36" fill="#b8ad2e" stroke="#1e1800" strokeWidth="2.5" />
+      {/* Body highlight */}
+      <ellipse cx="80" cy="83" rx="20" ry="14" fill="#d8cc50" opacity="0.3" />
+      {/* Body underside shading */}
+      <ellipse cx="90" cy="118" rx="32" ry="10" fill="#7a7010" opacity="0.5" />
+      {/* Body outline detail */}
+      <ellipse cx="90" cy="96" rx="40" ry="36" fill="none" stroke="#1e1800" strokeWidth="2.5" />
+
+      {/* ── Left tail (slot 0) ── */}
+      <g
+        style={{ cursor: "pointer", opacity: slotOpacity(!!tailSlots[0], "tail0"), filter: slotFilter("tail0"), transition: "opacity 0.15s, filter 0.15s" }}
+        onClick={() => onTailClick(0)}
+        onMouseEnter={() => setHovered("tail0")}
+        onMouseLeave={() => setHovered(null)}
+      >
+        {/* Tail base blob */}
+        <ellipse cx="62" cy="80" rx="14" ry="10" fill="#8a9e22" stroke="#1e1800" strokeWidth="2" transform="rotate(-35 62 80)" />
+        {/* Tail shaft */}
+        <path d="M 66 72 C 52 56 36 46 20 28" stroke="#1e1800" strokeWidth="9" strokeLinecap="round" fill="none" />
+        <path d="M 66 72 C 52 56 36 46 20 28" stroke="#9aae28" strokeWidth="6.5" strokeLinecap="round" fill="none" />
+        {/* Tail highlight */}
+        <path d="M 64 69 C 51 54 36 44 21 28" stroke="#b8c840" strokeWidth="2" strokeLinecap="round" fill="none" opacity="0.5" />
+        {/* Tip */}
+        <ellipse cx="19" cy="27" rx="7" ry="5" fill="#7a5020" stroke="#1e1800" strokeWidth="2" transform="rotate(-40 19 27)" />
+        <ellipse cx="19" cy="27" rx="5" ry="3.5" fill="#a06830" transform="rotate(-40 19 27)" />
+        {/* Slot ring + icon at tip area */}
+        <SlotRing cx="19" cy="27" r="10" filled={!!tailSlots[0]} slotKey="tail0" />
+        <SlotIcon itemId={tailSlots[0]} cx={19} cy={27} />
+      </g>
+
+      {/* ── Right tail (slot 1) ── */}
+      <g
+        style={{ cursor: "pointer", opacity: slotOpacity(!!tailSlots[1], "tail1"), filter: slotFilter("tail1"), transition: "opacity 0.15s, filter 0.15s" }}
+        onClick={() => onTailClick(1)}
+        onMouseEnter={() => setHovered("tail1")}
+        onMouseLeave={() => setHovered(null)}
+      >
+        {/* Tail base blob */}
+        <ellipse cx="118" cy="80" rx="14" ry="10" fill="#8a9e22" stroke="#1e1800" strokeWidth="2" transform="rotate(35 118 80)" />
+        {/* Tail shaft */}
+        <path d="M 114 72 C 128 56 144 46 160 28" stroke="#1e1800" strokeWidth="9" strokeLinecap="round" fill="none" />
+        <path d="M 114 72 C 128 56 144 46 160 28" stroke="#9aae28" strokeWidth="6.5" strokeLinecap="round" fill="none" />
+        {/* Tail highlight */}
+        <path d="M 116 69 C 129 54 144 44 159 28" stroke="#b8c840" strokeWidth="2" strokeLinecap="round" fill="none" opacity="0.5" />
+        {/* Tip */}
+        <ellipse cx="161" cy="27" rx="7" ry="5" fill="#7a5020" stroke="#1e1800" strokeWidth="2" transform="rotate(40 161 27)" />
+        <ellipse cx="161" cy="27" rx="5" ry="3.5" fill="#a06830" transform="rotate(40 161 27)" />
+        {/* Slot ring + icon */}
+        <SlotRing cx="161" cy="27" r="10" filled={!!tailSlots[1]} slotKey="tail1" />
+        <SlotIcon itemId={tailSlots[1]} cx={161} cy={27} />
+      </g>
+
+      {/* ── Left foot (slot 0) ── */}
+      <g
+        style={{ cursor: "pointer", opacity: slotOpacity(!!footSlots[0], "foot0"), filter: slotFilter("foot0"), transition: "opacity 0.15s, filter 0.15s" }}
+        onClick={() => onFootClick(0)}
+        onMouseEnter={() => setHovered("foot0")}
+        onMouseLeave={() => setHovered(null)}
+      >
+        <ellipse cx="58" cy="134" rx="14" ry="9" fill="#9aac28" stroke="#1e1800" strokeWidth="2" />
+        {/* Toes */}
+        <ellipse cx="47" cy="139" rx="5" ry="4" fill="#7a5820" stroke="#1e1800" strokeWidth="1.5" />
+        <ellipse cx="55" cy="142" rx="5" ry="4" fill="#7a5820" stroke="#1e1800" strokeWidth="1.5" />
+        <ellipse cx="63" cy="142" rx="5" ry="4" fill="#7a5820" stroke="#1e1800" strokeWidth="1.5" />
+        {/* Toe highlights */}
+        <ellipse cx="47" cy="138" rx="3" ry="2" fill="#9a7838" opacity="0.5" />
+        <ellipse cx="55" cy="141" rx="3" ry="2" fill="#9a7838" opacity="0.5" />
+        <ellipse cx="63" cy="141" rx="3" ry="2" fill="#9a7838" opacity="0.5" />
+        <SlotRing cx="55" cy="136" r="12" filled={!!footSlots[0]} slotKey="foot0" />
+        <SlotIcon itemId={footSlots[0]} cx={55} cy={133} />
+      </g>
+
+      {/* ── Centre foot (slot 1) ── */}
+      <g
+        style={{ cursor: "pointer", opacity: slotOpacity(!!footSlots[1], "foot1"), filter: slotFilter("foot1"), transition: "opacity 0.15s, filter 0.15s" }}
+        onClick={() => onFootClick(1)}
+        onMouseEnter={() => setHovered("foot1")}
+        onMouseLeave={() => setHovered(null)}
+      >
+        <ellipse cx="90" cy="138" rx="14" ry="9" fill="#9aac28" stroke="#1e1800" strokeWidth="2" />
+        {/* Toes */}
+        <ellipse cx="80" cy="145" rx="5" ry="4" fill="#7a5820" stroke="#1e1800" strokeWidth="1.5" />
+        <ellipse cx="90" cy="147" rx="5" ry="4" fill="#7a5820" stroke="#1e1800" strokeWidth="1.5" />
+        <ellipse cx="100" cy="145" rx="5" ry="4" fill="#7a5820" stroke="#1e1800" strokeWidth="1.5" />
+        <ellipse cx="80" cy="144" rx="3" ry="2" fill="#9a7838" opacity="0.5" />
+        <ellipse cx="90" cy="146" rx="3" ry="2" fill="#9a7838" opacity="0.5" />
+        <ellipse cx="100" cy="144" rx="3" ry="2" fill="#9a7838" opacity="0.5" />
+        <SlotRing cx="90" cy="139" r="12" filled={!!footSlots[1]} slotKey="foot1" />
+        <SlotIcon itemId={footSlots[1]} cx={90} cy={137} />
+      </g>
+
+      {/* ── Right foot (slot 2) ── */}
+      <g
+        style={{ cursor: "pointer", opacity: slotOpacity(!!footSlots[2], "foot2"), filter: slotFilter("foot2"), transition: "opacity 0.15s, filter 0.15s" }}
+        onClick={() => onFootClick(2)}
+        onMouseEnter={() => setHovered("foot2")}
+        onMouseLeave={() => setHovered(null)}
+      >
+        <ellipse cx="122" cy="134" rx="14" ry="9" fill="#9aac28" stroke="#1e1800" strokeWidth="2" />
+        {/* Toes */}
+        <ellipse cx="117" cy="142" rx="5" ry="4" fill="#7a5820" stroke="#1e1800" strokeWidth="1.5" />
+        <ellipse cx="125" cy="142" rx="5" ry="4" fill="#7a5820" stroke="#1e1800" strokeWidth="1.5" />
+        <ellipse cx="133" cy="139" rx="5" ry="4" fill="#7a5820" stroke="#1e1800" strokeWidth="1.5" />
+        <ellipse cx="117" cy="141" rx="3" ry="2" fill="#9a7838" opacity="0.5" />
+        <ellipse cx="125" cy="141" rx="3" ry="2" fill="#9a7838" opacity="0.5" />
+        <ellipse cx="133" cy="138" rx="3" ry="2" fill="#9a7838" opacity="0.5" />
+        <SlotRing cx="125" cy="136" r="12" filled={!!footSlots[2]} slotKey="foot2" />
+        <SlotIcon itemId={footSlots[2]} cx={125} cy={133} />
+      </g>
+    </svg>
+  );
+}

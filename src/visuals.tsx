@@ -1237,19 +1237,21 @@ export function PlayerCharacterEquipment({ tailSlots, footSlots, onTailClick, on
         onMouseEnter={() => setHovered("tail0")}
         onMouseLeave={() => setHovered(null)}
       >
-        {/* Tail base blob */}
-        <ellipse cx="62" cy="80" rx="14" ry="10" fill="#8a9e22" stroke="#1e1800" strokeWidth="2" transform="rotate(-35 62 80)" />
-        {/* Tail shaft */}
-        <path d="M 66 72 C 52 56 36 46 20 28" stroke="#1e1800" strokeWidth="9" strokeLinecap="round" fill="none" />
-        <path d="M 66 72 C 52 56 36 46 20 28" stroke="#9aae28" strokeWidth="6.5" strokeLinecap="round" fill="none" />
-        {/* Tail highlight */}
-        <path d="M 64 69 C 51 54 36 44 21 28" stroke="#b8c840" strokeWidth="2" strokeLinecap="round" fill="none" opacity="0.5" />
-        {/* Tip */}
-        <ellipse cx="19" cy="27" rx="7" ry="5" fill="#7a5020" stroke="#1e1800" strokeWidth="2" transform="rotate(-40 19 27)" />
-        <ellipse cx="19" cy="27" rx="5" ry="3.5" fill="#a06830" transform="rotate(-40 19 27)" />
-        {/* Slot ring + icon at tip area */}
-        <SlotRing cx={19} cy={27} r={10} filled={!!tailSlots[0]} slotKey="tail0" />
-        <SlotIcon itemId={tailSlots[0]} cx={19} cy={27} />
+        {/* Broad blade — wide at body shoulder, tapers to pointed brown tip */}
+        <path d="M 68 88 C 58 80 44 64 40 50 C 46 54 60 74 70 84 Z"
+          fill="#8a9e22" stroke="#1e1800" strokeWidth="2" strokeLinejoin="round" />
+        {/* Inner darker green layer for depth */}
+        <path d="M 66 86 C 57 78 46 64 42 52 C 47 56 60 75 68 83 Z"
+          fill="#6a7e18" opacity="0.55" />
+        {/* Highlight streak down the blade */}
+        <path d="M 62 82 C 55 73 48 63 44 54" stroke="#c0d035" strokeWidth="1.5" strokeLinecap="round" fill="none" opacity="0.45" />
+        {/* Brown pointed tip */}
+        <path d="M 40 50 C 37 43 36 36 39 31 C 43 36 44 45 42 52 Z"
+          fill="#7a5020" stroke="#1e1800" strokeWidth="1.5" strokeLinejoin="round" />
+        <path d="M 40 50 C 38 44 37 37 40 33 C 43 37 44 45 42 52 Z"
+          fill="#a06830" opacity="0.6" />
+        <SlotRing cx={40} cy={41} r={9} filled={!!tailSlots[0]} slotKey="tail0" />
+        <SlotIcon itemId={tailSlots[0]} cx={40} cy={41} />
       </g>
 
       {/* ── Right tail (slot 1) ── */}
@@ -1259,19 +1261,21 @@ export function PlayerCharacterEquipment({ tailSlots, footSlots, onTailClick, on
         onMouseEnter={() => setHovered("tail1")}
         onMouseLeave={() => setHovered(null)}
       >
-        {/* Tail base blob */}
-        <ellipse cx="118" cy="80" rx="14" ry="10" fill="#8a9e22" stroke="#1e1800" strokeWidth="2" transform="rotate(35 118 80)" />
-        {/* Tail shaft */}
-        <path d="M 114 72 C 128 56 144 46 160 28" stroke="#1e1800" strokeWidth="9" strokeLinecap="round" fill="none" />
-        <path d="M 114 72 C 128 56 144 46 160 28" stroke="#9aae28" strokeWidth="6.5" strokeLinecap="round" fill="none" />
-        {/* Tail highlight */}
-        <path d="M 116 69 C 129 54 144 44 159 28" stroke="#b8c840" strokeWidth="2" strokeLinecap="round" fill="none" opacity="0.5" />
-        {/* Tip */}
-        <ellipse cx="161" cy="27" rx="7" ry="5" fill="#7a5020" stroke="#1e1800" strokeWidth="2" transform="rotate(40 161 27)" />
-        <ellipse cx="161" cy="27" rx="5" ry="3.5" fill="#a06830" transform="rotate(40 161 27)" />
-        {/* Slot ring + icon */}
-        <SlotRing cx={161} cy={27} r={10} filled={!!tailSlots[1]} slotKey="tail1" />
-        <SlotIcon itemId={tailSlots[1]} cx={161} cy={27} />
+        {/* Broad blade — mirrored */}
+        <path d="M 112 88 C 122 80 136 64 140 50 C 134 54 120 74 110 84 Z"
+          fill="#8a9e22" stroke="#1e1800" strokeWidth="2" strokeLinejoin="round" />
+        {/* Inner darker green layer */}
+        <path d="M 114 86 C 123 78 134 64 138 52 C 133 56 120 75 112 83 Z"
+          fill="#6a7e18" opacity="0.55" />
+        {/* Highlight streak */}
+        <path d="M 118 82 C 125 73 132 63 136 54" stroke="#c0d035" strokeWidth="1.5" strokeLinecap="round" fill="none" opacity="0.45" />
+        {/* Brown pointed tip */}
+        <path d="M 140 50 C 143 43 144 36 141 31 C 137 36 136 45 138 52 Z"
+          fill="#7a5020" stroke="#1e1800" strokeWidth="1.5" strokeLinejoin="round" />
+        <path d="M 140 50 C 142 44 143 37 140 33 C 137 37 136 45 138 52 Z"
+          fill="#a06830" opacity="0.6" />
+        <SlotRing cx={140} cy={41} r={9} filled={!!tailSlots[1]} slotKey="tail1" />
+        <SlotIcon itemId={tailSlots[1]} cx={140} cy={41} />
       </g>
 
       {/* ── Left foot (slot 0) ── */}

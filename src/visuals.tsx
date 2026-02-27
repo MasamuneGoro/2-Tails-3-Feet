@@ -1166,7 +1166,7 @@ export function CreatureIcon({ creatureId, size = 72 }: CreatureIconProps) {
   );
 }
 
-// ─── Player Character Equipment SVG ──────────────────────────────────────────
+// ─── Player Character Equipment (image + overlay) ────────────────────────────
 
 interface PlayerCharacterEquipmentProps {
   tailSlots: [ItemId | null, ItemId | null];
@@ -1175,166 +1175,112 @@ interface PlayerCharacterEquipmentProps {
   onFootClick: (slotIdx: 0 | 1 | 2) => void;
 }
 
+// Slot zone definitions as percentage [left, top, width, height] of container
+const SLOT_ZONES = {
+  tail0: { left: "12%", top: "18%", width: "22%", height: "30%", label: "Left tail"   },
+  tail1: { left: "66%", top: "18%", width: "22%", height: "30%", label: "Right tail"  },
+  foot0: { left: "22%", top: "66%", width: "18%", height: "22%", label: "Left foot"   },
+  foot1: { left: "41%", top: "68%", width: "18%", height: "22%", label: "Centre foot" },
+  foot2: { left: "60%", top: "66%", width: "18%", height: "22%", label: "Right foot"  },
+} as const;
+
+type SlotKey = keyof typeof SLOT_ZONES;
+
 export function PlayerCharacterEquipment({ tailSlots, footSlots, onTailClick, onFootClick }: PlayerCharacterEquipmentProps) {
-  const [hovered, setHovered] = React.useState<string | null>(null);
+  const [hovered, setHovered] = React.useState<SlotKey | null>(null);
 
-  const slotOpacity = (filled: boolean, key: string) =>
-    hovered === key ? 1 : filled ? 0.9 : 0.3;
+  const slotItems: Record<SlotKey, ItemId | null> = {
+    tail0: tailSlots[0],
+    tail1: tailSlots[1],
+    foot0: footSlots[0],
+    foot1: footSlots[1],
+    foot2: footSlots[2],
+  };
 
-  const slotFilter = (key: string) =>
-    hovered === key ? "brightness(1.5) drop-shadow(0 0 4px rgba(200,169,110,0.7))" : "none";
-
-  // ItemIcon overlay — rendered as a small SVG embedded in a foreignObject
-  function SlotIcon({ itemId, cx, cy }: { itemId: ItemId | null; cx: number; cy: number }) {
-    if (!itemId) return null;
-    return (
-      <foreignObject x={cx - 11} y={cy - 11} width={22} height={22} style={{ pointerEvents: "none", overflow: "visible" }}>
-        <div style={{ width: 22, height: 22, display: "flex", alignItems: "center", justifyContent: "center",
-          background: "rgba(0,0,0,0.55)", borderRadius: "50%", border: "1px solid rgba(255,255,255,0.2)" }}>
-          <ItemIcon id={itemId} size={14} />
-        </div>
-      </foreignObject>
-    );
-  }
-
-  // Slot indicator ring — shown when empty
-  function SlotRing({ cx, cy, r, filled, slotKey }: { cx: number; cy: number; r: number; filled: boolean; slotKey: string }) {
-    if (filled) return null;
-    return (
-      <circle
-        cx={cx} cy={cy} r={r}
-        fill="none"
-        stroke={hovered === slotKey ? "rgba(200,169,110,0.8)" : "rgba(255,255,255,0.25)"}
-        strokeWidth="1.5"
-        strokeDasharray="3 2"
-        style={{ pointerEvents: "none", transition: "stroke 0.15s" }}
-      />
-    );
-  }
+  const handlers: Record<SlotKey, () => void> = {
+    tail0: () => onTailClick(0),
+    tail1: () => onTailClick(1),
+    foot0: () => onFootClick(0),
+    foot1: () => onFootClick(1),
+    foot2: () => onFootClick(2),
+  };
 
   return (
-    <svg
-      viewBox="0 0 180 175"
-      width="100%"
-      style={{ display: "block", maxWidth: 180 }}
-    >
-      {/* ── Body ── */}
-      {/* Body shadow */}
-      <ellipse cx="90" cy="122" rx="34" ry="10" fill="#000" opacity="0.25" />
-      {/* Main body dome */}
-      <ellipse cx="90" cy="96" rx="40" ry="36" fill="#b8ad2e" stroke="#1e1800" strokeWidth="2.5" />
-      {/* Body highlight */}
-      <ellipse cx="80" cy="83" rx="20" ry="14" fill="#d8cc50" opacity="0.3" />
-      {/* Body underside shading */}
-      <ellipse cx="90" cy="118" rx="32" ry="10" fill="#7a7010" opacity="0.5" />
-      {/* Body outline detail */}
-      <ellipse cx="90" cy="96" rx="40" ry="36" fill="none" stroke="#1e1800" strokeWidth="2.5" />
+    <div style={{ position: "relative", width: "100%", maxWidth: 180, aspectRatio: "1 / 1" }}>
+      {/* Creature image */}
+      <img
+        src="/creature.jpg"
+        alt="Your creature"
+        style={{ width: "100%", height: "100%", display: "block", borderRadius: 8 }}
+        draggable={false}
+      />
 
-      {/* ── Left tail (slot 0) ── */}
-      <g
-        style={{ cursor: "pointer", opacity: slotOpacity(!!tailSlots[0], "tail0"), filter: slotFilter("tail0"), transition: "opacity 0.15s, filter 0.15s" }}
-        onClick={() => onTailClick(0)}
-        onMouseEnter={() => setHovered("tail0")}
-        onMouseLeave={() => setHovered(null)}
-      >
-        {/* Broad blade — wide at body shoulder, tapers to pointed brown tip */}
-        <path d="M 68 88 C 58 80 44 64 40 50 C 46 54 60 74 70 84 Z"
-          fill="#8a9e22" stroke="#1e1800" strokeWidth="2" strokeLinejoin="round" />
-        {/* Inner darker green layer for depth */}
-        <path d="M 66 86 C 57 78 46 64 42 52 C 47 56 60 75 68 83 Z"
-          fill="#6a7e18" opacity="0.55" />
-        {/* Highlight streak down the blade */}
-        <path d="M 62 82 C 55 73 48 63 44 54" stroke="#c0d035" strokeWidth="1.5" strokeLinecap="round" fill="none" opacity="0.45" />
-        {/* Brown pointed tip */}
-        <path d="M 40 50 C 37 43 36 36 39 31 C 43 36 44 45 42 52 Z"
-          fill="#7a5020" stroke="#1e1800" strokeWidth="1.5" strokeLinejoin="round" />
-        <path d="M 40 50 C 38 44 37 37 40 33 C 43 37 44 45 42 52 Z"
-          fill="#a06830" opacity="0.6" />
-        <SlotRing cx={40} cy={41} r={9} filled={!!tailSlots[0]} slotKey="tail0" />
-        <SlotIcon itemId={tailSlots[0]} cx={40} cy={41} />
-      </g>
+      {/* Slot overlay zones */}
+      {(Object.keys(SLOT_ZONES) as SlotKey[]).map((key) => {
+        const zone = SLOT_ZONES[key];
+        const item = slotItems[key];
+        const isHovered = hovered === key;
 
-      {/* ── Right tail (slot 1) ── */}
-      <g
-        style={{ cursor: "pointer", opacity: slotOpacity(!!tailSlots[1], "tail1"), filter: slotFilter("tail1"), transition: "opacity 0.15s, filter 0.15s" }}
-        onClick={() => onTailClick(1)}
-        onMouseEnter={() => setHovered("tail1")}
-        onMouseLeave={() => setHovered(null)}
-      >
-        {/* Broad blade — mirrored */}
-        <path d="M 112 88 C 122 80 136 64 140 50 C 134 54 120 74 110 84 Z"
-          fill="#8a9e22" stroke="#1e1800" strokeWidth="2" strokeLinejoin="round" />
-        {/* Inner darker green layer */}
-        <path d="M 114 86 C 123 78 134 64 138 52 C 133 56 120 75 112 83 Z"
-          fill="#6a7e18" opacity="0.55" />
-        {/* Highlight streak */}
-        <path d="M 118 82 C 125 73 132 63 136 54" stroke="#c0d035" strokeWidth="1.5" strokeLinecap="round" fill="none" opacity="0.45" />
-        {/* Brown pointed tip */}
-        <path d="M 140 50 C 143 43 144 36 141 31 C 137 36 136 45 138 52 Z"
-          fill="#7a5020" stroke="#1e1800" strokeWidth="1.5" strokeLinejoin="round" />
-        <path d="M 140 50 C 142 44 143 37 140 33 C 137 37 136 45 138 52 Z"
-          fill="#a06830" opacity="0.6" />
-        <SlotRing cx={140} cy={41} r={9} filled={!!tailSlots[1]} slotKey="tail1" />
-        <SlotIcon itemId={tailSlots[1]} cx={140} cy={41} />
-      </g>
-
-      {/* ── Left foot (slot 0) ── */}
-      <g
-        style={{ cursor: "pointer", opacity: slotOpacity(!!footSlots[0], "foot0"), filter: slotFilter("foot0"), transition: "opacity 0.15s, filter 0.15s" }}
-        onClick={() => onFootClick(0)}
-        onMouseEnter={() => setHovered("foot0")}
-        onMouseLeave={() => setHovered(null)}
-      >
-        <ellipse cx="58" cy="134" rx="14" ry="9" fill="#9aac28" stroke="#1e1800" strokeWidth="2" />
-        {/* Toes */}
-        <ellipse cx="47" cy="139" rx="5" ry="4" fill="#7a5820" stroke="#1e1800" strokeWidth="1.5" />
-        <ellipse cx="55" cy="142" rx="5" ry="4" fill="#7a5820" stroke="#1e1800" strokeWidth="1.5" />
-        <ellipse cx="63" cy="142" rx="5" ry="4" fill="#7a5820" stroke="#1e1800" strokeWidth="1.5" />
-        {/* Toe highlights */}
-        <ellipse cx="47" cy="138" rx="3" ry="2" fill="#9a7838" opacity="0.5" />
-        <ellipse cx="55" cy="141" rx="3" ry="2" fill="#9a7838" opacity="0.5" />
-        <ellipse cx="63" cy="141" rx="3" ry="2" fill="#9a7838" opacity="0.5" />
-        <SlotRing cx={55} cy={136} r={12} filled={!!footSlots[0]} slotKey="foot0" />
-        <SlotIcon itemId={footSlots[0]} cx={55} cy={133} />
-      </g>
-
-      {/* ── Centre foot (slot 1) ── */}
-      <g
-        style={{ cursor: "pointer", opacity: slotOpacity(!!footSlots[1], "foot1"), filter: slotFilter("foot1"), transition: "opacity 0.15s, filter 0.15s" }}
-        onClick={() => onFootClick(1)}
-        onMouseEnter={() => setHovered("foot1")}
-        onMouseLeave={() => setHovered(null)}
-      >
-        <ellipse cx="90" cy="138" rx="14" ry="9" fill="#9aac28" stroke="#1e1800" strokeWidth="2" />
-        {/* Toes */}
-        <ellipse cx="80" cy="145" rx="5" ry="4" fill="#7a5820" stroke="#1e1800" strokeWidth="1.5" />
-        <ellipse cx="90" cy="147" rx="5" ry="4" fill="#7a5820" stroke="#1e1800" strokeWidth="1.5" />
-        <ellipse cx="100" cy="145" rx="5" ry="4" fill="#7a5820" stroke="#1e1800" strokeWidth="1.5" />
-        <ellipse cx="80" cy="144" rx="3" ry="2" fill="#9a7838" opacity="0.5" />
-        <ellipse cx="90" cy="146" rx="3" ry="2" fill="#9a7838" opacity="0.5" />
-        <ellipse cx="100" cy="144" rx="3" ry="2" fill="#9a7838" opacity="0.5" />
-        <SlotRing cx={90} cy={139} r={12} filled={!!footSlots[1]} slotKey="foot1" />
-        <SlotIcon itemId={footSlots[1]} cx={90} cy={137} />
-      </g>
-
-      {/* ── Right foot (slot 2) ── */}
-      <g
-        style={{ cursor: "pointer", opacity: slotOpacity(!!footSlots[2], "foot2"), filter: slotFilter("foot2"), transition: "opacity 0.15s, filter 0.15s" }}
-        onClick={() => onFootClick(2)}
-        onMouseEnter={() => setHovered("foot2")}
-        onMouseLeave={() => setHovered(null)}
-      >
-        <ellipse cx="122" cy="134" rx="14" ry="9" fill="#9aac28" stroke="#1e1800" strokeWidth="2" />
-        {/* Toes */}
-        <ellipse cx="117" cy="142" rx="5" ry="4" fill="#7a5820" stroke="#1e1800" strokeWidth="1.5" />
-        <ellipse cx="125" cy="142" rx="5" ry="4" fill="#7a5820" stroke="#1e1800" strokeWidth="1.5" />
-        <ellipse cx="133" cy="139" rx="5" ry="4" fill="#7a5820" stroke="#1e1800" strokeWidth="1.5" />
-        <ellipse cx="117" cy="141" rx="3" ry="2" fill="#9a7838" opacity="0.5" />
-        <ellipse cx="125" cy="141" rx="3" ry="2" fill="#9a7838" opacity="0.5" />
-        <ellipse cx="133" cy="138" rx="3" ry="2" fill="#9a7838" opacity="0.5" />
-        <SlotRing cx={125} cy={136} r={12} filled={!!footSlots[2]} slotKey="foot2" />
-        <SlotIcon itemId={footSlots[2]} cx={125} cy={133} />
-      </g>
-    </svg>
+        return (
+          <div
+            key={key}
+            title={zone.label}
+            onClick={handlers[key]}
+            onMouseEnter={() => setHovered(key)}
+            onMouseLeave={() => setHovered(null)}
+            style={{
+              position: "absolute",
+              left: zone.left,
+              top: zone.top,
+              width: zone.width,
+              height: zone.height,
+              cursor: "pointer",
+              borderRadius: 6,
+              border: isHovered
+                ? "2px solid rgba(200,169,110,0.85)"
+                : item
+                ? "2px solid rgba(200,169,110,0.4)"
+                : "2px dashed rgba(255,255,255,0.2)",
+              background: isHovered
+                ? "rgba(200,169,110,0.15)"
+                : item
+                ? "rgba(200,169,110,0.08)"
+                : "transparent",
+              transition: "border 0.15s, background 0.15s",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            {/* Item icon badge when filled */}
+            {item && (
+              <div style={{
+                background: "rgba(0,0,0,0.65)",
+                borderRadius: "50%",
+                width: 22,
+                height: 22,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                border: "1px solid rgba(255,255,255,0.2)",
+                flexShrink: 0,
+              }}>
+                <ItemIcon id={item} size={14} />
+              </div>
+            )}
+            {/* Empty slot dot indicator */}
+            {!item && (
+              <div style={{
+                width: 6,
+                height: 6,
+                borderRadius: "50%",
+                background: isHovered ? "rgba(200,169,110,0.7)" : "rgba(255,255,255,0.2)",
+                transition: "background 0.15s",
+              }} />
+            )}
+          </div>
+        );
+      })}
+    </div>
   );
 }

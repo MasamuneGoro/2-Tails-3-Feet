@@ -2888,7 +2888,7 @@ export default function App() {
   const craftMenuScreen = (
     <div className="card">
       <h2>Craft</h2>
-      <p className="small" style={{ opacity: 0.6, marginBottom: 14 }}>Requires the <b>{ITEMS.eq_tinker_shaft.name}</b> equipped.</p>
+      <p className="small" style={{ opacity: 0.55, fontStyle: "italic", marginBottom: 14 }}>The moment the Tinker Shaft clicks into place, something shifts. Shapes and sequences surface unbidden — what to gather, how to bind it, what it could become. The knowledge feels borrowed. The urge to use it doesn't.</p>
       <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
         {unlockedRecipes.length === 0 && (
           <p className="small" style={{ opacity: 0.45 }}>Nothing to make. Equip the Tinker Shaft from the sidebar.</p>
@@ -2912,15 +2912,18 @@ export default function App() {
                         <ItemIcon id={recipe.output.itemId} size={20} />
                         <div style={{ flex: 1 }}>
                           <div style={{ fontWeight: 600, fontSize: "0.95rem" }}>{r.name}</div>
-                          <div style={{ fontSize: "0.75rem", opacity: 0.5, marginTop: 2, display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
-                            {r.inputs.map((inp) => (
-                              <span key={inp.id} style={{ display: "inline-flex", alignItems: "center", gap: 3 }}>
-                                <ItemIcon id={inp.id} size={12} />
-                                {getResourceName(inp.id)} ×{inp.qty}
-                              </span>
-                            ))}
-                          </div>
-                        </div>
+                          <div style={{ fontSize: "0.75rem", marginTop: 2, display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                            {r.inputs.map((inp) => {
+                              const have = player.inventory.find((s) => s.id === inp.id)?.qty ?? 0;
+                              const met = have >= inp.qty;
+                              return (
+                                <span key={inp.id} style={{ display: "inline-flex", alignItems: "center", gap: 3, color: met ? "#7ecba1" : "#c87060", opacity: met ? 0.85 : 0.9 }}>
+                                  <ItemIcon id={inp.id} size={12} />
+                                  {getResourceName(inp.id)} {have}/{inp.qty}
+                                </span>
+                              );
+                            })}
+                          </div>                        </div>
                         <div style={{ fontSize: "0.7rem", opacity: 0.35 }}>{isExpanded ? "▲" : "▼"}</div>
                       </div>
                       {isExpanded && (

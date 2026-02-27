@@ -2888,7 +2888,9 @@ export default function App() {
   const craftMenuScreen = (
     <div className="card">
       <h2>Craft</h2>
-      <p className="small" style={{ opacity: 0.55, fontStyle: "italic", marginBottom: 14 }}>The moment the Tinker Shaft clicks into place, something shifts. Shapes and sequences surface unbidden — what to gather, how to bind it, what it could become. The knowledge feels borrowed. The urge to use it doesn't.</p>
+      {hasEquippedTail(player, "eq_tinker_shaft") && (
+        <p className="small" style={{ opacity: 0.55, fontStyle: "italic", marginBottom: 14 }}>The moment the Tinker Shaft clicks into place, something shifts. Shapes and sequences surface unbidden — what to gather, how to bind it, what it could become. The knowledge feels borrowed. The urge to use it doesn't.</p>
+      )}
       <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
         {unlockedRecipes.length === 0 && (
           <p className="small" style={{ opacity: 0.45 }}>Nothing to make. Equip the Tinker Shaft from the sidebar.</p>

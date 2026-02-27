@@ -2879,9 +2879,10 @@ export default function App() {
 
   // ── Craft screens ─────────────────────────────────────────────────────────
   const CRAFT_TIERS: { label: string; ids: string[] }[] = [
-    { label: "Bare Minimum", ids: ["rcp_pointed_twig", "rcp_fiber_comb", "rcp_sticky_scoop"] },
-    { label: "Getting Somewhere", ids: ["rcp_crude_hammerhead", "rcp_hand_drill"] },
-    { label: "Now We're Talking", ids: ["rcp_chomper", "rcp_tail_curler"] },
+    { label: "Basic Harvesting", ids: ["rcp_pointed_twig", "rcp_fiber_comb", "rcp_sticky_scoop"] },
+    { label: "Heavy Harvesting", ids: ["rcp_crude_hammerhead", "rcp_hand_drill"] },
+    { label: "Regenerative", ids: ["rcp_chomper", "rcp_tail_curler"] },
+    { label: "Shoes", ids: ["rcp_bouncy_shoe", "rcp_stompy_shoe"] },
   ];
 
   const craftMenuScreen = (

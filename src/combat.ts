@@ -9,14 +9,128 @@ import type {
   MoveId,
   PlayerState,
   ResourceId,
-  SituationId,
+  ShoeRequirement,
 } from "./types";
 import {
   CREATURES,
   MOVES,
-  SITUATION_TRANSITIONS,
-  type DropCondition,
 } from "./gameData";
+
+// ─── Grounding helpers ────────────────────────────────────────────────────────
+export function isMothGrounded(flags: BattleFlag[]): boolean {
+  return flags.includes("wing_torn") || flags.includes("thorax_open") || flags.includes("stomped");
+}
+
+// ─── Shoe counting ────────────────────────────────────────────────────────────
+function countShoes(player: PlayerState): { bouncy: number; stompy: number } {
+  let bouncy = 0, stompy = 0;
+  for (const shoe of player.equipment.footSlots) {
+    if (shoe === "eq_bouncy_shoe") bouncy++;
+    else if (shoe === "eq_stompy_shoe") stompy++;
+  }
+  return { bouncy, stompy };
+}
+
+function shoesOk(req: ShoeRequirement, player: PlayerState): boolean {
+  const { bouncy, stompy } = countShoes(player);
+  return bouncy >= req.bouncy && stompy >= req.stompy;
+}
+
+// ─── Move availability ────────────────────────────────────────────────────────
+export function getAvailableMoves(state: BattleState, player: PlayerState): MoveId[] {
+  const creature = CREATURES[state.creatureId];
+  const grounded = isMothGrounded(state.flags);
+
+  return creature.availableMoves.filter((moveId) => {
+    const move = MOVES[moveId];
+    if (moveId === "flee") return true;
+    if (move.requiresAirborne && grounded) return false;
+    if (move.requiredFlags?.some(f => !state.flags.includes(f))) return false;
+    if (move.forbiddenFlags?.some(f => state.flags.includes(f))) return false;
+    if (move.tools && move.tools.length > 0) {
+      const equipped = [...player.equipment.tailSlots.filter(Boolean)] as string[];
+      const needed = [...move.tools] as string[];
+      for (const tool of needed) {
+        const idx = equipped.indexOf(tool);
+        if (idx === -1) return false;
+        equipped.splice(idx, 1);
+      }
+    }
+    if (move.shoes && !shoesOk(move.shoes, player)) return false;
+    return true;
+  });
+}
+
+// ─── Move visibility for UI ───────────────────────────────────────────────────
+export type MoveUIState = { moveId: MoveId; active: boolean; greyedReason?: string };
+
+export function getMovesForUI(state: BattleState, player: PlayerState): MoveUIState[] {
+  const creature = CREATURES[state.creatureId];
+  const grounded = isMothGrounded(state.flags);
+  const activeMoves = new Set(getAvailableMoves(state, player));
+  const result: MoveUIState[] = [];
+
+  for (const moveId of creature.availableMoves) {
+    const move = MOVES[moveId];
+
+    if (moveId === "flee") { result.push({ moveId, active: true }); continue; }
+
+    if (move.requiresAirborne && grounded) continue;
+
+    // Hidden moves — hide if flag conditions not met
+    if (move.hiddenWhenUnavailable) {
+      if (move.requiredFlags?.some(f => !state.flags.includes(f))) continue;
+      if (move.forbiddenFlags?.some(f => state.flags.includes(f))) continue;
+    }
+
+    // Harvest group: hide until thorax_open
+    if (move.group === "harvest" && !state.flags.includes("thorax_open")) continue;
+
+    // Check flag conditions for non-hidden moves (stop them from showing grey when they shouldn't appear)
+    if (!move.hiddenWhenUnavailable) {
+      if (move.requiredFlags?.some(f => !state.flags.includes(f))) continue;
+      if (move.forbiddenFlags?.some(f => state.flags.includes(f))) continue;
+    }
+
+    if (activeMoves.has(moveId)) {
+      result.push({ moveId, active: true });
+    } else {
+      // Compute grey reason from tool/shoe deficit
+      let greyedReason = "";
+      const equipped = [...player.equipment.tailSlots.filter(Boolean)] as string[];
+
+      if (move.shoes) {
+        const { bouncy, stompy } = countShoes(player);
+        const missingBouncy = Math.max(0, move.shoes.bouncy - bouncy);
+        const missingStompy = Math.max(0, move.shoes.stompy - stompy);
+        const totalMissing = missingBouncy + missingStompy;
+        greyedReason = totalMissing > 0
+          ? `${totalMissing} shoe${totalMissing > 1 ? "s" : ""} required for combo`
+          : "Shoe combo required";
+      } else if (move.tools && move.tools.length > 0) {
+        const needed = [...move.tools] as string[];
+        const avail = [...equipped];
+        let missing = 0;
+        for (const tool of needed) {
+          const idx = avail.indexOf(tool);
+          if (idx === -1) missing++;
+          else avail.splice(idx, 1);
+        }
+        if (needed.length === 2) {
+          greyedReason = missing === 2 ? "Combo required"
+            : missing === 1 ? "2nd tail tool required for combo"
+            : "Tail tool required";
+        } else {
+          greyedReason = "Tail tool required";
+        }
+      }
+
+      result.push({ moveId, active: false, greyedReason });
+    }
+  }
+
+  return result;
+}
 
 // ─── Initialise a new battle ──────────────────────────────────────────────────
 export function startBattle(creatureId: CreatureId): BattleState {
@@ -27,72 +141,49 @@ export function startBattle(creatureId: CreatureId): BattleState {
     integrity: creature.integrityMax,
     flags: [...creature.initialFlags],
     situation: creature.initialSituation,
+    secretionCounter: 0,
+    stompedClearsNextTurn: false,
     turn: 1,
     movesUsed: [],
-    doubleCombosLanded: 0,
     staminaCostAccrued: 0,
     midBattleDrops: [],
     midBattleSatietyRestored: 0,
-    midBattleStaminaRestored: 0,
+    scoopedFleshQty: 0,
   };
 }
 
-// ─── Get available moves this turn ───────────────────────────────────────────
-export function getAvailableMoves(state: BattleState, player: PlayerState): MoveId[] {
-  const creature = CREATURES[state.creatureId];
-  const equippedTools = player.equipment.tailSlots.filter(Boolean) as string[];
-
-  return creature.availableMoves.filter((moveId) => {
-    const move = MOVES[moveId];
-
-    // Check required flags
-    if (move.requiredFlags?.some((f) => !state.flags.includes(f))) return false;
-
-    // Check forbidden flags
-    if (move.forbiddenFlags?.some((f) => state.flags.includes(f))) return false;
-
-    // Check required situation
-    if (move.requiredSituation && move.requiredSituation !== state.situation) return false;
-
-    // Check tools equipped — all required tools must be equipped
-    if (move.tools.length > 0) {
-      const needed = [...move.tools] as string[];
-      const available = [...equippedTools];
-      for (const tool of needed) {
-        const idx = available.indexOf(tool);
-        if (idx === -1) return false;
-        available.splice(idx, 1); // consume slot so same tool can't satisfy two requirements
-      }
-    }
-
-    return true;
-  });
-}
-
 // ─── Proficiency scaling ──────────────────────────────────────────────────────
-// XP 0–99 = level 1, 100–199 = level 2, ... 900+ = level 10
-// Composure damage scales linearly: level 1 = base min, level 10 = base max
-function scaleComposure(base: [number, number], method: HarvestMethodId | undefined, player: PlayerState): number {
+function scaleComposure(base: [number, number], methods: HarvestMethodId[] | undefined, player: PlayerState): number {
   const [min, max] = base;
-  if (!method || min === max) return min + Math.floor(Math.random() * (max - min + 1));
-  const xp = player.xp[method] ?? 0;
-  const level = Math.min(10, Math.floor(xp / 100) + 1);
-  const t = (level - 1) / 9; // 0 at level 1, 1 at level 10
+  if (!methods || methods.length === 0 || min === max) {
+    return min === max ? min : min + Math.floor(Math.random() * (max - min + 1));
+  }
+  let bestXp = 0;
+  for (const m of methods) bestXp = Math.max(bestXp, player.xp[m] ?? 0);
+  const level = Math.min(10, Math.floor(bestXp / 100) + 1);
+  const t = (level - 1) / 9;
   const scaled = min + t * (max - min);
-  // Add small random variance (±10% of range)
   const variance = (max - min) * 0.1;
   return Math.round(scaled + (Math.random() * 2 - 1) * variance);
 }
 
 // ─── Execute a single player move ────────────────────────────────────────────
+export type MoveExecuteResult = {
+  nextState: BattleState;
+  log: string[];
+  foodContaminated: boolean;
+};
+
 export function executeMove(
   state: BattleState,
   moveId: MoveId,
   player: PlayerState
-): { nextState: BattleState; log: string[] } {
+): MoveExecuteResult {
   const move = MOVES[moveId];
   const effect = move.effect;
   const log: string[] = [];
+  let foodContaminated = false;
+
   let next: BattleState = {
     ...state,
     flags: [...state.flags],
@@ -100,13 +191,25 @@ export function executeMove(
     midBattleDrops: [...state.midBattleDrops],
   };
 
-  // Flee is handled separately
-  if (moveId === "flee") {
-    return { nextState: next, log: ["You back away."] };
+  // Clear stomped if flagged to clear this turn
+  if (next.stompedClearsNextTurn) {
+    next.flags = next.flags.filter(f => f !== "stomped");
+    next.stompedClearsNextTurn = false;
   }
 
+  // Flee
+  if (moveId === "flee") {
+    next.staminaCostAccrued += effect.staminaCost;
+    return { nextState: next, log: ["You back away."], foodContaminated: false };
+  }
+
+  const grounded = isMothGrounded(next.flags);
+
   // Composure damage
-  const composureDmg = scaleComposure(effect.composureDelta, effect.proficiencyMethod, player);
+  const composureBase = (grounded && effect.composureDeltaGrounded)
+    ? effect.composureDeltaGrounded
+    : effect.composureDelta;
+  const composureDmg = scaleComposure(composureBase, effect.proficiencyGrants, player);
   next.composure = Math.max(0, next.composure - composureDmg);
   if (composureDmg > 0) log.push(`Composure −${composureDmg}`);
 
@@ -119,13 +222,7 @@ export function executeMove(
   // Stamina cost
   next.staminaCostAccrued += effect.staminaCost;
 
-  // Stamina restore (mid-battle stimulant)
-  if (effect.staminaRestore) {
-    next.midBattleStaminaRestored += effect.staminaRestore;
-    log.push(`Stamina +${effect.staminaRestore} (stimulant)`);
-  }
-
-  // Satiety restore (mid-battle eat)
+  // Satiety restore
   if (effect.satietyRestore) {
     next.midBattleSatietyRestored += effect.satietyRestore;
     log.push(`Satiety +${effect.satietyRestore}`);
@@ -138,91 +235,107 @@ export function executeMove(
     }
   }
   if (effect.clearsFlags) {
-    next.flags = next.flags.filter((f) => !effect.clearsFlags!.includes(f));
+    next.flags = next.flags.filter(f => !effect.clearsFlags!.includes(f));
+  }
+
+  // Stomp It Down: mark stomped to clear next turn
+  if (moveId === "stomp_it_down") {
+    next.stompedClearsNextTurn = true;
+  }
+
+  // Secretion counter: increment only if moth was airborne BEFORE this move
+  if (moveId === "stomp_it_down") {
+    next.secretionCounter = 0;
+  } else if (!grounded) {
+    next.secretionCounter += 1;
   }
 
   // Mid-battle drop
   if (effect.midBattleDrop) {
-    const { id, qty } = effect.midBattleDrop;
-    const existing = next.midBattleDrops.find((d) => d.id === id);
-    if (existing) existing.qty += qty;
-    else next.midBattleDrops.push({ id, qty });
-    log.push(`Collected: ${id} ×${qty}`);
-  }
-
-  // Counterattack
-  if (effect.counterattack) {
-    const ca = effect.counterattack;
-    if (next.flags.includes(ca.triggerFlag)) {
-      next.staminaCostAccrued += ca.staminaPenalty;
-      log.push(`Counterattack! ${ca.flavor} (−${ca.staminaPenalty} stamina)`);
-      // Food contamination is flagged in BattleResult, tracked here
-      if (ca.contaminatesFood) {
-        if (!next.flags.includes("wax_intact")) next.flags.push("wax_intact"); // keep intact flag if not cleared
-        // We use a special ephemeral flag to signal contamination occurred
-        if (!next.flags.includes("wax_drained")) {
-          // contamination only happens while wax is still intact
-          (next as any)._foodContaminated = true;
-        }
-      }
+    const { id, qtyMin, qtyMax } = effect.midBattleDrop;
+    const qty = qtyMin + Math.floor(Math.random() * (qtyMax - qtyMin + 1));
+    if (qty > 0) {
+      if (id === "food_moth_flesh") next.scoopedFleshQty += qty;
+      const existing = next.midBattleDrops.find(d => d.id === id);
+      if (existing) existing.qty += qty;
+      else next.midBattleDrops.push({ id, qty });
+      log.push(`Collected: ${id} ×${qty}`);
     }
   }
 
-  // Novelty: track move and double combos
-  if (!next.movesUsed.includes(moveId)) next.movesUsed.push(moveId);
-  if (move.tools.length === 2) next.doubleCombosLanded += 1;
-
-  // Advance situation
-  if (effect.situationNext !== null) {
-    next.situation = effect.situationNext;
-  } else {
-    // Creature advances on its own schedule
-    next.situation = SITUATION_TRANSITIONS[next.situation];
+  // Smash body food contamination if wax not harvested
+  if (effect.foodContaminationIfNotHarvested && !next.flags.includes("wax_harvested")) {
+    next.staminaCostAccrued += 20;
+    foodContaminated = true;
+    log.push("Wax splatters. Food contaminated. −20 stamina");
   }
 
+  // Novelty tracking
+  if (!next.movesUsed.includes(moveId)) next.movesUsed.push(moveId);
+
+  // Update situation
+  next.situation = isMothGrounded(next.flags) ? "moth_grounded" : "moth_airborne";
+
   next.turn += 1;
-  return { nextState: next, log };
+
+  return { nextState: next, log, foodContaminated };
 }
 
-// ─── Novelty refund ───────────────────────────────────────────────────────────
-function computeNoveltyRefund(state: BattleState, baseCost: number): number {
-  const uniqueMoves = state.movesUsed.length;
-  const hasDoubleCombo = state.doubleCombosLanded > 0;
-
-  let refundPct = 0;
-  if (uniqueMoves >= 4 || hasDoubleCombo) refundPct = 0.6;
-  else if (uniqueMoves >= 2) refundPct = 0.3;
-
-  return Math.round(baseCost * refundPct);
+// ─── Secretion check ──────────────────────────────────────────────────────────
+export function checkSecretion(state: BattleState): { fires: boolean; cleanFlee: boolean } {
+  if (isMothGrounded(state.flags)) return { fires: false, cleanFlee: false };
+  if (state.secretionCounter < 3) return { fires: false, cleanFlee: false };
+  return { fires: true, cleanFlee: state.flags.includes("wax_harvested") };
 }
+
+// ─── Novelty tier ─────────────────────────────────────────────────────────────
+export function computeNoveltyTier(uniqueMoveCount: number): 0 | 1 | 2 | 3 {
+  if (uniqueMoveCount >= 7) return 3;
+  if (uniqueMoveCount >= 6) return 2;
+  if (uniqueMoveCount >= 4) return 1;
+  return 0;
+}
+
+export function noveltyRefundPct(tier: 0 | 1 | 2 | 3): number {
+  return [0, 0.30, 0.60, 0.90][tier];
+}
+
+export const NOVELTY_FLAVOUR: Record<0 | 1 | 2 | 3, string | null> = {
+  0: null,
+  1: "You kept it varied. Your body found a second gear.",
+  2: "A proper flurry. You're breathing hard but somehow feel better for it.",
+  3: "That was something. You're not tired — you're thrilled.",
+};
+
+export const NOVELTY_STAMINA_LABEL: Record<0 | 1 | 2 | 3, string> = {
+  0: "",
+  1: "momentum carried you",
+  2: "the flurry restored you",
+  3: "the fight energised you completely",
+};
 
 // ─── Compute corpse drops ─────────────────────────────────────────────────────
-function computeCorpseDrops(
-  state: BattleState,
-  endReason: BattleEndReason
-): { id: ResourceId | FoodId; qty: number; freshness?: number[] }[] {
-  if (endReason === "fled") return []; // no corpse
-
+function computeCorpseDrops(state: BattleState, endReason: BattleEndReason) {
+  if (endReason === "fled") return [];
   const creature = CREATURES[state.creatureId];
   const drops: { id: ResourceId | FoodId; qty: number; freshness?: number[] }[] = [];
 
   for (const cond of creature.dropTable) {
-    // Integrity check
     if (cond.integrityMin !== undefined && state.integrity < cond.integrityMin) continue;
     if (cond.integrityMax !== undefined && state.integrity > cond.integrityMax) continue;
-
-    // Flag check
-    if (cond.requiredFlags?.some((f) => !state.flags.includes(f))) continue;
-
-    // End reason check
+    if (cond.requiredFlags?.some(f => !state.flags.includes(f))) continue;
     if (cond.endReasons && !cond.endReasons.includes(endReason)) continue;
 
-    // Roll quantity
     const [min, max] = cond.qtyRange;
-    const qty = min + Math.floor(Math.random() * (max - min + 1));
+    let qty = min + Math.floor(Math.random() * (max - min + 1));
+
+    // Scoop deduction for moth flesh
+    if (cond.id === "food_moth_flesh") {
+      qty = Math.max(0, qty - state.scoopedFleshQty);
+    }
+
     if (qty <= 0) continue;
 
-    // Freshness array if applicable
     let freshness: number[] | undefined;
     if (cond.freshnessRange) {
       const [fMin, fMax] = cond.freshnessRange;
@@ -231,7 +344,6 @@ function computeCorpseDrops(
 
     drops.push({ id: cond.id, qty, freshness });
   }
-
   return drops;
 }
 
@@ -239,48 +351,59 @@ function computeCorpseDrops(
 export function resolveBattle(
   state: BattleState,
   endReason: BattleEndReason,
+  secretionFled: boolean,
+  foodContaminated: boolean,
   player: PlayerState
 ): { result: BattleResult; updatedPlayer: PlayerState } {
   const next = structuredClone(player);
 
-  // Novelty refund
-  const refund = computeNoveltyRefund(state, state.staminaCostAccrued);
-  const netStaminaCost = state.staminaCostAccrued - refund;
+  const uniqueMoveCount = state.movesUsed.length;
+  const tier = computeNoveltyTier(uniqueMoveCount);
+  const refundPct = noveltyRefundPct(tier);
+  const noveltyStaminaRestored = Math.round(state.staminaCostAccrued * refundPct);
+  const netStaminaCost = state.staminaCostAccrued - noveltyStaminaRestored;
 
-  // Apply stamina cost net of refund and mid-battle restores
   next.stats.stamina = Math.max(0, Math.min(
     next.stats.maxStamina,
-    next.stats.stamina - netStaminaCost + state.midBattleStaminaRestored
+    next.stats.stamina - netStaminaCost
   ));
 
-  // Apply satiety restores
   next.stats.satiety = Math.max(0, Math.min(
     next.stats.maxSatiety,
     next.stats.satiety + state.midBattleSatietyRestored
   ));
 
-  // Corpse drops
+  // Secretion fled without wax: 200 stamina penalty
+  if (secretionFled && !state.flags.includes("wax_harvested")) {
+    next.stats.stamina = Math.max(0, next.stats.stamina - 200);
+  }
+
   const corpseDrops = computeCorpseDrops(state, endReason);
 
-  // Food contamination (freshness penalty)
-  const foodContaminated = !!(state as any)._foodContaminated;
   if (foodContaminated) {
     for (const stack of next.inventory) {
       if (typeof stack.id === "string" && stack.id.startsWith("food_") && stack.freshness) {
-        stack.freshness = stack.freshness.map((f) => Math.max(0, Math.round(f * 0.7)));
+        (stack as import("./types").InventoryStack).freshness =
+          (stack as import("./types").InventoryStack).freshness!.map(f => Math.max(0, Math.round(f * 0.7)));
       }
     }
   }
 
-  // Add all drops to inventory (mid-battle + corpse)
-  const allDrops = [...state.midBattleDrops.map(d => ({ ...d, freshness: undefined as number[] | undefined })), ...corpseDrops];
-  for (const drop of allDrops) {
+  for (const drop of state.midBattleDrops) {
+    addToInventory(next, drop.id, drop.qty, undefined);
+  }
+  for (const drop of corpseDrops) {
     addToInventory(next, drop.id, drop.qty, drop.freshness);
   }
 
-  // Satiety bonus for high novelty
-  if (state.doubleCombosLanded > 0 || state.movesUsed.length >= 4) {
-    next.stats.satiety = Math.min(next.stats.maxSatiety, next.stats.satiety + 20);
+  // XP grants
+  for (const moveId of state.movesUsed) {
+    const move = MOVES[moveId];
+    if (move.effect.proficiencyGrants) {
+      for (const method of move.effect.proficiencyGrants) {
+        next.xp[method] = (next.xp[method] ?? 0) + 10;
+      }
+    }
   }
 
   const result: BattleResult = {
@@ -290,26 +413,23 @@ export function resolveBattle(
     finalIntegrity: state.integrity,
     flags: [...state.flags],
     movesUsed: [...state.movesUsed],
-    doubleCombosLanded: state.doubleCombosLanded,
+    uniqueMoveCount,
+    noveltyTier: tier,
+    noveltyStaminaRestored,
     netStaminaCost,
     satietyRestoredMidBattle: state.midBattleSatietyRestored,
-    staminaRestoredMidBattle: state.midBattleStaminaRestored,
     midBattleDrops: [...state.midBattleDrops],
     corpseDrops,
     foodContaminated,
+    secretionFled,
   };
 
   return { result, updatedPlayer: next };
 }
 
 // ─── Inventory helper ─────────────────────────────────────────────────────────
-function addToInventory(
-  player: PlayerState,
-  id: ResourceId | FoodId,
-  qty: number,
-  freshness?: number[]
-) {
-  const existing = player.inventory.find((s) => s.id === id);
+function addToInventory(player: PlayerState, id: ResourceId | FoodId, qty: number, freshness?: number[]) {
+  const existing = player.inventory.find(s => s.id === id);
   if (existing) {
     existing.qty += qty;
     if (freshness && (existing as import("./types").InventoryStack).freshness) {

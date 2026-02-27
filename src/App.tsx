@@ -1,10 +1,10 @@
 import React, { useEffect, useMemo, useState } from "react";
 import type { BlotMarkCategory, BlotMarkId, BlotMarkState, BlotState, CraftPreview, CraftResult, EatSapResult, HarvestMethodId, HarvestPreview, HarvestResult, HarvestStorableResult, JourneyPreview, JourneyResult, PlayerState, PoiId, Screen, GemTrophyItemId, TrophyItemId, MarkerItemId, SaveData, SerializedMarkState } from "./types";
 import { playSfx, unlockAudio, preloadAll, playBgm, stopBgm, setBgmVolume, getBgmVolume } from "./sound";
-import { startBattle, getAvailableMoves, executeMove, resolveBattle } from "./combat";
+import { startBattle, getAvailableMoves, getMovesForUI, executeMove, resolveBattle, checkSecretion, computeNoveltyTier, noveltyRefundPct, NOVELTY_FLAVOUR, NOVELTY_STAMINA_LABEL, isMothGrounded, type MoveUIState } from "./combat";
 import type { BattleState, BattleResult, CreatureId } from "./types";
 import { CreatureIcon, ItemIcon, PoiImage, PoiIcon, FilamentGateImage, PlayerCharacterEquipment } from "./visuals";
-import { BIOME_LEVEL, CREATURES, EVENTS, FOODS, ITEMS, MOVES, POIS, RECIPES, RESOURCES, SITUATION_TEXT, getSituationText, MARKERS, TROPHIES, GEM_TROPHIES, BIOMASS_ITEM, CATEGORY_MARKER, CATEGORY_TROPHY, TROPHY_TO_GEM, CATEGORY_GATE_MARK, GEM_TROPHY_RECIPES, GATE_REQUIRED_GEM_TROPHIES, BIOMASS_VALUES, calcStompStoneYield, canStomp } from "./gameData";
+import { BIOME_LEVEL, CREATURES, EVENTS, FOODS, ITEMS, MOVES, MOVE_GROUPS, POIS, RECIPES, RESOURCES, SITUATION_TEXT, getBattleFlavour, MARKERS, TROPHIES, GEM_TROPHIES, BIOMASS_ITEM, CATEGORY_MARKER, CATEGORY_TROPHY, TROPHY_TO_GEM, CATEGORY_GATE_MARK, GEM_TROPHY_RECIPES, GATE_REQUIRED_GEM_TROPHIES, BIOMASS_VALUES, calcStompStoneYield, canStomp } from "./gameData";
 import {
   canCraft, getFoodName, getItemName, getResourceName, listUnlockedRecipes,
   makeCraftPreview, makeHarvestPreview, makeJourneyPreview, methodsAvailableFromEquipment,
@@ -39,9 +39,10 @@ const BLOT_MARKS: Record<BlotMarkId, BlotMark> = {
   mark_first_hunt:         { id: "mark_first_hunt",         category: "Combat",      title: "Didn't Run",               flavour: "You could have walked away. You didn't." },
   mark_first_win:          { id: "mark_first_win",          category: "Combat",      title: "It Went Down",             flavour: "You stood your ground and it worked." },
   mark_use_combo:          { id: "mark_use_combo",          category: "Combat",      title: "Double-Handed",            flavour: "Two tools, one move. That takes practice." },
-  mark_novelty_2:          { id: "mark_novelty_2",          category: "Combat",      title: "Kept It Interesting",      flavour: "You surprised the moth. A little." },
-  mark_novelty_4:          { id: "mark_novelty_4",          category: "Combat",      title: "Unpredictable",            flavour: "Even you didn't know what you'd do next." },
-  mark_drill_resonance:    { id: "mark_drill_resonance",    category: "Combat",      title: "Resonance",                flavour: "The sound it made. You'll remember it." },
+  mark_novelty_tier1:      { id: "mark_novelty_tier1",      category: "Combat",      title: "Kept It Interesting",      flavour: "Four moves, all different. Your body appreciated it." },
+  mark_novelty_tier2:      { id: "mark_novelty_tier2",      category: "Combat",      title: "Proper Flurry",            flavour: "Six moves. Something clicked out there." },
+  mark_novelty_tier3:      { id: "mark_novelty_tier3",      category: "Combat",      title: "Thrilled",                 flavour: "Seven distinct moves. You were thinking three steps ahead." },
+  mark_poison_kill:        { id: "mark_poison_kill",        category: "Combat",      title: "Venom Works",              flavour: "Squeeze, coat, strike. The moth didn't see it coming." },
   mark_high_integrity_win: { id: "mark_high_integrity_win", category: "Combat",      title: "Careful Hands",            flavour: "You took what you needed without breaking everything else." },
   mark_avoid_moth:         { id: "mark_avoid_moth",         category: "Combat",      title: "Not Today",                flavour: "Wisdom, or just stamina math. Either way, smart." },
   mark_first_wing_membrane:{ id: "mark_first_wing_membrane",category: "Loot",        title: "Delicate Thing",           flavour: "Light. Strange. You're not sure what it's for yet." },
@@ -66,15 +67,16 @@ const BLOT_MARK_HOW: Record<BlotMarkId, string> = {
   mark_first_encounter:     "Encounter a Gloop Moth during a journey to a resin location. They appear at Resin Nodes, Resin Hollows, and Sap Weeps.",
   mark_first_hunt:          "When a creature appears at the end of a journey, choose to hunt it instead of avoiding it.",
   mark_first_win:           "Win a creature encounter by reducing the creature's composure to zero.",
-  mark_use_combo:           "Execute a combo move using two tools at once in battle.",
-  mark_novelty_2:           "Use 2 or 3 distinct moves in a single battle.",
-  mark_novelty_4:           "Use 4 or more distinct moves, or land any combo, in a single battle.",
-  mark_drill_resonance:     "Execute the Drill Resonance combo: first open the thorax with Drill alone, then use the Twig + Drill combo.",
-  mark_high_integrity_win:  "Win a battle with the creature's integrity at 80 or above. Avoid Smash moves — they deal heavy integrity damage.",
+  mark_use_combo:           "Use a two-tool combo move in battle: Squeeze Glands, Tease Out Crystal, Scoop Out Flesh, or Double Chomp.",
+  mark_novelty_tier1:       "Use 4 or 5 distinct moves in a single battle.",
+  mark_novelty_tier2:       "Use exactly 6 distinct moves in a single battle — requires planning beyond the flavour text hints.",
+  mark_novelty_tier3:       "Use 7 distinct moves in a single battle. System mastery required.",
+  mark_poison_kill:         "Squeeze the glands, apply the wax to a weapon, then strike with Poison Strike or Poison Drill.",
+  mark_high_integrity_win:  "Win a battle with the creature's integrity at 80 or above. Avoid heavy damage moves.",
   mark_avoid_moth:          "When a creature appears at the end of a journey, choose to avoid it.",
-  mark_first_wing_membrane: "Obtain a Wing Membrane drop from a Gloop Moth. Win with high integrity, or use the Expose and Strike combo.",
-  mark_first_crystallised_wax: "Obtain Crystallised Wax by executing the Drill Resonance combo mid-battle.",
-  mark_full_corpse:         "Win a battle with the creature's integrity at 80–100 to get the best possible corpse drops.",
+  mark_first_wing_membrane: "Obtain a Wing Membrane drop. Win with integrity 60+ and the wing torn.",
+  mark_first_crystallised_wax: "Obtain Crystallised Wax by using Tease Out Crystal mid-battle.",
+  mark_full_corpse:         "Win a battle with the creature's integrity at 80 or above to get the peak corpse drops.",
 };
 
 const BLOT_MARK_ORDER: BlotMarkId[] = [
@@ -83,7 +85,7 @@ const BLOT_MARK_ORDER: BlotMarkId[] = [
   "mark_first_craft","mark_craft_all_tools","mark_craft_equipment",
   "mark_first_recover","mark_low_satiety_survive","mark_eat_on_site",
   "mark_first_encounter","mark_first_hunt","mark_first_win","mark_use_combo",
-  "mark_novelty_2","mark_novelty_4","mark_drill_resonance","mark_high_integrity_win","mark_avoid_moth",
+  "mark_novelty_tier1","mark_novelty_tier2","mark_novelty_tier3","mark_poison_kill","mark_high_integrity_win","mark_avoid_moth",
   "mark_first_wing_membrane","mark_first_crystallised_wax","mark_full_corpse",
 ];
 
@@ -203,12 +205,13 @@ function computeRevealedMarks(ms: BlotMarkState, player: PlayerState): Set<BlotM
   if (e.mark_first_hunt) revealed.add("mark_first_win");
   if (e.mark_first_win) {
     revealed.add("mark_use_combo");
-    revealed.add("mark_novelty_2");
+    revealed.add("mark_novelty_tier1");
     revealed.add("mark_high_integrity_win");
   }
-  if (e.mark_novelty_2) revealed.add("mark_novelty_4");
-  if (e.mark_use_combo) revealed.add("mark_drill_resonance");
-  if (e.mark_drill_resonance) revealed.add("mark_first_crystallised_wax");
+  if (e.mark_novelty_tier1) revealed.add("mark_novelty_tier2");
+  if (e.mark_novelty_tier2) revealed.add("mark_novelty_tier3");
+  if (e.mark_use_combo) revealed.add("mark_poison_kill");
+  if (e.mark_poison_kill) revealed.add("mark_first_crystallised_wax");
   // Loot
   if (e.mark_first_win) revealed.add("mark_first_wing_membrane");
   if (e.mark_first_win) revealed.add("mark_full_corpse");
@@ -224,7 +227,7 @@ function computeEarnedMarks(ms: BlotMarkState, player: PlayerState, context: {
   justRecovered?: boolean;
   justEncountered?: boolean;
   justHunted?: boolean;
-  justWon?: { integrity: number; movesUsed: import("./types").MoveId[]; combos: number; uniqueMoves: number };
+  justWon?: { integrity: number; movesUsed: import("./types").MoveId[]; uniqueMoves: number; noveltyTier: number; flags: import("./types").BattleFlag[] };
   justAvoided?: boolean;
   justAte?: { onSite: boolean };
   justDropped?: { ids: string[] };
@@ -286,12 +289,17 @@ function computeEarnedMarks(ms: BlotMarkState, player: PlayerState, context: {
   }
 
   if (context.justWon) {
-    const { integrity, movesUsed, combos, uniqueMoves } = context.justWon;
+    const { integrity, movesUsed, uniqueMoves, noveltyTier, flags } = context.justWon;
+    const hasCombo = movesUsed.some(m => {
+      const mv = MOVES[m]; return mv?.tools && mv.tools.length === 2;
+    });
+    const poisonKill = movesUsed.includes("poison_strike") || movesUsed.includes("poison_drill");
     tryEarn("mark_first_win", true);
-    tryEarn("mark_use_combo", combos > 0);
-    tryEarn("mark_novelty_2", uniqueMoves >= 2);
-    tryEarn("mark_novelty_4", uniqueMoves >= 4 || combos > 0);
-    tryEarn("mark_drill_resonance", movesUsed.includes("drill_resonance"));
+    tryEarn("mark_use_combo", hasCombo);
+    tryEarn("mark_novelty_tier1", uniqueMoves >= 4);
+    tryEarn("mark_novelty_tier2", uniqueMoves >= 6);
+    tryEarn("mark_novelty_tier3", uniqueMoves >= 7);
+    tryEarn("mark_poison_kill", poisonKill);
     tryEarn("mark_high_integrity_win", integrity >= 80);
     tryEarn("mark_full_corpse", integrity >= 80);
   }
@@ -425,14 +433,15 @@ function getNudgeText(ms: BlotMarkState, player: PlayerState, atPoi: boolean): s
   if (e.mark_first_hunt && !e.mark_first_win) return "Keep at it — creatures go down if you stay in the fight.";
 
   // Priority 14–20 — combat chain
-  if (e.mark_first_win && !e.mark_use_combo) return "In battle, you can combine two tools into a single combo move.";
-  if (e.mark_first_win && !e.mark_novelty_2) return "In battle, try using different moves instead of repeating one.";
-  if (e.mark_novelty_2 && !e.mark_novelty_4) return "Push further — use four or more different moves in one battle.";
-  if (e.mark_use_combo && !e.mark_drill_resonance) return "Try the Drill Resonance combo: open the thorax first, then use Twig + Drill.";
-  if (e.mark_drill_resonance && !e.mark_first_crystallised_wax) return "Drill Resonance can drop Crystallised Wax. Aim for a clean hit.";
-  if (e.mark_first_win && !e.mark_high_integrity_win) return "Try winning a battle without smashing — keep the creature's integrity high.";
+  if (e.mark_first_win && !e.mark_use_combo) return "In battle, you can combine two tools into a single combo move — try Squeeze Glands or Tease Out Crystal.";
+  if (e.mark_first_win && !e.mark_novelty_tier1) return "In battle, try using different moves instead of repeating one — 4 unique moves unlocks a stamina bonus.";
+  if (e.mark_novelty_tier1 && !e.mark_novelty_tier2) return "Push further — 6 different moves in one battle for a bigger stamina recovery.";
+  if (e.mark_novelty_tier2 && !e.mark_novelty_tier3) return "7 distinct moves is the highest tier. You'll need to plan ahead.";
+  if (e.mark_use_combo && !e.mark_poison_kill) return "Try squeezing the glands, coating a weapon, then striking with poison.";
+  if (e.mark_poison_kill && !e.mark_first_crystallised_wax) return "Tease Out Crystal drops Crystallised Wax. Open the thorax first.";
+  if (e.mark_first_win && !e.mark_high_integrity_win) return "Try winning a battle without heavy damage moves — keep the creature's integrity high.";
   if (e.mark_first_win && !e.mark_full_corpse) return "A clean win with high integrity gives the best corpse drops.";
-  if (e.mark_first_win && !e.mark_first_wing_membrane) return "Wing Membranes drop from moths at high integrity. Use precise moves.";
+  if (e.mark_first_win && !e.mark_first_wing_membrane) return "Wing Membranes drop from moths at high integrity with the wing torn.";
 
   // Priority 21 — long haul
   if (!e.mark_visit_all_poi && ms.poisVisited.size >= 3) return "You've found most location types. Keep exploring to find the rest.";
@@ -1705,24 +1714,27 @@ export default function App() {
   }
 
   // ── Combat ────────────────────────────────────────────────────────────────
+  const [battleFoodContaminated, setBattleFoodContaminated] = useState(false);
+
   function enterBattle(creatureId: CreatureId) {
     const state = startBattle(creatureId);
     setBattleState(state);
     setBattleResult(null);
     setBattleLog([]);
+    setBattleFoodContaminated(false);
     setScreen("BATTLE");
   }
 
   function doMove(moveId: import("./types").MoveId) {
     if (!battleState) return;
+
+    // ── Flee ──
     if (moveId === "flee") {
-      const fleeCost = MOVES["flee"].effect.staminaCost;
-      const stateWithFleeCost = { ...battleState, staminaCostAccrued: battleState.staminaCostAccrued + fleeCost };
-      const { updatedPlayer } = resolveBattle(stateWithFleeCost, "fled", player);
+      const stateWithFlee = { ...battleState, staminaCostAccrued: battleState.staminaCostAccrued + MOVES["flee"].effect.staminaCost };
+      const { updatedPlayer } = resolveBattle(stateWithFlee, "fled", false, battleFoodContaminated, player);
       setPlayer(updatedPlayer);
       setBattleState(null);
       if (returnScreen === "SUMMARY_JOURNEY" && journeyResult) {
-        // Fled: moth is still there — clear mothEncountered so Arrive is available, no defeated line
         setJourneyResult({ ...journeyResult, mothEncountered: false, mothDefeated: false });
         setReturnScreen("HUB");
         setScreen("SUMMARY_JOURNEY");
@@ -1732,40 +1744,53 @@ export default function App() {
       }
       return;
     }
-    const { nextState, log } = executeMove(battleState, moveId, player);
+
+    const { nextState, log, foodContaminated } = executeMove(battleState, moveId, player);
     setBattleLog(log);
+
+    const newFoodContaminated = battleFoodContaminated || foodContaminated;
+    if (foodContaminated) setBattleFoodContaminated(true);
+
+    // ── Check secretion ──
+    const secretion = checkSecretion(nextState);
+    if (secretion.fires) {
+      // Moth flees via secretion
+      const finalState = { ...nextState };
+      const { result, updatedPlayer } = resolveBattle(finalState, "fled", true, newFoodContaminated, player);
+      setPlayer(updatedPlayer);
+      setBattleState(null);
+      setBattleResult(result);
+      setScreen("SUMMARY_BATTLE");
+      return;
+    }
+
+    // ── Check win ──
     if (nextState.composure <= 0) {
-      const precisionMoves: import("./types").MoveId[] = ["comb_glands", "laced_jab", "drill_resonance", "eat_wax_raw", "eat_soft_tissue"];
-      const precisionCount = nextState.movesUsed.filter(m => precisionMoves.includes(m)).length;
-      const endReason = precisionCount >= 2 ? "disarmed" : "collapsed";
-      const { result, updatedPlayer } = resolveBattle(nextState, endReason, player);
+      // End reason: disarmed if thorax was opened, collapsed otherwise
+      const endReason: import("./types").BattleEndReason =
+        nextState.flags.includes("thorax_open") ? "disarmed" : "collapsed";
+      const { result, updatedPlayer } = resolveBattle(nextState, endReason, false, newFoodContaminated, player);
       setPlayer(updatedPlayer);
       setBattleState(null);
 
-      // Wire blot marks for combat win
+      // Wire blot marks
       const ms = cloneMarkState(markState);
-      const uniqueMoves = new Set(nextState.movesUsed).size;
       const allDropIds = [...result.midBattleDrops, ...result.corpseDrops].map(d => d.id as string);
       let ms2 = triggerMarks(updatedPlayer, ms, {
         justWon: {
           integrity: result.finalIntegrity,
           movesUsed: nextState.movesUsed,
-          combos: nextState.doubleCombosLanded,
-          uniqueMoves,
+          uniqueMoves: result.uniqueMoveCount,
+          noveltyTier: result.noveltyTier,
+          flags: nextState.flags,
         }
       });
       ms2 = triggerMarks(updatedPlayer, ms2, { justDropped: { ids: allDropIds } });
-      // High integrity (80+) full corpse check
-      if (result.finalIntegrity >= 80) {
-        ms2 = triggerMarks(updatedPlayer, ms2, { justWon: { integrity: result.finalIntegrity, movesUsed: nextState.movesUsed, combos: nextState.doubleCombosLanded, uniqueMoves } });
-      }
       setMarkState(ms2);
 
       if (returnScreen === "SUMMARY_JOURNEY" && journeyResult) {
         setJourneyResult({ ...journeyResult, mothEncountered: false, mothDefeated: true });
-        // Show battle summary first; "Back to it" will then return to journey summary
         setBattleResult(result);
-        // returnScreen stays "SUMMARY_JOURNEY" so the Back button knows where to go
         setScreen("SUMMARY_BATTLE");
       } else {
         setBattleResult(result);
@@ -3837,11 +3862,38 @@ export default function App() {
   })();
 
   // ── Battle screen ─────────────────────────────────────────────────────────
+  const [moveCounterExpanded, setMoveCounterExpanded] = useState(false);
+
   const battleScreen = battleState && (() => {
     const creature = CREATURES[battleState.creatureId];
-    const availableMoveIds = getAvailableMoves(battleState, player);
+    const uiMoves = getMovesForUI(battleState, player);
     const composurePct = (battleState.composure / creature.composureMax) * 100;
     const integrityPct = (battleState.integrity / creature.integrityMax) * 100;
+    const grounded = isMothGrounded(battleState.flags);
+    const uniqueCount = battleState.movesUsed.length;
+    const tier = computeNoveltyTier(uniqueCount);
+
+    // Counter colour
+    const counterColor = tier === 3 ? "#69f0ae" : tier === 2 ? "#ffd740" : tier === 1 ? "#ffab40" : "#888";
+    const counterDiamonds = tier === 3 ? "◆◆◆◆" : tier === 2 ? "◆◆◆" : tier === 1 ? "◆◆" : uniqueCount > 0 ? "◆" : "◇";
+
+    // Next tier hint
+    const nextTierHint = tier === 0 ? `Do ${4 - uniqueCount} more for next reward tier`
+      : tier === 1 ? `Do ${6 - uniqueCount} more for next reward tier`
+      : tier === 2 ? "Do 1 more for next reward tier"
+      : null;
+
+    // Flag markers
+    const wingTorn = battleState.flags.includes("wing_torn");
+    const thoraxOpen = battleState.flags.includes("thorax_open");
+
+    // Group moves by group id
+    const movesByGroup = new Map<string, MoveUIState[]>();
+    for (const g of MOVE_GROUPS) movesByGroup.set(g.id, []);
+    for (const m of uiMoves) {
+      const g = MOVES[m.moveId].group;
+      movesByGroup.get(g)?.push(m);
+    }
 
     return (
       <div className="card">
@@ -3851,9 +3903,10 @@ export default function App() {
               <h2 style={{ margin: 0 }}>{creature.name}</h2>
               <div style={{ fontSize: "0.8rem", opacity: 0.5, marginTop: 2 }}>Turn {battleState.turn}</div>
             </div>
-            <div style={{ fontSize: "0.75rem", opacity: 0.4 }}>
-              Moves used: {battleState.movesUsed.length} unique
-              {battleState.doubleCombosLanded > 0 && <span style={{ color: "#ce93d8", marginLeft: 8 }}>✦ {battleState.doubleCombosLanded} combo</span>}
+            {/* Flag markers */}
+            <div style={{ display: "flex", gap: 6 }}>
+              {wingTorn && <span style={{ fontSize: "0.7rem", padding: "3px 8px", background: "#180a2a", border: "1px solid #7c4dff", borderRadius: 20, color: "#b39ddb" }}>wing torn</span>}
+              {thoraxOpen && <span style={{ fontSize: "0.7rem", padding: "3px 8px", background: "#2a0808", border: "1px solid #c62828", borderRadius: 20, color: "#ef9a9a" }}>thorax open</span>}
             </div>
           </div>
         </FadeIn>
@@ -3878,26 +3931,20 @@ export default function App() {
           </div>
         </FadeIn>
 
-        {/* Situation hint */}
+        {/* Flavour text */}
         <FadeIn delay={120}>
           <div style={{ background: "#0e0e0e", border: "1px solid #2a2a2a", borderRadius: 10, padding: "12px 16px", marginBottom: 16 }}>
-            <div style={{ fontSize: "0.68rem", opacity: 0.4, letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: 6 }}>Situation</div>
-            <div style={{ fontStyle: "italic", opacity: 0.85 }}>{getSituationText(battleState.situation, battleState.turn)}</div>
+            <div style={{ fontStyle: "italic", opacity: 0.85 }}>
+              {getBattleFlavour(battleState.flags, battleState.secretionCounter, battleState.turn)}
+            </div>
+            {/* Secretion counter warning indicator */}
+            {!grounded && battleState.secretionCounter >= 2 && (
+              <div style={{ marginTop: 8, fontSize: "0.72rem", color: "#ff6e40", opacity: 0.9 }}>
+                ⚠ {battleState.secretionCounter === 2 ? "Warning — ground it or harvest wax now." : "It will flee or secrete next move."}
+              </div>
+            )}
           </div>
         </FadeIn>
-
-        {/* Active flags */}
-        {battleState.flags.filter(f => f !== "wax_intact").length > 0 && (
-          <FadeIn delay={150}>
-            <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 14 }}>
-              {battleState.flags.filter(f => f !== "wax_intact").map(f => (
-                <span key={f} style={{ fontSize: "0.7rem", padding: "3px 8px", background: "#1a1020", border: "1px solid #4a2060", borderRadius: 20, color: "#ce93d8", opacity: 0.85 }}>
-                  {f.replace(/_/g, " ")}
-                </span>
-              ))}
-            </div>
-          </FadeIn>
-        )}
 
         {/* Last move log */}
         {battleLog.length > 0 && (
@@ -3908,39 +3955,81 @@ export default function App() {
           </FadeIn>
         )}
 
-        {/* Move buttons */}
+        {/* Unique move counter — clickable, sits right above move groups */}
+        <FadeIn delay={150}>
+          <button
+            onClick={() => setMoveCounterExpanded(e => !e)}
+            style={{ width: "100%", background: "#0e0e0e", border: "1px solid #2a2a2a", borderRadius: 10, padding: "10px 14px", cursor: "pointer", textAlign: "left", marginBottom: 12, color: counterColor }}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <span style={{ fontWeight: 600 }}>{counterDiamonds} {uniqueCount} unique move{uniqueCount !== 1 ? "s" : ""}</span>
+              <span style={{ fontSize: "0.75rem", opacity: 0.5 }}>{moveCounterExpanded ? "▲" : "▼"}</span>
+            </div>
+            {moveCounterExpanded && (
+              <div style={{ marginTop: 10 }}>
+                {battleState.movesUsed.length === 0 ? (
+                  <div style={{ fontSize: "0.78rem", opacity: 0.4 }}>No moves yet.</div>
+                ) : (
+                  <ol style={{ margin: "0 0 0 16px", padding: 0, fontSize: "0.78rem", opacity: 0.75, lineHeight: 1.8 }}>
+                    {battleState.movesUsed.map((m, i) => (
+                      <li key={i}>{MOVES[m].label}</li>
+                    ))}
+                  </ol>
+                )}
+                {nextTierHint ? (
+                  <div style={{ marginTop: 8, fontSize: "0.73rem", fontStyle: "italic", opacity: 0.5 }}>{nextTierHint}</div>
+                ) : (
+                  <div style={{ marginTop: 8, fontSize: "0.73rem", fontStyle: "italic", opacity: 0.7, color: "#69f0ae" }}>Congratulations, you've reached the highest tier.</div>
+                )}
+              </div>
+            )}
+          </button>
+        </FadeIn>
+
+        {/* Move groups */}
         <FadeIn delay={180}>
-          <div style={{ fontSize: "0.68rem", opacity: 0.4, letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: 10 }}>Your move</div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            {availableMoveIds.map((moveId) => {
-              const move = MOVES[moveId];
-              const isDouble = move.tools.length === 2;
-              const isFlee = moveId === "flee";
-              const isConsume = moveId === "eat_wax_raw" || moveId === "eat_soft_tissue";
-              const borderColor = isFlee ? "#555" : isDouble ? "#9c27b0" : isConsume ? "#2e7d32" : "#2a2a2a";
-              const bgColor = isFlee ? "#111" : isDouble ? "#1a0a1a" : isConsume ? "#0a1a0a" : "#161616";
-              const textColor = isFlee ? "#888" : isDouble ? "#ce93d8" : isConsume ? "#81c784" : "#eaeaea";
+          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+            {MOVE_GROUPS.map(group => {
+              const groupMoves = movesByGroup.get(group.id) ?? [];
+              if (groupMoves.length === 0) return null;
               return (
-                <button
-                  key={moveId}
-                  onClick={() => doMove(moveId)}
-                  style={{ background: bgColor, border: `1px solid ${borderColor}`, borderRadius: 10, color: textColor, padding: "10px 14px", cursor: "pointer", textAlign: "left", fontSize: "0.9rem" }}
-                >
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                    <span>{move.label}</span>
-                    <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-                      {move.tools.map((t, i) => <ItemIcon key={i} id={t} size={16} />)}
-                      {isDouble && <span style={{ fontSize: "0.65rem", color: "#9c27b0", marginLeft: 2 }}>COMBO</span>}
-                    </div>
+                <div key={group.id}>
+                  <div style={{ fontSize: "0.65rem", opacity: 0.35, letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: 6 }}>{group.label}</div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                    {groupMoves.map(({ moveId, active, greyedReason }) => {
+                      const move = MOVES[moveId];
+                      const isFlee = moveId === "flee";
+                      const isCombo = move.tools && move.tools.length === 2;
+                      const isHarvest = move.effect.satietyRestore !== undefined;
+                      const borderColor = !active ? "#252525" : isFlee ? "#555" : isCombo ? "#9c27b0" : isHarvest ? "#2e7d32" : "#2a2a2a";
+                      const bgColor = !active ? "#0c0c0c" : isFlee ? "#111" : isCombo ? "#1a0a1a" : isHarvest ? "#0a1a0a" : "#161616";
+                      const textColor = !active ? "#444" : isFlee ? "#888" : isCombo ? "#ce93d8" : isHarvest ? "#81c784" : "#eaeaea";
+                      return (
+                        <button
+                          key={moveId}
+                          onClick={() => active ? doMove(moveId) : undefined}
+                          disabled={!active}
+                          style={{ background: bgColor, border: `1px solid ${borderColor}`, borderRadius: 10, color: textColor, padding: "10px 14px", cursor: active ? "pointer" : "default", textAlign: "left", fontSize: "0.9rem", opacity: active ? 1 : 0.6 }}
+                        >
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                            <span>{move.label}</span>
+                            <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                              {move.tools?.map((t, i) => <ItemIcon key={i} id={t} size={16} />)}
+                              {isCombo && active && <span style={{ fontSize: "0.65rem", color: "#9c27b0", marginLeft: 2 }}>COMBO</span>}
+                            </div>
+                          </div>
+                          <div style={{ fontSize: "0.72rem", marginTop: 3, opacity: active ? 0.5 : 0.4 }}>
+                            {!active && greyedReason ? greyedReason :
+                             move.effect.satietyRestore ? `+${move.effect.satietyRestore} satiety` :
+                             move.effect.staminaCost > 0 ? `−${move.effect.staminaCost} stamina` : "no stamina cost"}
+                            {active && move.effect.composureDelta[0] > 0 && ` · −${move.effect.composureDelta[0]}${move.effect.composureDelta[0] !== move.effect.composureDelta[1] ? `–${move.effect.composureDelta[1]}` : ""} composure`}
+                            {active && move.effect.integrityDelta < 0 && ` · ${move.effect.integrityDelta} integrity`}
+                          </div>
+                        </button>
+                      );
+                    })}
                   </div>
-                  <div style={{ fontSize: "0.72rem", opacity: 0.5, marginTop: 3 }}>
-                    {move.effect.staminaRestore ? `+${move.effect.staminaRestore} stamina` :
-                     move.effect.satietyRestore ? `+${move.effect.satietyRestore} satiety` :
-                     move.effect.staminaCost > 0 ? `−${move.effect.staminaCost} stamina` : "no stamina cost"}
-                    {move.effect.composureDelta[0] > 0 && ` · −${move.effect.composureDelta[0]}–${move.effect.composureDelta[1]} composure`}
-                    {move.effect.integrityDelta < 0 && ` · ${move.effect.integrityDelta} integrity`}
-                  </div>
-                </button>
+                </div>
               );
             })}
           </div>
@@ -3971,23 +4060,12 @@ export default function App() {
   // ── Battle summary screen ──────────────────────────────────────────────────
   const battleSummaryScreen = battleResult && (() => {
     const creature = CREATURES[battleResult.creatureId];
-    const noveltyRefundPct = battleResult.doubleCombosLanded > 0 || battleResult.movesUsed.length >= 4 ? 60 : battleResult.movesUsed.length >= 2 ? 30 : 0;
     const endLabels: Record<string, string> = { collapsed: "Collapsed", disarmed: "Disarmed", fled: "You fled" };
-
-    // Novelty flavour — explains the stamina refund in-world
-    const noveltyFlavour =
-      (battleResult.doubleCombosLanded > 0 || battleResult.movesUsed.length >= 4)
-        ? "You surprised yourself out there. The variety, the combos — something clicked. You feel more alive than tired."
-        : battleResult.movesUsed.length >= 2
-        ? "Keeping it interesting helped. You're not as worn out as you might've been."
-        : battleResult.endReason !== "fled"
-        ? "You did what worked and nothing else. Effective. Efficient. Exactly as exhausting as it sounds."
-        : null;
-
-    // Net stamina label — show gain if stamina refund exceeded cost
+    const tier = battleResult.noveltyTier;
+    const noveltyFlavour = NOVELTY_FLAVOUR[tier];
+    const staminaLabel = NOVELTY_STAMINA_LABEL[tier];
     const staminaGain = battleResult.netStaminaCost <= 0;
 
-    // Integrity body description — hints at drop quality and what higher integrity would have given
     const integ = battleResult.finalIntegrity;
     const integrityFlavour =
       battleResult.endReason === "fled"
@@ -3996,11 +4074,18 @@ export default function App() {
         ? "The body is remarkably intact. You were precise. Everything worth taking is still here."
         : integ >= 60
         ? "Mostly intact. A little rough around the edges, but the good parts survived."
-        : integ >= 40
+        : integ >= 23
         ? "It's seen better moments. Some of what you could've taken is gone. More care might have kept it."
-        : integ >= 20
-        ? "Not much left to work with. The body took a beating — whatever was harvestable didn't make it. A gentler approach would have mattered."
-        : "Almost nothing salvageable. What was once harvestable is now just mess. The moth deserved better, and so did you.";
+        : integ >= 11
+        ? "Not much left to work with. The body took a beating."
+        : "Almost nothing salvageable. What was harvestable is now just mess.";
+
+    // Secretion fled text
+    const secretionText = battleResult.secretionFled && !battleResult.flags.includes("wax_harvested")
+      ? "It rose beyond reach and released its wax. You couldn't dodge it."
+      : battleResult.secretionFled
+      ? "It lost patience and fled. No loot, but no penalty — the glands were dry."
+      : null;
 
     return (
       <div className="card">
@@ -4009,36 +4094,41 @@ export default function App() {
             {battleResult.endReason === "fled" ? "You got out." : `${creature.name} — ${endLabels[battleResult.endReason]}`}
           </h2>
           <div style={{ fontSize: "0.8rem", opacity: 0.5 }}>
-            {noveltyRefundPct === 0 && battleResult.endReason !== "fled" && (
-              <>{battleResult.movesUsed.length} unique move{battleResult.movesUsed.length !== 1 ? "s" : ""}
-              {battleResult.doubleCombosLanded > 0 && ` · ${battleResult.doubleCombosLanded} combo${battleResult.doubleCombosLanded > 1 ? "s" : ""} landed`}</>
+            {battleResult.endReason !== "fled" && (
+              <>{battleResult.uniqueMoveCount} unique move{battleResult.uniqueMoveCount !== 1 ? "s" : ""}</>
             )}
           </div>
         </FadeIn>
 
-        {/* Novelty flavour + stamina result */}
-        {noveltyFlavour && (
-          <FadeIn delay={60}>
-            <div style={{
-              background: noveltyRefundPct > 0 ? "#120a1a" : "#0e0e0e",
-              border: `1px solid ${noveltyRefundPct > 0 ? "#4a1e6a" : "#222"}`,
-              borderRadius: 10, padding: "12px 16px", marginTop: 12, marginBottom: 4
-            }}>
-              <div style={{ fontStyle: "italic", fontSize: "0.85rem", color: noveltyRefundPct > 0 ? "#ce93d8" : "#666", marginBottom: noveltyRefundPct > 0 ? 8 : 0 }}>
-                {noveltyFlavour}
-              </div>
-              {noveltyRefundPct > 0 && (
-                <div style={{ fontSize: "0.78rem", color: "#ce93d8", opacity: 0.8, marginTop: 8 }}>
-                  {battleResult.movesUsed.length} unique move{battleResult.movesUsed.length !== 1 ? "s" : ""}
-                  {battleResult.doubleCombosLanded > 0 && ` · ${battleResult.doubleCombosLanded} combo${battleResult.doubleCombosLanded > 1 ? "s" : ""}`}
-                  {" · "}{noveltyRefundPct}% stamina refunded
-                </div>
-              )}
+        {/* Secretion fled message */}
+        {secretionText && (
+          <FadeIn delay={40}>
+            <div style={{ background: "#1f0a0a", border: "1px solid #b71c1c", borderRadius: 10, padding: "10px 14px", marginTop: 12, fontSize: "0.82rem", color: "#ff8a80" }}>
+              {secretionText}
             </div>
           </FadeIn>
         )}
 
-        {/* Final creature state */}
+        {/* Novelty tier result */}
+        {noveltyFlavour && (
+          <FadeIn delay={60}>
+            <div style={{
+              background: tier >= 2 ? "#120a1a" : "#0e0e0e",
+              border: `1px solid ${tier >= 2 ? "#4a1e6a" : "#222"}`,
+              borderRadius: 10, padding: "12px 16px", marginTop: 12, marginBottom: 4
+            }}>
+              <div style={{ fontStyle: "italic", fontSize: "0.85rem", color: tier >= 2 ? "#ce93d8" : "#888", marginBottom: 8 }}>
+                {noveltyFlavour}
+              </div>
+              <div style={{ fontSize: "0.78rem", color: tier >= 2 ? "#ce93d8" : "#aaa", opacity: 0.8 }}>
+                {battleResult.uniqueMoveCount} unique move{battleResult.uniqueMoveCount !== 1 ? "s" : ""}
+                {" · "}+{battleResult.noveltyStaminaRestored} stamina — {staminaLabel}
+              </div>
+            </div>
+          </FadeIn>
+        )}
+
+        {/* Final stamina / satiety */}
         <FadeIn delay={90}>
           <div className="kv" style={{ marginBottom: 4, marginTop: 12 }}>
             <div style={{ opacity: 0.6 }}>Net stamina</div>
@@ -4048,10 +4138,6 @@ export default function App() {
             {battleResult.satietyRestoredMidBattle > 0 && <>
               <div style={{ opacity: 0.6 }}>Satiety mid-battle</div>
               <div style={{ color: "#7ecba1" }}>+{battleResult.satietyRestoredMidBattle}</div>
-            </>}
-            {battleResult.staminaRestoredMidBattle > 0 && <>
-              <div style={{ opacity: 0.6 }}>Stamina mid-battle</div>
-              <div style={{ color: "#7ecba1" }}>+{battleResult.staminaRestoredMidBattle}</div>
             </>}
           </div>
         </FadeIn>

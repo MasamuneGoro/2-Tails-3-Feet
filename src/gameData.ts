@@ -6,6 +6,7 @@ import type {
   FoodId,
   HarvestMethodId,
   ItemId,
+  MoveGroupId,
   MoveId,
   PlayerMove,
   PoiId,
@@ -570,238 +571,347 @@ export const BIOMASS_VALUES: Partial<Record<string, number>> = {
   eq_stompy_shoe:       20,
 };
 
-// ─── Situation hint text ───────────────────────────────────────────────────────
-// Multiple variants per situation — picked based on turn count to avoid repetition
-// Situations where spamming is viable (hovering, thrashing, startled) get more variants
-export const SITUATION_VARIANTS: Record<SituationId, string[]> = {
-  moth_hovering: [
-    "It drifts above you, wax glands glistening. Something drips.",
-    "It circles slowly, wings barely moving. The air smells faintly sweet.",
-    "It hangs there, indifferent. Wax catches the light on its underside.",
-    "Still hovering. Patient. The dripping hasn't stopped.",
-  ],
-  moth_descending: [
-    "It's coming lower. Wings slow. You could reach it.",
-    "Descending now, almost within range. A brief window.",
-    "It drifts down, tilting slightly. Now or not at all.",
-  ],
-  moth_startled: [
-    "It lurches sideways — erratic, exposed, unpredictable.",
-    "Startled, it jerks back. For a moment it's wide open.",
-    "A sharp flinch. It scrambles to reorient. You have a second.",
-    "It staggers mid-air. Not flying properly. Make something of it.",
-  ],
-  moth_wax_pooling: [
-    "Wax is collecting on the ground beneath it. Don't let it build up.",
-    "A puddle of wax is forming below. It won't last.",
-    "The wax is pooling fast. Could be useful. Could be a problem.",
-  ],
-  moth_depleted: [
-    "Its glands are dry. It seems lighter. Less threatening.",
-    "Nothing left to secrete. It drifts differently now — unguarded.",
-    "Drained. The menace is mostly gone. Something else remains.",
-  ],
-  moth_thrashing: [
-    "It knows it's losing. Wings beat hard. Stay back or get close fast.",
-    "Erratic now, desperate. Hard to predict. Harder to ignore.",
-    "Thrashing. It's not going quietly. Be deliberate.",
-    "Still fighting. Composure nearly gone. One more good move.",
-  ],
-};
+// ─── Flavour text — flag-driven ────────────────────────────────────────────────
+// Returns situation text based on current battle flags and secretion counter.
+// Priority: grounded > counter-2 warning > normal airborne
 
-// Pick variant based on turn to cycle through without repeating immediately
-export function getSituationText(situation: SituationId, turn: number): string {
-  const variants = SITUATION_VARIANTS[situation];
+function pickVariant(variants: string[], turn: number): string {
   return variants[turn % variants.length];
 }
 
-// Keep single-text export for backward compat
-export const SITUATION_TEXT: Record<SituationId, string> = Object.fromEntries(
-  Object.entries(SITUATION_VARIANTS).map(([k, v]) => [k, v[0]])
-) as Record<SituationId, string>;
+export function getBattleFlavour(flags: BattleFlag[], secretionCounter: number, turn: number): string {
+  const wingTorn    = flags.includes("wing_torn");
+  const thoraxOpen  = flags.includes("thorax_open");
+  const stomped     = flags.includes("stomped");
+  const waxHarvested = flags.includes("wax_harvested");
+  const waxLaced    = flags.includes("wax_laced");
+  const drillLaced  = flags.includes("drill_laced");
 
-// Situation transitions — what the creature does each turn independent of player
-// Maps current situation → next situation
-export const SITUATION_TRANSITIONS: Record<SituationId, SituationId> = {
-  moth_hovering:    "moth_descending",
-  moth_descending:  "moth_wax_pooling",
-  moth_wax_pooling: "moth_startled",
-  moth_startled:    "moth_hovering",
-  moth_depleted:    "moth_thrashing",
-  moth_thrashing:   "moth_thrashing",
+  const grounded = wingTorn || thoraxOpen || stomped;
+
+  // ── Grounded flavour (priority) ──
+  if (grounded) {
+    if (wingTorn && thoraxOpen) {
+      return pickVariant([
+        "Torn wing, open thorax. It's barely moving. Everything valuable is within reach.",
+        "Both wings and body compromised. It's not going anywhere.",
+      ], turn);
+    }
+    if (thoraxOpen) {
+      return pickVariant([
+        "The thorax wound is keeping it low. It lists and wobbles, barely off the ground.",
+        "It can't take off. The open cavity throws everything off balance.",
+        "The cavity is exposed. It's struggling to stay upright.",
+      ], turn);
+    }
+    if (wingTorn) {
+      return pickVariant([
+        "One wing hangs wrong. It scrapes along close to the ground.",
+        "It can't take off. The torn wing keeps dragging it down.",
+        "Grounded by the wing damage. It's trying to compensate.",
+      ], turn);
+    }
+    // stomped only
+    if (waxHarvested) {
+      return "Pinned and dry. It struggles against the ground.";
+    }
+    return "Flat against the ground, legs scrabbling. It can't get up yet.";
+  }
+
+  // ── Counter-2 warnings (airborne) ──
+  if (secretionCounter >= 2) {
+    if (!waxHarvested) {
+      return pickVariant([
+        "It's been watching. Something is building in those glands.",
+        "Its abdomen is pulsing. Something is about to give.",
+        "The wax on its underside looks pressurised. It won't stay patient much longer.",
+        "It's shifting position. Rising slightly. You don't like what that means.",
+      ], turn);
+    } else {
+      return pickVariant([
+        "It's shifting. Agitated. Something else is coming.",
+        "The glands are empty but it's losing patience. It's going to run.",
+        "It's rising slightly. Not to secrete — it just wants out.",
+      ], turn);
+    }
+  }
+
+  // ── Normal airborne ──
+  if (drillLaced) return "The drill is slicked with venom. A single attack will be deadly.";
+  if (waxLaced)   return "Your twig is coated. One good hit and it's over.";
+  if (waxHarvested) {
+    return pickVariant([
+      "The glands are dry. It moves differently — lighter, more erratic.",
+      "Whatever was in those glands is gone. It seems to know.",
+    ], turn);
+  }
+  return pickVariant([
+    "It hovers at the edge of reach. The glands on its underside glisten. Something drips.",
+    "Still. Patient. The wax catches what little light there is.",
+    "It hasn't moved toward you yet. The glands look full.",
+  ], turn);
+}
+
+// Kept for backward compat — not used by new UI
+export function getSituationText(_situation: SituationId, turn: number): string {
+  return getBattleFlavour([], 0, turn);
+}
+export const SITUATION_TEXT: Record<SituationId, string> = {
+  moth_airborne: "It hovers at the edge of reach.",
+  moth_grounded: "It's on the ground.",
 };
+export const SITUATION_TRANSITIONS: Record<SituationId, SituationId> = {
+  moth_airborne: "moth_airborne",
+  moth_grounded: "moth_grounded",
+};
+
+// ─── Move group definitions ──────────────────────────────────────────────────
+export const MOVE_GROUPS: { id: MoveGroupId; label: string }[] = [
+  { id: "ground_the_moth",     label: "Ground the Moth" },
+  { id: "remove_poisonous_wax", label: "Remove Poisonous Wax" },
+  { id: "apply_poison",         label: "Apply Poison on Weapon" },
+  { id: "deadly_strike",        label: "Deadly Strike" },
+  { id: "annoy_it",             label: "Annoy It" },
+  { id: "brute_force",          label: "Brute Force" },
+  { id: "harvest",              label: "Harvest" },
+  { id: "disengage",            label: "Disengage" },
+];
 
 // ─── Player moves ──────────────────────────────────────────────────────────────
 export const MOVES: Record<MoveId, PlayerMove> = {
+  // ── Ground the Moth ──
   jab_wing: {
     id: "jab_wing",
-    label: "Jab at the wing joint",
+    label: "Jab Wing",
+    group: "ground_the_moth",
     tools: ["eq_pointed_twig"],
     forbiddenFlags: ["wax_laced"],
+    requiresAirborne: false,
     effect: {
       composureDelta: [15, 25],
       integrityDelta: -8,
       staminaCost: 12,
       setsFlags: ["wing_torn"],
-      situationNext: "moth_startled",
-      proficiencyMethod: "poke",
-    },
-  },
-  comb_glands: {
-    id: "comb_glands",
-    label: "Comb the wax glands",
-    tools: ["eq_fiber_comb"],
-    forbiddenFlags: ["wax_laced"],
-    effect: {
-      composureDelta: [5, 5],
-      integrityDelta: 0,
-      staminaCost: 8,
-      setsFlags: ["wax_drained"],
-      clearsFlags: ["wax_intact"],
-      midBattleDrop: { id: "food_gloop_wax", qty: 2 },
-      situationNext: "moth_depleted",
-      proficiencyMethod: "tease",
-    },
-  },
-  scoop_pooled: {
-    id: "scoop_pooled",
-    label: "Scoop the wax off the ground",
-    tools: ["eq_sticky_scoop"],
-    requiredSituation: "moth_wax_pooling",
-    effect: {
-      composureDelta: [0, 0],
-      integrityDelta: 0,
-      staminaCost: 6,
-      midBattleDrop: { id: "food_gloop_wax", qty: 3 },
-      situationNext: "moth_hovering",
-      proficiencyMethod: "scoop",
-    },
-  },
-  smash_body: {
-    id: "smash_body",
-    label: "Bring it down hard",
-    tools: ["eq_crude_hammerhead"],
-    effect: {
-      composureDelta: [35, 45],
-      integrityDelta: -30,
-      staminaCost: 18,
-      counterattack: {
-        triggerFlag: "wax_intact",
-        staminaPenalty: 20,
-        contaminatesFood: true,
-        flavor: "Wax splatters across you and your food stores.",
-      },
-      situationNext: "moth_thrashing",
-      proficiencyMethod: "smash",
+      proficiencyGrants: ["poke"],
     },
   },
   drill_thorax: {
     id: "drill_thorax",
-    label: "Find the hollow and bore in",
+    label: "Drill Thorax",
+    group: "ground_the_moth",
     tools: ["eq_hand_drill"],
-    forbiddenFlags: ["thorax_open"],
+    forbiddenFlags: ["thorax_open", "drill_laced"],
     effect: {
       composureDelta: [25, 35],
       integrityDelta: -20,
       staminaCost: 15,
       setsFlags: ["thorax_open"],
-      situationNext: "moth_startled",
-      proficiencyMethod: "drill",
+      proficiencyGrants: ["drill"],
     },
   },
-  lace_twig: {
-    id: "lace_twig",
-    label: "Coat your twig in the wax",
-    tools: ["eq_sticky_scoop", "eq_pointed_twig"],
-    requiredFlags: ["wax_drained"],
-    forbiddenFlags: ["wax_laced"],
+  stomp_it_down: {
+    id: "stomp_it_down",
+    label: "Stomp It Down",
+    group: "ground_the_moth",
+    shoes: { bouncy: 2, stompy: 1 },
+    requiresAirborne: true,   // hidden if grounded
+    effect: {
+      composureDelta: [15, 25],
+      integrityDelta: -15,
+      staminaCost: 20,
+      setsFlags: ["stomped"],
+      resetsSecretionCounter: true,
+    },
+  },
+
+  // ── Remove Poisonous Wax ──
+  squeeze_glands: {
+    id: "squeeze_glands",
+    label: "Squeeze Glands",
+    group: "remove_poisonous_wax",
+    tools: ["eq_pointed_twig", "eq_fiber_comb"],
+    forbiddenFlags: ["thorax_open", "wax_harvested"],
+    hiddenWhenUnavailable: true,   // hidden once wax_harvested or thorax_open
+    effect: {
+      composureDelta: [5, 10],
+      integrityDelta: -5,
+      staminaCost: 14,
+      setsFlags: ["wax_harvested"],
+      proficiencyGrants: ["poke", "tease"],
+    },
+  },
+
+  // ── Apply Poison on Weapon ──
+  apply_wax_twig: {
+    id: "apply_wax_twig",
+    label: "Apply Wax to Twig",
+    group: "apply_poison",
+    tools: ["eq_pointed_twig"],
+    requiredFlags: ["wax_harvested"],
+    forbiddenFlags: ["wax_laced", "drill_laced"],
+    hiddenWhenUnavailable: true,
     effect: {
       composureDelta: [0, 0],
       integrityDelta: 0,
-      staminaCost: 5,
+      staminaCost: 4,
       setsFlags: ["wax_laced"],
-      situationNext: null,
     },
   },
-  laced_jab: {
-    id: "laced_jab",
-    label: "Strike with the laced twig",
+  apply_wax_drill: {
+    id: "apply_wax_drill",
+    label: "Apply Wax to Drill",
+    group: "apply_poison",
+    tools: ["eq_hand_drill"],
+    requiredFlags: ["wax_harvested"],
+    forbiddenFlags: ["drill_laced", "wax_laced"],
+    hiddenWhenUnavailable: true,
+    effect: {
+      composureDelta: [0, 0],
+      integrityDelta: 0,
+      staminaCost: 4,
+      setsFlags: ["drill_laced"],
+    },
+  },
+
+  // ── Deadly Strike ──
+  poison_strike: {
+    id: "poison_strike",
+    label: "Poison Strike",
+    group: "deadly_strike",
     tools: ["eq_pointed_twig"],
     requiredFlags: ["wax_laced"],
+    hiddenWhenUnavailable: true,
     effect: {
-      composureDelta: [40, 55],
-      integrityDelta: -8,
+      composureDelta: [100, 100],
+      integrityDelta: -15,
       staminaCost: 10,
       clearsFlags: ["wax_laced"],
-      situationNext: "moth_thrashing",
-      proficiencyMethod: "poke",
+      proficiencyGrants: ["poke"],
     },
   },
-  expose_and_strike: {
-    id: "expose_and_strike",
-    label: "Comb wings open, then hit",
-    tools: ["eq_fiber_comb", "eq_crude_hammerhead"],
+  poison_drill: {
+    id: "poison_drill",
+    label: "Poison Drill",
+    group: "deadly_strike",
+    tools: ["eq_hand_drill"],
+    requiredFlags: ["drill_laced"],
+    hiddenWhenUnavailable: true,
+    effect: {
+      composureDelta: [100, 100],
+      integrityDelta: -35,
+      staminaCost: 16,
+      clearsFlags: ["drill_laced"],
+      proficiencyGrants: ["drill"],
+    },
+  },
+
+  // ── Annoy It ──
+  comb_slap: {
+    id: "comb_slap",
+    label: "Comb Slap",
+    group: "annoy_it",
+    tools: ["eq_fiber_comb"],
+    effect: {
+      composureDelta: [3, 8],
+      integrityDelta: -2,  // mid-range of -1 to -3
+      staminaCost: 6,
+      proficiencyGrants: ["tease"],
+    },
+  },
+
+  // ── Brute Force ──
+  smash_body: {
+    id: "smash_body",
+    label: "Smash Body",
+    group: "brute_force",
+    tools: ["eq_crude_hammerhead"],
+    effect: {
+      composureDelta: [100, 100],
+      integrityDelta: -90,
+      staminaCost: 18,
+      foodContaminationIfNotHarvested: true,
+      proficiencyGrants: ["smash"],
+    },
+  },
+  stomp_on_it: {
+    id: "stomp_on_it",
+    label: "Stomp On It",
+    group: "brute_force",
+    shoes: { bouncy: 1, stompy: 2 },
+    effect: {
+      composureDelta: [40, 55],
+      composureDeltaGrounded: [48, 66],
+      integrityDelta: -40,
+      staminaCost: 28,
+    },
+  },
+
+  // ── Harvest ──
+  tease_out_crystal: {
+    id: "tease_out_crystal",
+    label: "Tease Out Crystal",
+    group: "harvest",
+    tools: ["eq_pointed_twig", "eq_fiber_comb"],
+    requiredFlags: ["thorax_open"],
+    effect: {
+      composureDelta: [10, 15],
+      integrityDelta: -10,
+      staminaCost: 12,
+      midBattleDrop: { id: "mat_crystallised_wax", qtyMin: 1, qtyMax: 1 },
+      proficiencyGrants: ["poke", "tease"],
+    },
+  },
+  scoop_out_flesh: {
+    id: "scoop_out_flesh",
+    label: "Scoop Out Flesh",
+    group: "harvest",
+    tools: ["eq_pointed_twig", "eq_sticky_scoop"],
+    requiredFlags: ["thorax_open"],
     effect: {
       composureDelta: [45, 60],
-      integrityDelta: -12,
-      staminaCost: 20,
-      setsFlags: ["wing_torn"],
-      midBattleDrop: { id: "mat_wing_membrane", qty: 1 },
-      situationNext: "moth_thrashing",
-      proficiencyMethod: "smash",
+      integrityDelta: -45,
+      staminaCost: 18,
+      midBattleDrop: { id: "food_moth_flesh", qtyMin: 3, qtyMax: 5 },
+      proficiencyGrants: ["poke", "scoop"],
     },
   },
-  drill_resonance: {
-    id: "drill_resonance",
-    label: "Pierce then drill the cavity",
-    tools: ["eq_pointed_twig", "eq_hand_drill"],
+  chomp_it: {
+    id: "chomp_it",
+    label: "Chomp It!",
+    group: "harvest",
+    tools: ["eq_chomper"],
     requiredFlags: ["thorax_open"],
     effect: {
-      composureDelta: [50, 70],
+      composureDelta: [20, 20],
       integrityDelta: -25,
-      staminaCost: 22,
-      midBattleDrop: { id: "mat_crystallised_wax", qty: 1 },
-      situationNext: "moth_thrashing",
-      proficiencyMethod: "drill",
-    },
-  },
-  eat_wax_raw: {
-    id: "eat_wax_raw",
-    label: "Lick the raw wax off your tool",
-    tools: [],
-    requiredFlags: ["wax_drained"],
-    forbiddenFlags: ["wax_consumed"],
-    effect: {
-      composureDelta: [0, 0],
-      integrityDelta: 0,
-      staminaCost: 0,
-      staminaRestore: 25,
-      setsFlags: ["wax_consumed"],
-      situationNext: null,
-    },
-  },
-  eat_soft_tissue: {
-    id: "eat_soft_tissue",
-    label: "Tear into the exposed abdomen",
-    tools: [],
-    requiredFlags: ["thorax_open"],
-    effect: {
-      composureDelta: [10, 10],
-      integrityDelta: -20,
-      staminaCost: 0,
+      staminaCost: 10,
       satietyRestore: 40,
-      situationNext: "moth_startled",
     },
   },
+  double_chomp: {
+    id: "double_chomp",
+    label: "Double Chomp",
+    group: "harvest",
+    tools: ["eq_chomper", "eq_chomper"],
+    requiredFlags: ["thorax_open"],
+    hiddenWhenUnavailable: true,
+    effect: {
+      composureDelta: [40, 40],
+      integrityDelta: -50,
+      staminaCost: 20,
+      satietyRestore: 80,
+    },
+  },
+
+  // ── Disengage ──
   flee: {
     id: "flee",
-    label: "Back away quickly",
-    tools: [],
+    label: "Flee",
+    group: "disengage",
     effect: {
       composureDelta: [0, 0],
       integrityDelta: 0,
       staminaCost: 15,
-      situationNext: null,
     },
   },
 };
@@ -871,29 +981,33 @@ export const CREATURES: Record<CreatureId, CreatureDef> = {
     flavor: "A large, slow moth that secretes a paralysing wax from its wing-glands. Docile until threatened. The wax smells faintly of something you used to like.",
     composureMax: 100,
     integrityMax: 100,
-    initialSituation: "moth_hovering",
-    initialFlags: ["wax_intact"],
+    initialSituation: "moth_airborne",
+    initialFlags: [],
     availableMoves: [
-      "jab_wing", "comb_glands", "scoop_pooled", "smash_body",
-      "drill_thorax", "lace_twig", "laced_jab", "expose_and_strike",
-      "drill_resonance", "eat_wax_raw", "eat_soft_tissue", "flee",
+      "jab_wing", "drill_thorax", "stomp_it_down",
+      "squeeze_glands",
+      "apply_wax_twig", "apply_wax_drill",
+      "poison_strike", "poison_drill",
+      "comb_slap",
+      "smash_body", "stomp_on_it",
+      "tease_out_crystal", "scoop_out_flesh", "chomp_it", "double_chomp",
+      "flee",
     ],
     dropTable: [
-      // Gloop Wax — requires wax_drained, scales with integrity
-      { id: "food_gloop_wax", qtyRange: [4, 5], integrityMin: 80, requiredFlags: ["wax_drained"], freshnessRange: [80, 140] },
-      { id: "food_gloop_wax", qtyRange: [3, 4], integrityMin: 60, integrityMax: 79, requiredFlags: ["wax_drained"], freshnessRange: [80, 140] },
-      { id: "food_gloop_wax", qtyRange: [1, 2], integrityMin: 40, integrityMax: 59, requiredFlags: ["wax_drained"], freshnessRange: [80, 140] },
-      // Wing Membrane — requires wing_torn and sufficient integrity
+      // ── Moth Flesh — integrity bands, corpse only ──
+      // Peak (80+): 21–25
+      { id: "food_moth_flesh", qtyRange: [21, 25], integrityMin: 80, endReasons: ["collapsed", "disarmed"], freshnessRange: [40, 70] },
+      // High (60–79): 15–20
+      { id: "food_moth_flesh", qtyRange: [15, 20], integrityMin: 60, integrityMax: 79, endReasons: ["collapsed", "disarmed"], freshnessRange: [40, 70] },
+      // Mid (23–59): 10–14
+      { id: "food_moth_flesh", qtyRange: [10, 14], integrityMin: 23, integrityMax: 59, endReasons: ["collapsed", "disarmed"], freshnessRange: [40, 70] },
+      // Low (11–22): 4–9
+      { id: "food_moth_flesh", qtyRange: [4, 9], integrityMin: 11, integrityMax: 22, endReasons: ["collapsed", "disarmed"], freshnessRange: [40, 70] },
+      // Destroyed (0–10): 2–3
+      { id: "food_moth_flesh", qtyRange: [2, 3], integrityMin: 0, integrityMax: 10, endReasons: ["collapsed", "disarmed"], freshnessRange: [40, 70] },
+      // ── Wing Membrane — wing_torn + integrity 60+ ──
       { id: "mat_wing_membrane", qtyRange: [1, 2], integrityMin: 80, requiredFlags: ["wing_torn"] },
-      { id: "mat_wing_membrane", qtyRange: [1, 1], integrityMin: 50, integrityMax: 79, requiredFlags: ["wing_torn"] },
-      // Moth Flesh — good integrity, corpse present
-      { id: "food_moth_flesh", qtyRange: [3, 4], integrityMin: 80, endReasons: ["collapsed", "disarmed"], freshnessRange: [40, 70] },
-      { id: "food_moth_flesh", qtyRange: [2, 3], integrityMin: 60, integrityMax: 79, endReasons: ["collapsed", "disarmed"], freshnessRange: [40, 70] },
-      { id: "food_moth_flesh", qtyRange: [2, 2], integrityMin: 40, integrityMax: 59, endReasons: ["collapsed", "disarmed"], freshnessRange: [40, 70] },
-      // Moth Paste — degraded body
-      { id: "food_moth_paste", qtyRange: [1, 2], integrityMin: 20, integrityMax: 39, endReasons: ["collapsed", "disarmed"], freshnessRange: [25, 45] },
-      // Crystallised Wax — flag-triggered by drill_resonance move (mid-battle), always drops regardless of integrity
-      // (handled as mid-battle drop directly in the move, not in drop table)
+      { id: "mat_wing_membrane", qtyRange: [1, 1], integrityMin: 60, integrityMax: 79, requiredFlags: ["wing_torn"] },
     ],
   },
 };

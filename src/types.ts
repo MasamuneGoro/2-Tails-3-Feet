@@ -53,68 +53,84 @@ export type FoodId = "food_soft_sap" | "food_resin_chew" | "food_dense_ration" |
 
 export type CreatureId = "creature_gloop_moth";
 
-export type SituationId =
-  | "moth_hovering"
-  | "moth_descending"
-  | "moth_startled"
-  | "moth_wax_pooling"
-  | "moth_depleted"
-  | "moth_thrashing";
+// SituationId kept minimal — new system uses flags for grounding, not situations
+export type SituationId = "moth_airborne" | "moth_grounded";
 
 export type MoveId =
   | "jab_wing"
-  | "comb_glands"
-  | "scoop_pooled"
-  | "smash_body"
   | "drill_thorax"
-  | "lace_twig"
-  | "laced_jab"
-  | "expose_and_strike"
-  | "drill_resonance"
-  | "eat_wax_raw"
-  | "eat_soft_tissue"
+  | "stomp_it_down"
+  | "squeeze_glands"
+  | "apply_wax_twig"
+  | "apply_wax_drill"
+  | "poison_strike"
+  | "poison_drill"
+  | "comb_slap"
+  | "smash_body"
+  | "stomp_on_it"
+  | "tease_out_crystal"
+  | "scoop_out_flesh"
+  | "chomp_it"
+  | "double_chomp"
   | "flee";
 
 export type BattleFlag =
-  | "wax_intact"     // wax has NOT been drained — default at battle start
-  | "wax_drained"    // comb_glands used
-  | "wax_laced"      // twig coated, ready for laced_jab
-  | "wax_consumed"   // raw wax eaten mid-battle
-  | "wing_torn"      // jab_wing or expose_and_strike used
-  | "thorax_open";   // drill_thorax used
+  | "wing_torn"       // Jab Wing used — permanent ground
+  | "thorax_open"     // Drill Thorax used — permanent ground, gates Harvest
+  | "wax_harvested"   // Squeeze Glands used — gates Apply Poison group
+  | "wax_laced"       // Apply Wax to Twig — gates Poison Strike
+  | "drill_laced"     // Apply Wax to Drill — gates Poison Drill
+  | "stomped";        // Stomp It Down — temporary ground, clears after 1 turn
 
 export type BattleEndReason = "collapsed" | "disarmed" | "fled";
 
-export interface CounterattackDef {
-  triggerFlag: BattleFlag;   // counterattack fires if this flag is set when move resolves
-  staminaPenalty: number;
-  contaminatesFood: boolean;
-  flavor: string;
+// Shoe requirement for shoe-based moves
+export interface ShoeRequirement {
+  bouncy: number;   // number of Bouncy Shoes required
+  stompy: number;   // number of Stompy Shoes required
 }
 
 export interface MoveEffect {
-  composureDelta: [number, number];    // [min, max] — scaled by proficiency
-  integrityDelta: number;              // fixed
-  staminaCost: number;                 // positive = costs stamina
-  staminaRestore?: number;             // mid-battle stamina restore
-  satietyRestore?: number;             // mid-battle satiety restore
+  composureDelta: [number, number];       // [min, max] — scaled by proficiency
+  composureDeltaGrounded?: [number, number]; // override when moth is grounded (e.g. Stomp On It ×1.2)
+  integrityDelta: number;                 // fixed
+  staminaCost: number;                    // positive = costs stamina
+  satietyRestore?: number;                // mid-battle satiety restore
   setsFlags?: BattleFlag[];
   clearsFlags?: BattleFlag[];
-  midBattleDrop?: { id: ResourceId | FoodId; qty: number };
-  counterattack?: CounterattackDef;
-  situationNext: SituationId | null;   // null = stays in current situation
-  proficiencyMethod?: HarvestMethodId; // which XP scales composure damage
+  midBattleDrop?: { id: ResourceId | FoodId; qtyMin: number; qtyMax: number };
+  foodContaminationIfNotHarvested?: boolean; // smash_body counterattack
+  resetsSecretionCounter?: boolean;       // stomp_it_down resets to 0
+  proficiencyGrants?: HarvestMethodId[]; // XP methods to award
 }
 
 export interface PlayerMove {
   id: MoveId;
-  label: string;                          // flavourful button text
-  tools: [] | [ItemId] | [ItemId, ItemId];// empty = no tool needed
+  label: string;
+  group: MoveGroupId;
+  // Tool requirements (tail slots)
+  tools?: ItemId[];                       // all must be equipped (allows duplicates)
+  // Shoe requirements
+  shoes?: ShoeRequirement;
+  // Flag gates
   requiredFlags?: BattleFlag[];
   forbiddenFlags?: BattleFlag[];
-  requiredSituation?: SituationId;        // if set, only available in this situation
+  // Availability: if true, hidden (not greyed) when conditions not met
+  hiddenWhenUnavailable?: boolean;
+  // For moves only available airborne or grounded
+  requiresAirborne?: boolean;             // hidden if moth grounded
   effect: MoveEffect;
 }
+
+export type MoveGroupId =
+  | "ground_the_moth"
+  | "remove_poisonous_wax"
+  | "apply_poison"
+  | "deadly_strike"
+  | "annoy_it"
+  | "brute_force"
+  | "harvest"
+  | "disengage";
 
 export interface BattleState {
   creatureId: CreatureId;
@@ -122,13 +138,14 @@ export interface BattleState {
   integrity: number;
   flags: BattleFlag[];
   situation: SituationId;
+  secretionCounter: number;               // increments per player move (except flee/stomp_it_down)
+  stompedClearsNextTurn: boolean;         // when true, stomped flag clears at start of next turn resolution
   turn: number;
-  movesUsed: MoveId[];                    // for novelty tracking
-  doubleCombosLanded: number;
+  movesUsed: MoveId[];                    // unique moves for novelty (flee excluded)
   staminaCostAccrued: number;
   midBattleDrops: { id: ResourceId | FoodId; qty: number }[];
   midBattleSatietyRestored: number;
-  midBattleStaminaRestored: number;
+  scoopedFleshQty: number;               // tracks how much flesh was scooped mid-battle
 }
 
 export interface BattleResult {
@@ -138,13 +155,15 @@ export interface BattleResult {
   finalIntegrity: number;
   flags: BattleFlag[];
   movesUsed: MoveId[];
-  doubleCombosLanded: number;
-  netStaminaCost: number;                 // after novelty refund
+  uniqueMoveCount: number;
+  noveltyTier: 0 | 1 | 2 | 3;
+  noveltyStaminaRestored: number;
+  netStaminaCost: number;
   satietyRestoredMidBattle: number;
-  staminaRestoredMidBattle: number;
   midBattleDrops: { id: ResourceId | FoodId; qty: number }[];
   corpseDrops: { id: ResourceId | FoodId; qty: number; freshness?: number[] }[];
   foodContaminated: boolean;
+  secretionFled: boolean;
 }
 export type HarvestMethodId = "poke" | "smash" | "tease" | "drill" | "scoop";
 
@@ -248,9 +267,12 @@ export type BlotMarkId =
   | "mark_first_hunt"
   | "mark_first_win"
   | "mark_use_combo"
-  | "mark_novelty_2"
-  | "mark_novelty_4"
-  | "mark_drill_resonance"
+  | "mark_novelty_tier1"
+  | "mark_novelty_tier2"
+  | "mark_novelty_tier3"
+  | "mark_poison_kill"
+  | "mark_high_integrity_win"
+  | "mark_avoid_moth"
   | "mark_high_integrity_win"
   | "mark_avoid_moth"
   // Loot

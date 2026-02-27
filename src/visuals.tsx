@@ -1248,7 +1248,7 @@ export function PlayerCharacterEquipment({ tailSlots, footSlots, onTailClick, on
         <ellipse cx="19" cy="27" rx="7" ry="5" fill="#7a5020" stroke="#1e1800" strokeWidth="2" transform="rotate(-40 19 27)" />
         <ellipse cx="19" cy="27" rx="5" ry="3.5" fill="#a06830" transform="rotate(-40 19 27)" />
         {/* Slot ring + icon at tip area */}
-        <SlotRing cx="19" cy="27" r="10" filled={!!tailSlots[0]} slotKey="tail0" />
+        <SlotRing cx={19} cy={27} r={10} filled={!!tailSlots[0]} slotKey="tail0" />
         <SlotIcon itemId={tailSlots[0]} cx={19} cy={27} />
       </g>
 
@@ -1270,7 +1270,7 @@ export function PlayerCharacterEquipment({ tailSlots, footSlots, onTailClick, on
         <ellipse cx="161" cy="27" rx="7" ry="5" fill="#7a5020" stroke="#1e1800" strokeWidth="2" transform="rotate(40 161 27)" />
         <ellipse cx="161" cy="27" rx="5" ry="3.5" fill="#a06830" transform="rotate(40 161 27)" />
         {/* Slot ring + icon */}
-        <SlotRing cx="161" cy="27" r="10" filled={!!tailSlots[1]} slotKey="tail1" />
+        <SlotRing cx={161} cy={27} r={10} filled={!!tailSlots[1]} slotKey="tail1" />
         <SlotIcon itemId={tailSlots[1]} cx={161} cy={27} />
       </g>
 
@@ -1290,7 +1290,7 @@ export function PlayerCharacterEquipment({ tailSlots, footSlots, onTailClick, on
         <ellipse cx="47" cy="138" rx="3" ry="2" fill="#9a7838" opacity="0.5" />
         <ellipse cx="55" cy="141" rx="3" ry="2" fill="#9a7838" opacity="0.5" />
         <ellipse cx="63" cy="141" rx="3" ry="2" fill="#9a7838" opacity="0.5" />
-        <SlotRing cx="55" cy="136" r="12" filled={!!footSlots[0]} slotKey="foot0" />
+        <SlotRing cx={55} cy={136} r={12} filled={!!footSlots[0]} slotKey="foot0" />
         <SlotIcon itemId={footSlots[0]} cx={55} cy={133} />
       </g>
 
@@ -1309,7 +1309,7 @@ export function PlayerCharacterEquipment({ tailSlots, footSlots, onTailClick, on
         <ellipse cx="80" cy="144" rx="3" ry="2" fill="#9a7838" opacity="0.5" />
         <ellipse cx="90" cy="146" rx="3" ry="2" fill="#9a7838" opacity="0.5" />
         <ellipse cx="100" cy="144" rx="3" ry="2" fill="#9a7838" opacity="0.5" />
-        <SlotRing cx="90" cy="139" r="12" filled={!!footSlots[1]} slotKey="foot1" />
+        <SlotRing cx={90} cy={139} r={12} filled={!!footSlots[1]} slotKey="foot1" />
         <SlotIcon itemId={footSlots[1]} cx={90} cy={137} />
       </g>
 
@@ -1328,7 +1328,7 @@ export function PlayerCharacterEquipment({ tailSlots, footSlots, onTailClick, on
         <ellipse cx="117" cy="141" rx="3" ry="2" fill="#9a7838" opacity="0.5" />
         <ellipse cx="125" cy="141" rx="3" ry="2" fill="#9a7838" opacity="0.5" />
         <ellipse cx="133" cy="138" rx="3" ry="2" fill="#9a7838" opacity="0.5" />
-        <SlotRing cx="125" cy="136" r="12" filled={!!footSlots[2]} slotKey="foot2" />
+        <SlotRing cx={125} cy={136} r={12} filled={!!footSlots[2]} slotKey="foot2" />
         <SlotIcon itemId={footSlots[2]} cx={125} cy={133} />
       </g>
     </svg>

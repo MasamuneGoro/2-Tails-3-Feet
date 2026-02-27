@@ -3886,6 +3886,7 @@ export default function App() {
     // Flag markers
     const wingTorn = battleState.flags.includes("wing_torn");
     const thoraxOpen = battleState.flags.includes("thorax_open");
+    const stomped = battleState.flags.includes("stomped");
 
     // Group moves by group id
     const movesByGroup = new Map<string, MoveUIState[]>();
@@ -3902,11 +3903,6 @@ export default function App() {
             <div>
               <h2 style={{ margin: 0 }}>{creature.name}</h2>
               <div style={{ fontSize: "0.8rem", opacity: 0.5, marginTop: 2 }}>Turn {battleState.turn}</div>
-            </div>
-            {/* Flag markers */}
-            <div style={{ display: "flex", gap: 6 }}>
-              {wingTorn && <span style={{ fontSize: "0.7rem", padding: "3px 8px", background: "#180a2a", border: "1px solid #7c4dff", borderRadius: 20, color: "#b39ddb" }}>wing torn</span>}
-              {thoraxOpen && <span style={{ fontSize: "0.7rem", padding: "3px 8px", background: "#2a0808", border: "1px solid #c62828", borderRadius: 20, color: "#ef9a9a" }}>thorax open</span>}
             </div>
           </div>
         </FadeIn>
@@ -3928,6 +3924,14 @@ export default function App() {
             <div style={{ height: 6, background: "#111", borderRadius: 3, overflow: "hidden" }}>
               <div style={{ height: "100%", width: `${integrityPct}%`, background: integrityPct > 60 ? "#4caf50" : integrityPct > 30 ? "#ff9800" : "#f44336", borderRadius: 3, transition: "width 0.4s ease" }} />
             </div>
+            {/* Flag markers — below integrity bar, left-aligned */}
+            {(wingTorn || thoraxOpen || stomped) && (
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 12 }}>
+                {wingTorn  && <span style={{ fontSize: "0.88rem", fontWeight: 600, padding: "5px 12px", background: "#180a2a", border: "2px solid #7c4dff", borderRadius: 8, color: "#ce93d8" }}>wing torn</span>}
+                {thoraxOpen && <span style={{ fontSize: "0.88rem", fontWeight: 600, padding: "5px 12px", background: "#2a0808", border: "2px solid #c62828", borderRadius: 8, color: "#ef9a9a" }}>thorax open</span>}
+                {stomped   && <span style={{ fontSize: "0.88rem", fontWeight: 600, padding: "5px 12px", background: "#1a1200", border: "2px solid #f9a825", borderRadius: 8, color: "#ffd54f" }}>stomped</span>}
+              </div>
+            )}
           </div>
         </FadeIn>
 
@@ -4001,29 +4005,28 @@ export default function App() {
                       const isFlee = moveId === "flee";
                       const isCombo = move.tools && move.tools.length === 2;
                       const isHarvest = move.effect.satietyRestore !== undefined;
-                      const borderColor = !active ? "#252525" : isFlee ? "#555" : isCombo ? "#9c27b0" : isHarvest ? "#2e7d32" : "#2a2a2a";
-                      const bgColor = !active ? "#0c0c0c" : isFlee ? "#111" : isCombo ? "#1a0a1a" : isHarvest ? "#0a1a0a" : "#161616";
-                      const textColor = !active ? "#444" : isFlee ? "#888" : isCombo ? "#ce93d8" : isHarvest ? "#81c784" : "#eaeaea";
+                      // Active: distinct coloured borders/backgrounds. Greyed: very dark, clearly disabled.
+                      const borderColor = !active ? "#1e1e1e" : isFlee ? "#555" : isCombo ? "#9c27b0" : isHarvest ? "#2e7d32" : "#3a3a3a";
+                      const bgColor    = !active ? "#0a0a0a" : isFlee ? "#111" : isCombo ? "#1a0a1a" : isHarvest ? "#0a1a0a" : "#161616";
+                      const nameColor  = !active ? "#555"   : isFlee ? "#888" : isCombo ? "#ce93d8" : isHarvest ? "#81c784" : "#eaeaea";
                       return (
                         <button
                           key={moveId}
                           onClick={() => active ? doMove(moveId) : undefined}
                           disabled={!active}
-                          style={{ background: bgColor, border: `1px solid ${borderColor}`, borderRadius: 10, color: textColor, padding: "10px 14px", cursor: active ? "pointer" : "default", textAlign: "left", fontSize: "0.9rem", opacity: active ? 1 : 0.6 }}
+                          style={{ background: bgColor, border: `1px solid ${borderColor}`, borderRadius: 10, padding: "10px 14px", cursor: active ? "pointer" : "default", textAlign: "left", fontSize: "0.9rem" }}
                         >
-                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                            <span>{move.label}</span>
-                            <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-                              {move.tools?.map((t, i) => <ItemIcon key={i} id={t} size={16} />)}
-                              {isCombo && active && <span style={{ fontSize: "0.65rem", color: "#9c27b0", marginLeft: 2 }}>COMBO</span>}
-                            </div>
-                          </div>
-                          <div style={{ fontSize: "0.72rem", marginTop: 3, opacity: active ? 0.5 : 0.4 }}>
-                            {!active && greyedReason ? greyedReason :
-                             move.effect.satietyRestore ? `+${move.effect.satietyRestore} satiety` :
-                             move.effect.staminaCost > 0 ? `−${move.effect.staminaCost} stamina` : "no stamina cost"}
-                            {active && move.effect.composureDelta[0] > 0 && ` · −${move.effect.composureDelta[0]}${move.effect.composureDelta[0] !== move.effect.composureDelta[1] ? `–${move.effect.composureDelta[1]}` : ""} composure`}
-                            {active && move.effect.integrityDelta < 0 && ` · ${move.effect.integrityDelta} integrity`}
+                          <div style={{ color: nameColor, fontWeight: active ? 400 : 400 }}>{move.label}</div>
+                          <div style={{ fontSize: "0.82rem", marginTop: 3 }}>
+                            {!active && greyedReason
+                              ? <span style={{ color: "#888", opacity: 1 }}>{greyedReason}</span>
+                              : <span style={{ color: nameColor, opacity: 0.5 }}>
+                                  {move.effect.satietyRestore ? `+${move.effect.satietyRestore} satiety` :
+                                   move.effect.staminaCost > 0 ? `−${move.effect.staminaCost} stamina` : "no stamina cost"}
+                                  {move.effect.composureDelta[0] > 0 && ` · −${move.effect.composureDelta[0]}${move.effect.composureDelta[0] !== move.effect.composureDelta[1] ? `–${move.effect.composureDelta[1]}` : ""} composure`}
+                                  {move.effect.integrityDelta < 0 && ` · ${move.effect.integrityDelta} integrity`}
+                                </span>
+                            }
                           </div>
                         </button>
                       );

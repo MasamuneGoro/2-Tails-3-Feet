@@ -158,6 +158,8 @@ export type ItemId =
   | "eq_hand_drill"
   | "eq_sticky_scoop"
   | "eq_standard_shoe"
+  | "eq_bouncy_shoe"
+  | "eq_stompy_shoe"
   | MarkerItemId
   | TrophyItemId
   | GemTrophyItemId

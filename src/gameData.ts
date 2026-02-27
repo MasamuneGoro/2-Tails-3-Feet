@@ -260,6 +260,9 @@ export const ITEMS: Record<
       staminaRecoveryPerPeriodWorking?: number;
       staminaRecoveryPerPeriodResting?: number;
       chomper?: { enableImmediateFoodAtPoi: boolean; autoConsumeStorableFoodPerPeriod: boolean; biteSize?: number };
+      // Shoe effects — additive per shoe equipped
+      stepReductionPerShoe?: number;   // flat steps removed from journey total per shoe (additive)
+      stompStoneYieldPerShoe?: number; // brittle_stone gained per stomp action per shoe (additive)
     };
     harvestingMethod?: HarvestMethodId;
     isCraftingTool?: boolean;
@@ -293,6 +296,8 @@ export const ITEMS: Record<
       "rcp_sticky_scoop",
       "rcp_chomper",
       "rcp_tail_curler",
+      "rcp_bouncy_shoe",
+      "rcp_stompy_shoe",
     ],
   },
   eq_pointed_twig: { id: "eq_pointed_twig", name: "Pointed Twig", slot: "tail", flavor: "A stick you sharpened with another stick. Humble origins, honest results.", harvestingMethod: "poke" },
@@ -301,7 +306,23 @@ export const ITEMS: Record<
   eq_hand_drill: { id: "eq_hand_drill", name: "Mini Drill", slot: "tail", flavor: "Tiny, tireless, and takes it personally when the rock doesn't cooperate.", harvestingMethod: "drill" },
   eq_sticky_scoop: { id: "eq_sticky_scoop", name: "Sticky Scoop", slot: "tail", flavor: "A shallow cup that gathers soft things before they escape. Very dedicated.", harvestingMethod: "scoop" },
   eq_standard_shoe: { id: "eq_standard_shoe", name: "Standard Grip Shoe", slot: "shoe", flavor: "Three feet, one shoe each. Nothing fancy — just enough to keep you upright." },
+  eq_bouncy_shoe: {
+    id: "eq_bouncy_shoe",
+    name: "Bouncy Shoe",
+    slot: "shoe",
+    flavor: "Membrane-lined and coiled tight. Each step stores a little spring and gives it back. Three of them and you practically glide.",
+    effects: { stepReductionPerShoe: 10 },
+  },
+  eq_stompy_shoe: {
+    id: "eq_stompy_shoe",
+    name: "Stompy Shoe",
+    slot: "shoe",
+    flavor: "Stone-weighted and resin-bound. Heavy on purpose. Each foot lands like a small argument with the ground.",
+    effects: { stompStoneYieldPerShoe: 1 },
+  },
 };
+
+export type RecipeCraftCategory = "Basic Harvesting" | "Heavy Harvesting" | "Regenerative" | "Shoes";
 
 export const RECIPES: Record<
   string,
@@ -314,6 +335,7 @@ export const RECIPES: Record<
     satietyPerPeriod: number;
     staminaPerPeriod: number;
     requiresTinker: boolean;
+    craftCategory?: RecipeCraftCategory;
   }
 > = {
   rcp_pointed_twig: {
@@ -325,6 +347,7 @@ export const RECIPES: Record<
     satietyPerPeriod: 10,
     staminaPerPeriod: 15,
     requiresTinker: true,
+    craftCategory: "Basic Harvesting",
   },
   rcp_fiber_comb: {
     id: "rcp_fiber_comb",
@@ -335,6 +358,7 @@ export const RECIPES: Record<
     satietyPerPeriod: 10,
     staminaPerPeriod: 20,
     requiresTinker: false,
+    craftCategory: "Basic Harvesting",
   },
   rcp_sticky_scoop: {
     id: "rcp_sticky_scoop",
@@ -345,6 +369,7 @@ export const RECIPES: Record<
     satietyPerPeriod: 10,
     staminaPerPeriod: 20,
     requiresTinker: false,
+    craftCategory: "Basic Harvesting",
   },
   rcp_crude_hammerhead: {
     id: "rcp_crude_hammerhead",
@@ -355,6 +380,7 @@ export const RECIPES: Record<
     satietyPerPeriod: 10,
     staminaPerPeriod: 20,
     requiresTinker: true,
+    craftCategory: "Heavy Harvesting",
   },
   rcp_hand_drill: {
     id: "rcp_hand_drill",
@@ -365,6 +391,7 @@ export const RECIPES: Record<
     satietyPerPeriod: 10,
     staminaPerPeriod: 20,
     requiresTinker: true,
+    craftCategory: "Heavy Harvesting",
   },
   rcp_chomper: {
     id: "rcp_chomper",
@@ -375,6 +402,7 @@ export const RECIPES: Record<
     satietyPerPeriod: 10,
     staminaPerPeriod: 20,
     requiresTinker: true,
+    craftCategory: "Regenerative",
   },
   rcp_tail_curler: {
     id: "rcp_tail_curler",
@@ -385,6 +413,29 @@ export const RECIPES: Record<
     satietyPerPeriod: 10,
     staminaPerPeriod: 20,
     requiresTinker: true,
+    craftCategory: "Regenerative",
+  },
+  rcp_bouncy_shoe: {
+    id: "rcp_bouncy_shoe",
+    name: "Bouncy Shoe",
+    output: { itemId: "eq_bouncy_shoe", qty: 1 },
+    inputs: [{ id: "fiber_clump", qty: 2 }, { id: "resin_glob", qty: 1 }, { id: "mat_wing_membrane", qty: 1 }],
+    craftPeriods: 6,
+    satietyPerPeriod: 10,
+    staminaPerPeriod: 20,
+    requiresTinker: true,
+    craftCategory: "Shoes",
+  },
+  rcp_stompy_shoe: {
+    id: "rcp_stompy_shoe",
+    name: "Stompy Shoe",
+    output: { itemId: "eq_stompy_shoe", qty: 1 },
+    inputs: [{ id: "brittle_stone", qty: 3 }, { id: "resin_glob", qty: 2 }, { id: "fiber_clump", qty: 1 }],
+    craftPeriods: 6,
+    satietyPerPeriod: 10,
+    staminaPerPeriod: 20,
+    requiresTinker: true,
+    craftCategory: "Shoes",
   },
 };
 
@@ -508,13 +559,15 @@ export const BIOMASS_VALUES: Partial<Record<string, number>> = {
   brittle_stone:        4,
   mat_wing_membrane:    10,
   mat_crystallised_wax: 70,
-  // Equipment (craftable only — tinker shaft, shoes, deferred items not listed)
+  // Equipment (craftable only — tinker shaft not listed)
   eq_fiber_comb:        12,
   eq_sticky_scoop:      12,
   eq_crude_hammerhead:  18,
   eq_hand_drill:        18,
   eq_chomper:           28,
   eq_tail_curler:       28,
+  eq_bouncy_shoe:       22,
+  eq_stompy_shoe:       20,
 };
 
 // ─── Situation hint text ───────────────────────────────────────────────────────
@@ -753,7 +806,42 @@ export const MOVES: Record<MoveId, PlayerMove> = {
   },
 };
 
-// ─── Creature definitions ──────────────────────────────────────────────────────
+// ─── Shoe backend helpers ──────────────────────────────────────────────────────
+
+/**
+ * Given an array of equipped shoe ItemIds (up to 3, nulls excluded),
+ * returns total additive step reduction from Bouncy Shoes.
+ * Each eq_bouncy_shoe reduces steps by stepReductionPerShoe (additive).
+ */
+export function calcBouncyStepReduction(equippedShoes: (ItemId | null)[]): number {
+  return equippedShoes.reduce((total, shoeId) => {
+    if (!shoeId) return total;
+    const item = ITEMS[shoeId];
+    return total + (item?.effects?.stepReductionPerShoe ?? 0);
+  }, 0);
+}
+
+/**
+ * Given an array of equipped shoe ItemIds,
+ * returns total brittle_stone yield for one stomp action.
+ * Each eq_stompy_shoe adds stompStoneYieldPerShoe (additive).
+ * Returns 0 if no Stompy Shoes equipped (stomp action unavailable).
+ */
+export function calcStompStoneYield(equippedShoes: (ItemId | null)[]): number {
+  return equippedShoes.reduce((total, shoeId) => {
+    if (!shoeId) return total;
+    const item = ITEMS[shoeId];
+    return total + (item?.effects?.stompStoneYieldPerShoe ?? 0);
+  }, 0);
+}
+
+/**
+ * Returns true if the player has at least one Stompy Shoe equipped,
+ * meaning the Stomp harvest action is available at stone POIs.
+ */
+export function canStomp(equippedShoes: (ItemId | null)[]): boolean {
+  return calcStompStoneYield(equippedShoes) > 0;
+}
 export interface CreatureDef {
   id: CreatureId;
   name: string;

@@ -4,7 +4,7 @@ import { playSfx, unlockAudio, preloadAll, playBgm, stopBgm, setBgmVolume, getBg
 import { startBattle, getAvailableMoves, executeMove, resolveBattle } from "./combat";
 import type { BattleState, BattleResult, CreatureId } from "./types";
 import { CreatureIcon, ItemIcon, PoiImage, PoiIcon, FilamentGateImage, PlayerCharacterEquipment } from "./visuals";
-import { BIOME_LEVEL, CREATURES, EVENTS, FOODS, ITEMS, MOVES, POIS, RECIPES, RESOURCES, SITUATION_TEXT, getSituationText, MARKERS, TROPHIES, GEM_TROPHIES, BIOMASS_ITEM, CATEGORY_MARKER, CATEGORY_TROPHY, TROPHY_TO_GEM, CATEGORY_GATE_MARK, GEM_TROPHY_RECIPES, GATE_REQUIRED_GEM_TROPHIES, BIOMASS_VALUES } from "./gameData";
+import { BIOME_LEVEL, CREATURES, EVENTS, FOODS, ITEMS, MOVES, POIS, RECIPES, RESOURCES, SITUATION_TEXT, getSituationText, MARKERS, TROPHIES, GEM_TROPHIES, BIOMASS_ITEM, CATEGORY_MARKER, CATEGORY_TROPHY, TROPHY_TO_GEM, CATEGORY_GATE_MARK, GEM_TROPHY_RECIPES, GATE_REQUIRED_GEM_TROPHIES, BIOMASS_VALUES, calcStompStoneYield, canStomp } from "./gameData";
 import {
   canCraft, getFoodName, getItemName, getResourceName, listUnlockedRecipes,
   makeCraftPreview, makeHarvestPreview, makeJourneyPreview, methodsAvailableFromEquipment,
@@ -1524,6 +1524,21 @@ export default function App() {
     setHarvestResult(null);
     setScreen("PREVIEW_HARVEST");
   }
+  function doStomp() {
+    if (!activePoi || !activeBlot || activePoi.id !== "poi_stone_node") return;
+    const stompYield = calcStompStoneYield(player.equipment.footSlots);
+    if (stompYield <= 0) return;
+    const staminaCost = stompYield * 25;
+    if (player.stats.stamina < staminaCost) return;
+    playSfx("sfx_harvest_smash");
+    const next = structuredClone(player);
+    next.stats.stamina = clamp(next.stats.stamina - staminaCost, 0, next.stats.maxStamina);
+    invAdd(next.inventory, "brittle_stone", stompYield);
+    setPlayer(next);
+    // Consume a harvest charge
+    if (activeBlot.harvestCharges !== undefined)
+      setActiveBlot({ ...activeBlot, harvestCharges: Math.max(0, activeBlot.harvestCharges - 1) });
+  }
   function proceedHarvest() {
     if (!harvestPreview) return;
     const methodSfx: Record<string, "sfx_harvest_poke"|"sfx_harvest_smash"|"sfx_harvest_tease"|"sfx_harvest_drill"|"sfx_harvest_scoop"> = {
@@ -2404,6 +2419,32 @@ export default function App() {
                               {!hasTools && (
                                 <p className="small" style={{ opacity: 0.45, margin: 0 }}>Equip a harvesting tool in the sidebar</p>
                               )}
+                              {activePoi.id === "poi_stone_node" && canStomp(player.equipment.footSlots) && (() => {
+                                const stompYield = calcStompStoneYield(player.equipment.footSlots);
+                                const staminaCost = stompYield * 25;
+                                const canDoStomp = !dead && !exhausted && player.stats.stamina >= staminaCost && (activeBlot.harvestCharges ?? 0) > 0;
+                                return (
+                                  <button
+                                    onClick={doStomp}
+                                    disabled={!canDoStomp}
+                                    style={{
+                                      padding: "10px 24px",
+                                      fontSize: "0.95rem",
+                                      fontWeight: 700,
+                                      borderRadius: 12,
+                                      cursor: canDoStomp ? "pointer" : "not-allowed",
+                                      border: canDoStomp ? "2px solid #8b7355" : "2px dashed #3a3a3a",
+                                      background: canDoStomp ? "linear-gradient(160deg, #1e1a0a 0%, #100e00 100%)" : "#141414",
+                                      color: canDoStomp ? "#c8a96e" : "#444",
+                                      letterSpacing: "0.04em",
+                                      transition: "all 0.2s",
+                                      opacity: canDoStomp ? 0.9 : 0.4,
+                                    }}
+                                  >
+                                    Stomp ({stompYield} stone · {staminaCost} stamina)
+                                  </button>
+                                );
+                              })()}
                             </div>
                           );
                         })()}
@@ -2709,7 +2750,7 @@ export default function App() {
       </FadeIn>
       <FadeIn delay={180}>
         <div className="kv" style={{ marginBottom: 12 }}>
-          <div>Steps taken</div><div>{journeyResult.steps}</div>
+          <div>Steps taken</div><div>{journeyResult.steps}{journeyResult.stepsReducedByShoes ? <span style={{ fontSize: "0.8rem", color: "#7ecba1", marginLeft: 6, opacity: 0.8 }}>({journeyResult.stepsReducedByShoes} fewer — Bouncy Shoes)</span> : null}</div>
           <div>Satiety cost</div><div><SatietyLine raw={journeyResult.satietyDelta} restored={journeyResult.satietyRestoredByChomper} /></div>
           <div>Stamina cost</div><div><StaminaRecoveryLine raw={journeyResult.staminaDelta} recovery={journeyResult.staminaRecovery} /></div>
         </div>

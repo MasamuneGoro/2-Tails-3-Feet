@@ -6,6 +6,7 @@ import {
   POIS,
   RECIPES,
   RESOURCES,
+  calcBouncyStepReduction,
 } from "./gameData";
 import type {
   BlotState,
@@ -246,7 +247,12 @@ export function rollEvents(mode: "explore" | "findFood"): EventId[] {
 }
 
 export function makeJourneyPreview(player: PlayerState, mode: "explore" | "findFood", chomperAutoEnabled = true): JourneyPreview {
-  const stepsRange = mode === "explore" ? BIOME_LEVEL.exploreStepsRange : BIOME_LEVEL.foodStepsRange;
+  const baseStepsRange = mode === "explore" ? BIOME_LEVEL.exploreStepsRange : BIOME_LEVEL.foodStepsRange;
+  const shoeReduction = calcBouncyStepReduction(player.equipment.footSlots);
+  const stepsRange: [number, number] = [
+    Math.max(1, baseStepsRange[0] - shoeReduction),
+    Math.max(1, baseStepsRange[1] - shoeReduction),
+  ];
   const poiId = pickWeighted(mode === "explore" ? BIOME_LEVEL.poiWeightsExplore : BIOME_LEVEL.poiWeightsFood);
   const quality = qualityRoll();
   const events = rollEvents(mode);
@@ -295,7 +301,7 @@ export function makeJourneyPreview(player: PlayerState, mode: "explore" | "findF
   }
 
   const blot = generateBlot(poiId, quality);
-  return { mode, stepsRange, satietyCostRange, satietyRestoredRange, staminaCostRange, staminaRecoveryPerPeriodRange, estFoodConsumed, poi: { id: poiId, quality }, surfacedEvents: events, blot };
+  return { mode, stepsRange, satietyCostRange, satietyRestoredRange, staminaCostRange, staminaRecoveryPerPeriodRange, estFoodConsumed, poi: { id: poiId, quality }, surfacedEvents: events, blot, stepsReducedByShoes: shoeReduction > 0 ? shoeReduction : undefined };
 }
 
 export function generateBlot(poiId: PoiId, quality: Quality): BlotState {
@@ -439,7 +445,7 @@ export function resolveJourney(player: PlayerState, preview: JourneyPreview, cho
   // Death check BEFORE food blot resolution
   if (player.stats.satiety <= 0) {
     return {
-      mode: preview.mode, steps: steps + extraSteps, surfacedEvents: eventsOut, eventEffects,
+      mode: preview.mode, steps: steps + extraSteps, stepsReducedByShoes: preview.stepsReducedByShoes, surfacedEvents: eventsOut, eventEffects,
       satietyDelta, satietyRestoredByChomper, staminaDelta, staminaRecovery, poi, gained, foodConsumed, blot: preview.blot, outcome: "dead",
     };
   }
@@ -456,6 +462,7 @@ export function resolveJourney(player: PlayerState, preview: JourneyPreview, cho
   return {
     mode: preview.mode,
     steps: steps + extraSteps,
+    stepsReducedByShoes: preview.stepsReducedByShoes,
     surfacedEvents: eventsOut,
     eventEffects,
     satietyDelta,

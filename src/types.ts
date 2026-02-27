@@ -307,11 +307,13 @@ export interface JourneyPreview {
   surfacedEvents: EventId[];
   blot: BlotState;
   mothEncountered?: boolean;
+  stepsReducedByShoes?: number;
 }
 
 export interface JourneyResult {
   mode: "explore" | "findFood";
   steps: number;
+  stepsReducedByShoes?: number;
   surfacedEvents: EventId[];
   eventEffects: Record<EventId, { satietyDelta: number; staminaDelta: number; gained: { id: ResourceId | FoodId; qty: number }[] }>;
   satietyDelta: number;

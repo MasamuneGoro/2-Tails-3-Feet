@@ -1009,6 +1009,7 @@ export default function App() {
 
   // Unlock audio on first interaction and preload all sounds
   const audioUnlocked = React.useRef(false);
+  const lastBgmTrack = React.useRef<import("./sound").BgmTrack | null>(null);
   useEffect(() => {
     const handler = (e: PointerEvent) => {
       if (!audioUnlocked.current) {
@@ -1016,19 +1017,9 @@ export default function App() {
         unlockAudio();
         preloadAll();
         // Kick off BGM for whatever screen we're on
-        if (screen === "BATTLE") {
-          playBgm("battle");
-        } else if (
-          screen === "PREVIEW_JOURNEY" ||
-          screen === "SUMMARY_JOURNEY" ||
-          screen === "PREVIEW_HARVEST" ||
-          screen === "SUMMARY_HARVEST" ||
-          screen === "SUMMARY_BATTLE"
-        ) {
-          playBgm("journey");
-        } else {
-          playBgm("hub");
-        }
+        const desired = desiredBgmTrack(screen);
+        lastBgmTrack.current = desired;
+        playBgm(desired);
       }
       // Play click sound for any button press
       if ((e.target as HTMLElement)?.closest("button, select")) {
@@ -1061,7 +1052,7 @@ export default function App() {
   // Journey summary: staggered event and item sounds
   useEffect(() => {
     if (!journeyResult || screen !== "SUMMARY_JOURNEY") return;
-    const displayable = journeyResult.surfacedEvents.filter(e => !["ev_need_chomper","ev_need_scoop_for_rations"].includes(e));
+    const displayable = journeyResult.surfacedEvents.filter(e => !["ev_need_chomper"].includes(e));
     displayable.forEach((e, i) => {
       const effects = journeyResult.eventEffects?.[e];
       const net = effects ? (effects.satietyDelta + effects.staminaDelta) : 0;
@@ -1117,25 +1108,27 @@ export default function App() {
     if (screen === "EXHAUSTED") playSfx("sfx_exhausted");
   }, [screen]);
 
-  // BGM: drive track based on active screen
-  // Guard: only runs after user has unlocked audio on first click.
-  // The first-click handler in the unlock useEffect starts BGM initially;
-  // this effect handles all subsequent screen transitions.
+  // BGM: drive track based on active screen.
+  // Only switches when the desired track actually changes — same-track screen
+  // transitions (e.g. HUB → INVENTORY → HUB) leave music playing untouched.
+  function desiredBgmTrack(s: Screen): import("./sound").BgmTrack {
+    if (s === "BATTLE") return "battle";
+    if (
+      s === "PREVIEW_JOURNEY" ||
+      s === "SUMMARY_JOURNEY" ||
+      s === "PREVIEW_HARVEST" ||
+      s === "SUMMARY_HARVEST" ||
+      s === "SUMMARY_BATTLE"
+    ) return "journey";
+    return "hub";
+  }
+
   useEffect(() => {
     if (!audioUnlocked.current) return;
-    if (screen === "BATTLE") {
-      playBgm("battle");
-    } else if (
-      screen === "PREVIEW_JOURNEY" ||
-      screen === "SUMMARY_JOURNEY" ||
-      screen === "PREVIEW_HARVEST" ||
-      screen === "SUMMARY_HARVEST" ||
-      screen === "SUMMARY_BATTLE"
-    ) {
-      playBgm("journey");
-    } else {
-      playBgm("hub");
-    }
+    const desired = desiredBgmTrack(screen);
+    if (desired === lastBgmTrack.current) return;
+    lastBgmTrack.current = desired;
+    playBgm(desired);
   }, [screen]);
   function snapshotStorableQty(inv: typeof player.inventory): Record<string, number> {
     const snap: Record<string, number> = {};
@@ -2611,8 +2604,8 @@ export default function App() {
 
   // ── Event display helper ──────────────────────────────────────────────────
   function EventList({ events, effects }: { events: import("./types").EventId[]; effects?: JourneyResult["eventEffects"] }) {
-    const displayable = events.filter(e => !["ev_need_chomper", "ev_need_scoop_for_rations"].includes(e));
-    const tips = events.filter(e => ["ev_need_chomper", "ev_need_scoop_for_rations"].includes(e));
+    const displayable = events.filter(e => !["ev_need_chomper"].includes(e));
+    const tips = events.filter(e => ["ev_need_chomper"].includes(e));
     return (
       <div>
         {displayable.map((e) => {
@@ -2684,7 +2677,7 @@ export default function App() {
           <div>Events</div>
           <div style={{ opacity: 0.7 }}>
             {(() => {
-              const n = journeyPreview.surfacedEvents.filter(e => !["ev_need_chomper","ev_need_scoop_for_rations"].includes(e)).length;
+              const n = journeyPreview.surfacedEvents.filter(e => !["ev_need_chomper"].includes(e)).length;
               return n === 0 ? "None expected" : n === 1 ? "1 event may occur" : `${n} events may occur`;
             })()}
           </div>
@@ -2730,7 +2723,7 @@ export default function App() {
         </div>
       </FadeIn>
 
-      {journeyResult.surfacedEvents.filter(e => !["ev_need_chomper","ev_need_scoop_for_rations"].includes(e)).length > 0 && (
+      {journeyResult.surfacedEvents.filter(e => !["ev_need_chomper"].includes(e)).length > 0 && (
         <FadeIn delay={270}>
           <div className="card">
             <h3>Events</h3>
@@ -3872,7 +3865,7 @@ export default function App() {
               key={mothImg}
               src={mothImg}
               alt=""
-              style={{ width: 180, height: 180, objectFit: "contain", imageRendering: "pixelated" }}
+              style={{ width: 220, height: 220, objectFit: "contain", imageRendering: "pixelated" }}
             />
           </div>
         </FadeIn>
@@ -3962,7 +3955,7 @@ export default function App() {
 
         {/* Move groups */}
         <FadeIn delay={180}>
-          <div style={{ fontSize: "0.95rem", fontWeight: 600, color: "#ccc", marginBottom: 14, letterSpacing: "0.01em" }}>Choose Your Next Move</div>
+          <div style={{ fontSize: "0.95rem", fontWeight: 600, color: "#ccc", marginBottom: 14, letterSpacing: "0.01em" }}>Choose your next move below:</div>
           <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
             {MOVE_GROUPS.map(group => {
               const groupMoves = movesByGroup.get(group.id) ?? [];
@@ -3985,7 +3978,7 @@ export default function App() {
                           key={moveId}
                           onClick={() => active ? doMove(moveId) : undefined}
                           disabled={!active}
-                          style={{ background: bgColor, border: `1px solid ${borderColor}`, borderRadius: 10, padding: "10px 14px", cursor: active ? "pointer" : "default", textAlign: "left", fontSize: "0.9rem" }}
+                          style={{ background: bgColor, border: `1px solid ${borderColor}`, borderRadius: 10, padding: "10px 14px", cursor: active ? "pointer" : "default", textAlign: "left", fontSize: "0.9rem", boxShadow: active && !isFlee ? (isCombo ? "0 0 8px 1px rgba(156,39,176,0.25)" : isHarvest ? "0 0 8px 1px rgba(46,125,50,0.25)" : "0 0 8px 1px rgba(180,180,180,0.12)") : "none" }}
                         >
                           <div style={{ color: nameColor, fontWeight: active ? 400 : 400 }}>{move.label}</div>
                           <div style={{ fontSize: "0.82rem", marginTop: 3 }}>
@@ -4117,7 +4110,20 @@ export default function App() {
           <div className="kv" style={{ marginBottom: 4, marginTop: 12 }}>
             <div style={{ opacity: 0.6 }}>Net stamina</div>
             <div style={{ color: staminaGain ? "#81c784" : "#ff8a80", fontWeight: 600 }}>
-              {staminaGain ? `+${Math.abs(battleResult.netStaminaCost)} recovered` : `−${battleResult.netStaminaCost}`}
+              {battleResult.noveltyStaminaRestored > 0
+                ? (() => {
+                    const cost = battleResult.netStaminaCost + battleResult.noveltyStaminaRestored;
+                    const net = -battleResult.netStaminaCost;
+                    return (
+                      <span>
+                        <span style={{ opacity: 0.75 }}>−{cost}</span>
+                        <span style={{ opacity: 0.75 }}> +{battleResult.noveltyStaminaRestored} <span style={{ fontSize: "0.78rem", opacity: 0.6 }}>(Unique Moves)</span></span>
+                        <span> = {net >= 0 ? `+${net}` : `−${Math.abs(net)}`}</span>
+                      </span>
+                    );
+                  })()
+                : staminaGain ? `+${Math.abs(battleResult.netStaminaCost)} recovered` : `−${battleResult.netStaminaCost}`
+              }
             </div>
             {battleResult.secretionFled && !battleResult.flags.includes("wax_harvested") && <>
               <div style={{ opacity: 0.6 }}>Wax Damage</div>

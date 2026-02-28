@@ -14,8 +14,7 @@ export type EventId =
   | "ev_dense_find"
   | "ev_preserved_ration"
   | "ev_second_wind"
-  | "ev_need_chomper"
-  | "ev_need_scoop_for_rations";
+  | "ev_need_chomper";
 
 export type ResourceId = "resin_glob" | "fiber_clump" | "brittle_stone" | "mat_wing_membrane" | "mat_crystallised_wax";
 
@@ -264,9 +263,18 @@ export type BlotMarkId =
   | "mark_low_satiety_survive"
   | "mark_eat_on_site"
   // Combat
+  | "mark_first_encounter"
+  | "mark_first_hunt"
   | "mark_first_win"
   | "mark_use_combo"
+  | "mark_novelty_tier1"
+  | "mark_novelty_tier2"
+  | "mark_novelty_tier3"
+  | "mark_poison_kill"
   | "mark_high_integrity_win"
+  | "mark_avoid_moth"
+  | "mark_high_integrity_win"
+  | "mark_avoid_moth"
   // Loot
   | "mark_first_wing_membrane"
   | "mark_first_crystallised_wax"

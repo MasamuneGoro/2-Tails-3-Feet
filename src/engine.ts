@@ -395,7 +395,6 @@ function applyEvents(
         player.stats.stamina = clamp(player.stats.stamina + 60, 0, player.stats.maxStamina);
         break;
       case "ev_need_chomper":
-      case "ev_need_scoop_for_rations":
         break;
     }
 
@@ -452,9 +451,6 @@ export function resolveJourney(player: PlayerState, preview: JourneyPreview, cho
 
   if (poiData.kind === "food") {
     if (!hasEquippedTail(player, "eq_chomper")) eventsOut.push("ev_need_chomper");
-    if (!hasEquippedTail(player, "eq_sticky_scoop")) {
-      if (!eventsOut.includes("ev_need_scoop_for_rations")) eventsOut.push("ev_need_scoop_for_rations");
-    }
   }
 
   const outcome = player.stats.satiety <= 0 ? "dead" : player.stats.stamina <= 0 ? "exhausted" : "ok";

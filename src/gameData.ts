@@ -100,13 +100,6 @@ export const EVENTS: Record<EventId, {
     tag: "common",
     netEffect: "no effect",
   },
-  ev_need_scoop_for_rations: {
-    id: "ev_need_scoop_for_rations",
-    name: "Rations Slip Away",
-    text: "The good stuff sits deep in a sticky pool, laughing at you. A Sticky Scoop would have helped.",
-    tag: "common",
-    netEffect: "no effect",
-  },
 };
 
 export const POIS: Record<

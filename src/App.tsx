@@ -3837,6 +3837,15 @@ export default function App() {
     const thoraxOpen = battleState.flags.includes("thorax_open");
     const stomped = battleState.flags.includes("stomped");
 
+    // Moth image — priority: wing+thorax > thorax > wing > stomped > secreting > normal
+    const mothImg =
+      wingTorn && thoraxOpen               ? "/creatures/moth_wing_thorax.png"
+      : thoraxOpen                         ? "/creatures/moth_thorax_open.png"
+      : wingTorn                           ? "/creatures/moth_wing_torn.png"
+      : stomped                            ? "/creatures/moth_stomped.png"
+      : battleState.secretionCounter >= 2  ? "/creatures/moth_secreting.png"
+      : "/creatures/moth_normal.png";
+
     // Group moves by group id
     const movesByGroup = new Map<string, MoveUIState[]>();
     for (const g of MOVE_GROUPS) movesByGroup.set(g.id, []);
@@ -3853,6 +3862,18 @@ export default function App() {
               <h2 style={{ margin: 0 }}>{creature.name}</h2>
               <div style={{ fontSize: "0.8rem", opacity: 0.5, marginTop: 2 }}>Turn {battleState.turn}</div>
             </div>
+          </div>
+        </FadeIn>
+
+        {/* Moth illustration */}
+        <FadeIn delay={30}>
+          <div style={{ display: "flex", justifyContent: "center", marginBottom: 16 }}>
+            <img
+              key={mothImg}
+              src={mothImg}
+              alt=""
+              style={{ width: 180, height: 180, objectFit: "contain", imageRendering: "pixelated" }}
+            />
           </div>
         </FadeIn>
 
@@ -4040,9 +4061,19 @@ export default function App() {
       ? "It lost patience and fled. No loot, but no penalty — the glands were dry."
       : null;
 
+    // Summary illustration
+    const summaryImg = battleResult.secretionFled
+      ? "/creatures/moth_escaping.png"
+      : battleResult.endReason === "fled"
+      ? "/creatures/moth_normal.png"
+      : "/creatures/moth_dead.png";
+
     return (
       <div className="card">
         <FadeIn delay={0}>
+          <div style={{ display: "flex", justifyContent: "center", marginBottom: 16 }}>
+            <img src={summaryImg} alt="" style={{ width: 160, height: 160, objectFit: "contain", imageRendering: "pixelated" }} />
+          </div>
           <h2 style={{ marginBottom: 4 }}>
             {battleResult.endReason === "fled" ? "You got out." : `${creature.name} — ${endLabels[battleResult.endReason]}`}
           </h2>

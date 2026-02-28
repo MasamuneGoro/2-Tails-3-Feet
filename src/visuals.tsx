@@ -1433,3 +1433,50 @@ export function PlayerCharacterEquipment({
     </div>
   );
 }
+
+// ─── PLAYER SPRITE ───────────────────────────────────────────────────────────
+// Spritesheet: creature_spritefile.jpg — 2000×2000px, 6 cols × 6 rows, 36 frames
+// Place the jpg at: public/creature_spritefile.jpg
+// Frame size: 333.333px — animated at ~22fps
+
+const SPRITE_COLS = 6;
+const SPRITE_ROWS = 6;
+const SPRITE_FRAME_W = 2000 / SPRITE_COLS;
+const SPRITE_FRAME_H = 2000 / SPRITE_ROWS;
+const SPRITE_FPS = 22;
+const SPRITE_TOTAL = SPRITE_COLS * SPRITE_ROWS;
+
+export function PlayerSprite({ size = 120 }: { size?: number }) {
+  const scale = size / SPRITE_FRAME_W;
+  const containerRef = useRef<HTMLDivElement>(null);
+  const frameRef = useRef(0);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      frameRef.current = (frameRef.current + 1) % SPRITE_TOTAL;
+      const col = frameRef.current % SPRITE_COLS;
+      const row = Math.floor(frameRef.current / SPRITE_COLS);
+      if (containerRef.current) {
+        containerRef.current.style.backgroundPosition =
+          `${-col * SPRITE_FRAME_W * scale}px ${-row * SPRITE_FRAME_H * scale}px`;
+      }
+    }, 1000 / SPRITE_FPS);
+    return () => clearInterval(interval);
+  }, [scale]);
+
+  return (
+    <div
+      ref={containerRef}
+      style={{
+        width: size,
+        height: size,
+        backgroundImage: `url(/creature_spritefile.jpg)`,
+        backgroundSize: `${2000 * scale}px ${2000 * scale}px`,
+        backgroundPosition: "0px 0px",
+        backgroundRepeat: "no-repeat",
+        imageRendering: "pixelated",
+        flexShrink: 0,
+      }}
+    />
+  );
+}

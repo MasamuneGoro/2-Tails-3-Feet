@@ -35,16 +35,9 @@ const BLOT_MARKS: Record<BlotMarkId, BlotMark> = {
   mark_first_recover:      { id: "mark_first_recover",      category: "Survival",    title: "Knew Your Limits",         flavour: "Resting isn't giving up." },
   mark_low_satiety_survive:{ id: "mark_low_satiety_survive",category: "Survival",    title: "Running on Nothing",       flavour: "You were close. You didn't need to be, but here you are." },
   mark_eat_on_site:        { id: "mark_eat_on_site",        category: "Survival",    title: "Straight from the Source", flavour: "Why carry it when you can just eat it there?" },
-  mark_first_encounter:    { id: "mark_first_encounter",    category: "Combat",      title: "Something Out There",      flavour: "You spotted it before it spotted you. Maybe." },
-  mark_first_hunt:         { id: "mark_first_hunt",         category: "Combat",      title: "Didn't Run",               flavour: "You could have walked away. You didn't." },
   mark_first_win:          { id: "mark_first_win",          category: "Combat",      title: "It Went Down",             flavour: "You stood your ground and it worked." },
   mark_use_combo:          { id: "mark_use_combo",          category: "Combat",      title: "Double-Handed",            flavour: "Two tools, one move. That takes practice." },
-  mark_novelty_tier1:      { id: "mark_novelty_tier1",      category: "Combat",      title: "Kept It Interesting",      flavour: "Four moves, all different. Your body appreciated it." },
-  mark_novelty_tier2:      { id: "mark_novelty_tier2",      category: "Combat",      title: "Proper Flurry",            flavour: "Six moves. Something clicked out there." },
-  mark_novelty_tier3:      { id: "mark_novelty_tier3",      category: "Combat",      title: "Thrilled",                 flavour: "Seven distinct moves. You were thinking three steps ahead." },
-  mark_poison_kill:        { id: "mark_poison_kill",        category: "Combat",      title: "Venom Works",              flavour: "Squeeze, coat, strike. The moth didn't see it coming." },
   mark_high_integrity_win: { id: "mark_high_integrity_win", category: "Combat",      title: "Careful Hands",            flavour: "You took what you needed without breaking everything else." },
-  mark_avoid_moth:         { id: "mark_avoid_moth",         category: "Combat",      title: "Not Today",                flavour: "Wisdom, or just stamina math. Either way, smart." },
   mark_first_wing_membrane:{ id: "mark_first_wing_membrane",category: "Loot",        title: "Delicate Thing",           flavour: "Light. Strange. You're not sure what it's for yet." },
   mark_first_crystallised_wax:{ id: "mark_first_crystallised_wax", category: "Loot", title: "Something Crystallised",  flavour: "It's solid. Warm. You'll figure out what it does." },
   mark_full_corpse:        { id: "mark_full_corpse",        category: "Loot",        title: "Clean Harvest",            flavour: "Nothing wasted. Every part counted." },
@@ -64,16 +57,9 @@ const BLOT_MARK_HOW: Record<BlotMarkId, string> = {
   mark_first_recover:       "Use Lay Down to rest and recover stamina.",
   mark_low_satiety_survive: "Survive with your satiety at 120 or below.",
   mark_eat_on_site:         "Travel to a Sap Weep location and eat the soft sap directly on site.",
-  mark_first_encounter:     "Encounter a Gloop Moth during a journey to a resin location. They appear at Resin Nodes, Resin Hollows, and Sap Weeps.",
-  mark_first_hunt:          "When a creature appears at the end of a journey, choose to hunt it instead of avoiding it.",
   mark_first_win:           "Win a creature encounter by reducing the creature's composure to zero.",
   mark_use_combo:           "Use a two-tool combo move in battle: Squeeze Glands, Tease Out Crystal, Scoop Out Flesh, or Double Chomp.",
-  mark_novelty_tier1:       "Use 4 or 5 distinct moves in a single battle.",
-  mark_novelty_tier2:       "Use exactly 6 distinct moves in a single battle — requires planning beyond the flavour text hints.",
-  mark_novelty_tier3:       "Use 7 distinct moves in a single battle. System mastery required.",
-  mark_poison_kill:         "Squeeze the glands, apply the wax to a weapon, then strike with Poison Strike or Poison Drill.",
   mark_high_integrity_win:  "Win a battle with the creature's integrity at 80 or above. Avoid heavy damage moves.",
-  mark_avoid_moth:          "When a creature appears at the end of a journey, choose to avoid it.",
   mark_first_wing_membrane: "Obtain a Wing Membrane drop. Win with integrity 60+ and the wing torn.",
   mark_first_crystallised_wax: "Obtain Crystallised Wax by using Tease Out Crystal mid-battle.",
   mark_full_corpse:         "Win a battle with the creature's integrity at 80 or above to get the peak corpse drops.",
@@ -84,8 +70,8 @@ const BLOT_MARK_ORDER: BlotMarkId[] = [
   "mark_first_harvest","mark_all_methods","mark_harvest_proficiency","mark_all_proficiency",
   "mark_first_craft","mark_craft_all_tools","mark_craft_equipment",
   "mark_first_recover","mark_low_satiety_survive","mark_eat_on_site",
-  "mark_first_encounter","mark_first_hunt","mark_first_win","mark_use_combo",
-  "mark_novelty_tier1","mark_novelty_tier2","mark_novelty_tier3","mark_poison_kill","mark_high_integrity_win","mark_avoid_moth",
+  "mark_first_win","mark_use_combo",
+  "mark_high_integrity_win",
   "mark_first_wing_membrane","mark_first_crystallised_wax","mark_full_corpse",
 ];
 
@@ -187,7 +173,6 @@ function computeRevealedMarks(ms: BlotMarkState, player: PlayerState): Set<BlotM
   revealed.add("mark_first_harvest");
   revealed.add("mark_first_craft");
   revealed.add("mark_first_recover");
-  revealed.add("mark_first_encounter");
 
   if (e.mark_first_journey) revealed.add("mark_first_find_food");
   if (ms.poisVisited.size >= 3) revealed.add("mark_visit_all_poi");
@@ -198,20 +183,14 @@ function computeRevealedMarks(ms: BlotMarkState, player: PlayerState): Set<BlotM
   if (e.mark_craft_all_tools) revealed.add("mark_craft_equipment");
   if (ms.hasSeenLowSatiety) revealed.add("mark_low_satiety_survive"); // satiety dropped below 30% (300)
   if (ms.poisVisited.has("poi_sap_weep")) revealed.add("mark_eat_on_site");
-  if (e.mark_first_encounter) {
-    revealed.add("mark_first_hunt");
-    revealed.add("mark_avoid_moth");
-  }
-  if (e.mark_first_hunt) revealed.add("mark_first_win");
+  // Combat reveal chain: first win reveals everything
+  revealed.add("mark_first_win");
   if (e.mark_first_win) {
     revealed.add("mark_use_combo");
-    revealed.add("mark_novelty_tier1");
     revealed.add("mark_high_integrity_win");
   }
-  if (e.mark_novelty_tier1) revealed.add("mark_novelty_tier2");
-  if (e.mark_novelty_tier2) revealed.add("mark_novelty_tier3");
-  if (e.mark_use_combo) revealed.add("mark_poison_kill");
-  if (e.mark_poison_kill) revealed.add("mark_first_crystallised_wax");
+  // crystallised wax revealed after combo known
+  if (e.mark_use_combo) revealed.add("mark_first_crystallised_wax");
   // Loot
   if (e.mark_first_win) revealed.add("mark_first_wing_membrane");
   if (e.mark_first_win) revealed.add("mark_full_corpse");
@@ -225,10 +204,7 @@ function computeEarnedMarks(ms: BlotMarkState, player: PlayerState, context: {
   justHarvested?: { methods: HarvestMethodId[] };
   justCrafted?: { itemId: string };
   justRecovered?: boolean;
-  justEncountered?: boolean;
-  justHunted?: boolean;
   justWon?: { integrity: number; movesUsed: import("./types").MoveId[]; uniqueMoves: number; noveltyTier: number; flags: import("./types").BattleFlag[] };
-  justAvoided?: boolean;
   justAte?: { onSite: boolean };
   justDropped?: { ids: string[] };
 }): BlotMarkId[] {
@@ -276,30 +252,13 @@ function computeEarnedMarks(ms: BlotMarkState, player: PlayerState, context: {
     tryEarn("mark_eat_on_site", true);
   }
 
-  if (context.justEncountered) {
-    tryEarn("mark_first_encounter", true);
-  }
-
-  if (context.justHunted) {
-    tryEarn("mark_first_hunt", true);
-  }
-
-  if (context.justAvoided) {
-    tryEarn("mark_avoid_moth", true);
-  }
-
   if (context.justWon) {
-    const { integrity, movesUsed, uniqueMoves, noveltyTier, flags } = context.justWon;
+    const { integrity, movesUsed } = context.justWon;
     const hasCombo = movesUsed.some(m => {
       const mv = MOVES[m]; return mv?.tools && mv.tools.length === 2;
     });
-    const poisonKill = movesUsed.includes("poison_strike") || movesUsed.includes("poison_drill");
     tryEarn("mark_first_win", true);
     tryEarn("mark_use_combo", hasCombo);
-    tryEarn("mark_novelty_tier1", uniqueMoves >= 4);
-    tryEarn("mark_novelty_tier2", uniqueMoves >= 6);
-    tryEarn("mark_novelty_tier3", uniqueMoves >= 7);
-    tryEarn("mark_poison_kill", poisonKill);
     tryEarn("mark_high_integrity_win", integrity >= 80);
     tryEarn("mark_full_corpse", integrity >= 80);
   }
@@ -428,17 +387,11 @@ function getNudgeText(ms: BlotMarkState, player: PlayerState, atPoi: boolean): s
   if (!e.mark_eat_on_site && ms.poisVisited.has("poi_sap_weep")) return "At a Sap Weep, you can eat the soft sap directly on site.";
 
   // Priority 12–13 — encounter discovery
-  if (!e.mark_first_encounter && visitedResin) return "Resin locations sometimes have creatures. Head out and explore.";
-  if (e.mark_first_encounter && !e.mark_first_hunt) return "You spotted something out there. Next time, try hunting it.";
-  if (e.mark_first_hunt && !e.mark_first_win) return "Keep at it — creatures go down if you stay in the fight.";
+  if (!e.mark_first_win && visitedResin) return "Resin locations sometimes have creatures. Hunt one to earn a Combat Mark.";
 
   // Priority 14–20 — combat chain
   if (e.mark_first_win && !e.mark_use_combo) return "In battle, you can combine two tools into a single combo move — try Squeeze Glands or Tease Out Crystal.";
-  if (e.mark_first_win && !e.mark_novelty_tier1) return "In battle, try using different moves instead of repeating one — 4 unique moves unlocks a stamina bonus.";
-  if (e.mark_novelty_tier1 && !e.mark_novelty_tier2) return "Push further — 6 different moves in one battle for a bigger stamina recovery.";
-  if (e.mark_novelty_tier2 && !e.mark_novelty_tier3) return "7 distinct moves is the highest tier. You'll need to plan ahead.";
-  if (e.mark_use_combo && !e.mark_poison_kill) return "Try squeezing the glands, coating a weapon, then striking with poison.";
-  if (e.mark_poison_kill && !e.mark_first_crystallised_wax) return "Tease Out Crystal drops Crystallised Wax. Open the thorax first.";
+  if (e.mark_use_combo && !e.mark_first_crystallised_wax) return "Tease Out Crystal drops Crystallised Wax. Open the thorax first.";
   if (e.mark_first_win && !e.mark_high_integrity_win) return "Try winning a battle without heavy damage moves — keep the creature's integrity high.";
   if (e.mark_first_win && !e.mark_full_corpse) return "A clean win with high integrity gives the best corpse drops.";
   if (e.mark_first_win && !e.mark_first_wing_membrane) return "Wing Membranes drop from moths at high integrity with the wing torn.";
@@ -1306,12 +1259,7 @@ export default function App() {
       justJourneyed: journeyPreview.mode,
     });
     // Check moth encounter
-    if (resWithMoth.mothEncountered) {
-      const ms2 = triggerMarks(next, newMs, { justEncountered: true });
-      setMarkState(ms2);
-    } else {
-      setMarkState(newMs);
-    }
+    setMarkState(newMs);
 
     // Gate discovery: if gate not yet discovered, count trophies in inventory (raw + gem-embedded)
     if (!newMs.gateDiscovered && journeyPreview.mode === "explore") {
@@ -1353,8 +1301,6 @@ export default function App() {
     const next = structuredClone(player);
     next.stats.stamina = clamp(next.stats.stamina - 20, 0, next.stats.maxStamina);
     setPlayer(next);
-    const ms = cloneMarkState(markState);
-    setMarkState(triggerMarks(next, ms, { justAvoided: true }));
     enterPoi();
   }
 
@@ -1512,9 +1458,6 @@ export default function App() {
     setBattleLog([]);
     // Mark that we came from journey summary so we know where to go back
     setReturnScreen("SUMMARY_JOURNEY");
-    // Wire blot mark for choosing to hunt
-    const ms = cloneMarkState(markState);
-    setMarkState(triggerMarks(player, ms, { justHunted: true }));
     setScreen("BATTLE");
   }
 

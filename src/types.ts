@@ -264,18 +264,9 @@ export type BlotMarkId =
   | "mark_low_satiety_survive"
   | "mark_eat_on_site"
   // Combat
-  | "mark_first_encounter"
-  | "mark_first_hunt"
   | "mark_first_win"
   | "mark_use_combo"
-  | "mark_novelty_tier1"
-  | "mark_novelty_tier2"
-  | "mark_novelty_tier3"
-  | "mark_poison_kill"
   | "mark_high_integrity_win"
-  | "mark_avoid_moth"
-  | "mark_high_integrity_win"
-  | "mark_avoid_moth"
   // Loot
   | "mark_first_wing_membrane"
   | "mark_first_crystallised_wax"

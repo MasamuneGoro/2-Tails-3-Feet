@@ -4505,7 +4505,7 @@ export default function App() {
   }
 
   return (
-    <div style={{ display: "flex", minHeight: "100vh" }}>
+    <div style={{ display: "flex", minHeight: "100vh", justifyContent: "center" }}>
       {sidebar}
       <div style={{ flex: 1, padding: 22, maxWidth: 820 }}>
         <h1 style={{ letterSpacing: "0.08em", marginBottom: 4 }}>2 Tails 3 Feet</h1>

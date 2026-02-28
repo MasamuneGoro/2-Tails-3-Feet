@@ -1306,8 +1306,9 @@ export function PlayerCharacterEquipment({
               <div style={{
                 position: "absolute",
                 top: "calc(100% + 4px)",
-                left: "50%",
-                transform: "translateX(-50%)",
+                left: (key === "tail0" || key === "foot0") ? "0" : key === "tail1" || key === "foot2" ? "auto" : "50%",
+                right: (key === "tail1" || key === "foot2") ? "0" : "auto",
+                transform: (key === "tail0" || key === "foot0" || key === "tail1" || key === "foot2") ? "none" : "translateX(-50%)",
                 minWidth: 150,
                 background: "#1a1a1a",
                 border: "1px solid #3a3a2a",

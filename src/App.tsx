@@ -1857,10 +1857,6 @@ export default function App() {
   // ─────────────────────────────────────────────────────────────────────────
   // PERSISTENT SIDEBAR — tail slots + chomper toggle + inventory/skills btns
   // ─────────────────────────────────────────────────────────────────────────
-  const tailSelectStyle: React.CSSProperties = {
-    background: "#1e1e1e", border: "1px solid #3a3a3a", borderRadius: 8,
-    color: "#eaeaea", padding: "6px 8px", fontSize: "0.9rem", width: "100%",
-  };
 
   const sidebar = (
     <div style={{
@@ -1872,75 +1868,28 @@ export default function App() {
     }}>
       <div style={{ fontSize: "0.75rem", opacity: 0.5, letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: 4 }}>Equipment</div>
 
-      {/* ── Player character SVG with slot zones ── */}
+      {/* ── Player character with popover slot picker ── */}
       <PlayerCharacterEquipment
         tailSlots={player.equipment.tailSlots}
         footSlots={player.equipment.footSlots}
-        onTailClick={(slotIdx) => {
-          const el = document.getElementById(`tail-select-${slotIdx}`);
-          if (el) (el as HTMLSelectElement).focus();
-        }}
-        onFootClick={(slotIdx) => {
-          const el = document.getElementById(`foot-select-${slotIdx}`);
-          if (el) (el as HTMLSelectElement).focus();
+        tailOptions={[
+          availableTailToolIds(0).map(id => ({ id, label: getItemName(id) })),
+          availableTailToolIds(1).map(id => ({ id, label: getItemName(id) })),
+        ]}
+        footOptions={[
+          availableShoeIds(0).map(id => ({ id, label: getItemName(id) })),
+          availableShoeIds(1).map(id => ({ id, label: getItemName(id) })),
+          availableShoeIds(2).map(id => ({ id, label: getItemName(id) })),
+        ]}
+        itemLabel={(id) => id ? getItemName(id) : ""}
+        onEquip={(slot, itemId) => {
+          if (slot === "tail0") equipTail(0, itemId);
+          else if (slot === "tail1") equipTail(1, itemId);
+          else if (slot === "foot0") equipFoot(0, itemId);
+          else if (slot === "foot1") equipFoot(1, itemId);
+          else if (slot === "foot2") equipFoot(2, itemId);
         }}
       />
-
-      {([0, 1] as (0 | 1)[]).map((slotIdx) => {
-        const equipped = player.equipment.tailSlots[slotIdx];
-        return (
-          <div key={slotIdx}>
-            <div style={{ fontSize: "0.78rem", opacity: 0.6, marginBottom: 3 }}>Tail {slotIdx === 0 ? "A" : "B"}</div>
-            {equipped && (
-              <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4, opacity: 0.85 }}>
-                <ItemIcon id={equipped} size={16} />
-                <span style={{ fontSize: "0.78rem" }}>{getItemName(equipped)}</span>
-              </div>
-            )}
-            <select
-              id={`tail-select-${slotIdx}`}
-              style={tailSelectStyle}
-              value={equipped ?? ""}
-              onChange={(e) => equipTail(slotIdx, (e.target.value || null) as any)}
-            >
-              <option value="">— empty —</option>
-              {availableTailToolIds(slotIdx).map((id) => (
-                <option key={id} value={id}>{getItemName(id)}</option>
-              ))}
-            </select>
-          </div>
-        );
-      })}
-
-      <div style={{ borderTop: "1px solid #2a2a2a", paddingTop: 10 }}>
-        <div style={{ fontSize: "0.75rem", opacity: 0.5, letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: 6 }}>Shoes</div>
-        {([0, 1, 2] as (0 | 1 | 2)[]).map((slotIdx) => {
-          const equipped = player.equipment.footSlots[slotIdx];
-          const label = slotIdx === 0 ? "Left foot" : slotIdx === 1 ? "Centre foot" : "Right foot";
-          return (
-            <div key={slotIdx} style={{ marginBottom: 8 }}>
-              <div style={{ fontSize: "0.78rem", opacity: 0.6, marginBottom: 3 }}>{label}</div>
-              {equipped && (
-                <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4, opacity: 0.85 }}>
-                  <ItemIcon id={equipped} size={16} />
-                  <span style={{ fontSize: "0.78rem" }}>{getItemName(equipped)}</span>
-                </div>
-              )}
-              <select
-                id={`foot-select-${slotIdx}`}
-                style={tailSelectStyle}
-                value={equipped ?? ""}
-                onChange={(e) => equipFoot(slotIdx, (e.target.value || null) as any)}
-              >
-                <option value="">— empty —</option>
-                {availableShoeIds(slotIdx).map((id) => (
-                  <option key={id} value={id}>{getItemName(id)}</option>
-                ))}
-              </select>
-            </div>
-          );
-        })}
-      </div>
 
       {chomperEquipped && (
         <div style={{ borderTop: "1px solid #2a2a2a", paddingTop: 10 }}>
@@ -3992,13 +3941,14 @@ export default function App() {
 
         {/* Move groups */}
         <FadeIn delay={180}>
+          <div style={{ fontSize: "0.95rem", fontWeight: 600, color: "#ccc", marginBottom: 14, letterSpacing: "0.01em" }}>Choose Your Next Move</div>
           <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
             {MOVE_GROUPS.map(group => {
               const groupMoves = movesByGroup.get(group.id) ?? [];
               if (groupMoves.length === 0) return null;
               return (
                 <div key={group.id}>
-                  <div style={{ fontSize: "0.65rem", opacity: 0.35, letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: 6 }}>{group.label}</div>
+                  <div style={{ fontSize: "0.78rem", opacity: 0.55, letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 7, fontWeight: 600 }}>{group.label}</div>
                   <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                     {groupMoves.map(({ moveId, active, greyedReason }) => {
                       const move = MOVES[moveId];
@@ -4138,6 +4088,10 @@ export default function App() {
             <div style={{ color: staminaGain ? "#81c784" : "#ff8a80", fontWeight: 600 }}>
               {staminaGain ? `+${Math.abs(battleResult.netStaminaCost)} recovered` : `−${battleResult.netStaminaCost}`}
             </div>
+            {battleResult.secretionFled && !battleResult.flags.includes("wax_harvested") && <>
+              <div style={{ opacity: 0.6 }}>Wax Damage</div>
+              <div style={{ color: "#ff8a80", fontWeight: 600 }}>−200 stamina</div>
+            </>}
             {battleResult.satietyRestoredMidBattle > 0 && <>
               <div style={{ opacity: 0.6 }}>Satiety mid-battle</div>
               <div style={{ color: "#7ecba1" }}>+{battleResult.satietyRestoredMidBattle}</div>

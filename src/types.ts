@@ -75,12 +75,13 @@ export type MoveId =
   | "flee";
 
 export type BattleFlag =
-  | "wing_torn"       // Jab Wing used — permanent ground
-  | "thorax_open"     // Drill Thorax used — permanent ground, gates Harvest
-  | "wax_harvested"   // Squeeze Glands used — gates Apply Poison group
-  | "wax_laced"       // Apply Wax to Twig — gates Poison Strike
-  | "drill_laced"     // Apply Wax to Drill — gates Poison Drill
-  | "stomped";        // Stomp It Down — temporary ground, clears after 1 turn
+  | "wing_torn"           // Jab Wing used — permanent ground
+  | "thorax_open"         // Drill Thorax used — permanent ground, gates Harvest
+  | "wax_harvested"       // Squeeze Glands used — gates Apply Poison group
+  | "crystal_harvested"   // Tease Out Crystal used — one-time only
+  | "wax_laced"           // Apply Wax to Twig — gates Poison Strike
+  | "drill_laced"         // Apply Wax to Drill — gates Poison Drill
+  | "stomped";            // Stomp It Down — temporary ground, clears after 1 turn
 
 export type BattleEndReason = "collapsed" | "disarmed" | "fled";
 

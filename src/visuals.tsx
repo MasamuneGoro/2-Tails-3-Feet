@@ -1168,14 +1168,21 @@ export function CreatureIcon({ creatureId, size = 72 }: CreatureIconProps) {
 
 // ─── Player Character Equipment (image + overlay) ────────────────────────────
 
+export interface EquipmentOption {
+  id: ItemId;
+  label: string;
+}
+
 interface PlayerCharacterEquipmentProps {
   tailSlots: [ItemId | null, ItemId | null];
   footSlots: [ItemId | null, ItemId | null, ItemId | null];
-  onTailClick: (slotIdx: 0 | 1) => void;
-  onFootClick: (slotIdx: 0 | 1 | 2) => void;
+  tailOptions: [EquipmentOption[], EquipmentOption[]];
+  footOptions: [EquipmentOption[], EquipmentOption[], EquipmentOption[]];
+  itemLabel: (id: ItemId | null) => string;
+  onEquip: (slot: "tail0" | "tail1" | "foot0" | "foot1" | "foot2", itemId: ItemId | null) => void;
 }
 
-// Slot zone definitions as percentage [left, top, width, height] of container
+// Slot zones as percentages of the container
 const SLOT_ZONES = {
   tail0: { left: "12%", top: "18%", width: "22%", height: "30%", label: "Left tail"   },
   tail1: { left: "66%", top: "18%", width: "22%", height: "30%", label: "Right tail"  },
@@ -1186,27 +1193,46 @@ const SLOT_ZONES = {
 
 type SlotKey = keyof typeof SLOT_ZONES;
 
-export function PlayerCharacterEquipment({ tailSlots, footSlots, onTailClick, onFootClick }: PlayerCharacterEquipmentProps) {
+export function PlayerCharacterEquipment({
+  tailSlots, footSlots, tailOptions, footOptions, itemLabel, onEquip,
+}: PlayerCharacterEquipmentProps) {
   const [hovered, setHovered] = React.useState<SlotKey | null>(null);
+  const [openSlot, setOpenSlot] = React.useState<SlotKey | null>(null);
+  const containerRef = React.useRef<HTMLDivElement>(null);
+
+  // Close popover on outside click
+  React.useEffect(() => {
+    if (!openSlot) return;
+    function handleClick(e: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setOpenSlot(null);
+      }
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, [openSlot]);
 
   const slotItems: Record<SlotKey, ItemId | null> = {
-    tail0: tailSlots[0],
-    tail1: tailSlots[1],
-    foot0: footSlots[0],
-    foot1: footSlots[1],
-    foot2: footSlots[2],
+    tail0: tailSlots[0], tail1: tailSlots[1],
+    foot0: footSlots[0], foot1: footSlots[1], foot2: footSlots[2],
   };
 
-  const handlers: Record<SlotKey, () => void> = {
-    tail0: () => onTailClick(0),
-    tail1: () => onTailClick(1),
-    foot0: () => onFootClick(0),
-    foot1: () => onFootClick(1),
-    foot2: () => onFootClick(2),
+  const slotOptions: Record<SlotKey, EquipmentOption[]> = {
+    tail0: tailOptions[0], tail1: tailOptions[1],
+    foot0: footOptions[0], foot1: footOptions[1], foot2: footOptions[2],
   };
+
+  function handleZoneClick(key: SlotKey) {
+    setOpenSlot(prev => prev === key ? null : key);
+  }
+
+  function handleEquip(key: SlotKey, itemId: ItemId | null) {
+    onEquip(key, itemId);
+    setOpenSlot(null);
+  }
 
   return (
-    <div style={{ position: "relative", width: "100%", maxWidth: 180, aspectRatio: "1 / 1" }}>
+    <div ref={containerRef} style={{ position: "relative", width: "100%", maxWidth: 180, aspectRatio: "1 / 1" }}>
       {/* Creature image */}
       <img
         src="/creature.jpg"
@@ -1220,63 +1246,138 @@ export function PlayerCharacterEquipment({ tailSlots, footSlots, onTailClick, on
         const zone = SLOT_ZONES[key];
         const item = slotItems[key];
         const isHovered = hovered === key;
+        const isOpen = openSlot === key;
+        const options = slotOptions[key];
 
         return (
-          <div
-            key={key}
-            title={zone.label}
-            onClick={handlers[key]}
-            onMouseEnter={() => setHovered(key)}
-            onMouseLeave={() => setHovered(null)}
-            style={{
-              position: "absolute",
-              left: zone.left,
-              top: zone.top,
-              width: zone.width,
-              height: zone.height,
-              cursor: "pointer",
-              borderRadius: 6,
-              border: isHovered
-                ? "2px solid rgba(200,169,110,0.85)"
-                : item
-                ? "2px solid rgba(200,169,110,0.4)"
-                : "2px dashed rgba(255,255,255,0.2)",
-              background: isHovered
-                ? "rgba(200,169,110,0.15)"
-                : item
-                ? "rgba(200,169,110,0.08)"
-                : "transparent",
-              transition: "border 0.15s, background 0.15s",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-            }}
-          >
-            {/* Item icon badge when filled */}
-            {item && (
-              <div style={{
-                background: "rgba(0,0,0,0.65)",
-                borderRadius: "50%",
-                width: 22,
-                height: 22,
+          <div key={key} style={{ position: "absolute", left: zone.left, top: zone.top, width: zone.width, height: zone.height }}>
+            {/* Clickable zone */}
+            <div
+              title={zone.label}
+              onClick={() => handleZoneClick(key)}
+              onMouseEnter={() => setHovered(key)}
+              onMouseLeave={() => setHovered(null)}
+              style={{
+                width: "100%",
+                height: "100%",
+                cursor: "pointer",
+                borderRadius: 6,
+                border: isOpen
+                  ? "2px solid rgba(200,169,110,1)"
+                  : isHovered
+                  ? "2px solid rgba(200,169,110,0.85)"
+                  : item
+                  ? "2px solid rgba(200,169,110,0.4)"
+                  : "2px dashed rgba(255,255,255,0.2)",
+                background: isOpen
+                  ? "rgba(200,169,110,0.2)"
+                  : isHovered
+                  ? "rgba(200,169,110,0.15)"
+                  : item
+                  ? "rgba(200,169,110,0.08)"
+                  : "transparent",
+                transition: "border 0.12s, background 0.12s",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
-                border: "1px solid rgba(255,255,255,0.2)",
-                flexShrink: 0,
-              }}>
-                <ItemIcon id={item} size={14} />
-              </div>
-            )}
-            {/* Empty slot dot indicator */}
-            {!item && (
+              }}
+            >
+              {item ? (
+                <div style={{
+                  background: "rgba(0,0,0,0.65)",
+                  borderRadius: "50%",
+                  width: 22, height: 22,
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  border: "1px solid rgba(255,255,255,0.2)",
+                }}>
+                  <ItemIcon id={item} size={14} />
+                </div>
+              ) : (
+                <div style={{
+                  width: 6, height: 6, borderRadius: "50%",
+                  background: isOpen || isHovered ? "rgba(200,169,110,0.7)" : "rgba(255,255,255,0.2)",
+                  transition: "background 0.12s",
+                }} />
+              )}
+            </div>
+
+            {/* Popover — drops down from zone */}
+            {isOpen && (
               <div style={{
-                width: 6,
-                height: 6,
-                borderRadius: "50%",
-                background: isHovered ? "rgba(200,169,110,0.7)" : "rgba(255,255,255,0.2)",
-                transition: "background 0.15s",
-              }} />
+                position: "absolute",
+                top: "calc(100% + 4px)",
+                left: "50%",
+                transform: "translateX(-50%)",
+                minWidth: 150,
+                background: "#1a1a1a",
+                border: "1px solid #3a3a2a",
+                borderRadius: 8,
+                boxShadow: "0 4px 16px rgba(0,0,0,0.7)",
+                zIndex: 200,
+                overflow: "hidden",
+              }}>
+                {/* Slot label header */}
+                <div style={{
+                  fontSize: "0.68rem", opacity: 0.45,
+                  letterSpacing: "0.1em", textTransform: "uppercase",
+                  padding: "6px 10px 4px",
+                  borderBottom: "1px solid #2a2a2a",
+                }}>
+                  {zone.label}
+                </div>
+
+                {/* Empty option */}
+                <div
+                  onClick={() => handleEquip(key, null)}
+                  style={{
+                    padding: "8px 10px",
+                    cursor: "pointer",
+                    fontSize: "0.8rem",
+                    opacity: item ? 0.45 : 0.7,
+                    borderBottom: "1px solid #222",
+                    background: !item ? "rgba(255,255,255,0.04)" : "transparent",
+                    display: "flex", alignItems: "center", gap: 6,
+                    minHeight: 36,
+                  }}
+                  onMouseEnter={e => (e.currentTarget.style.background = "rgba(255,255,255,0.07)")}
+                  onMouseLeave={e => (e.currentTarget.style.background = !item ? "rgba(255,255,255,0.04)" : "transparent")}
+                >
+                  {!item && <span style={{ color: "rgba(200,169,110,0.8)", fontSize: "0.7rem" }}>✓</span>}
+                  <span>— empty —</span>
+                </div>
+
+                {/* Available items */}
+                {options.length === 0 ? (
+                  <div style={{ padding: "8px 10px", fontSize: "0.78rem", opacity: 0.35, fontStyle: "italic" }}>
+                    Nothing available
+                  </div>
+                ) : (
+                  options.map((opt) => {
+                    const isEquipped = item === opt.id;
+                    return (
+                      <div
+                        key={opt.id}
+                        onClick={() => handleEquip(key, opt.id)}
+                        style={{
+                          padding: "8px 10px",
+                          cursor: "pointer",
+                          fontSize: "0.8rem",
+                          display: "flex", alignItems: "center", gap: 8,
+                          background: isEquipped ? "rgba(200,169,110,0.1)" : "transparent",
+                          borderBottom: "1px solid #1e1e1e",
+                          minHeight: 36,
+                        }}
+                        onMouseEnter={e => (e.currentTarget.style.background = isEquipped ? "rgba(200,169,110,0.18)" : "rgba(255,255,255,0.07)")}
+                        onMouseLeave={e => (e.currentTarget.style.background = isEquipped ? "rgba(200,169,110,0.1)" : "transparent")}
+                      >
+                        <ItemIcon id={opt.id} size={14} />
+                        <span style={{ flex: 1 }}>{opt.label}</span>
+                        {isEquipped && <span style={{ color: "rgba(200,169,110,0.8)", fontSize: "0.7rem" }}>✓</span>}
+                      </div>
+                    );
+                  })
+                )}
+              </div>
             )}
           </div>
         );

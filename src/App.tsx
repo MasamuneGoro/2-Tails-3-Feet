@@ -2197,6 +2197,19 @@ export default function App() {
 
   const hub = (
     <div className="card">
+      {/* Creature sprite — always visible at hub */}
+      <div style={{ display: "flex", justifyContent: "center", paddingBottom: 8 }}>
+        <video
+          src="/creatures/creature_happy.mp4"
+          autoPlay
+          loop
+          muted
+          playsInline
+          width={187}
+          height={140}
+          style={{ width: 187, height: 140, display: "block", borderRadius: 12 }}
+        />
+      </div>
       {/* Nudge bar — shows on HUB only, guides player to next action */}
       {(() => {
         const nudge = getNudgeText(markState, player, !!(activePoi && activeBlot));
@@ -2514,16 +2527,6 @@ export default function App() {
       ) : (
         <>
           <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12, paddingTop: 8, paddingBottom: 4 }}>
-            <video
-              src="/creatures/creature_happy.mp4"
-              autoPlay
-              loop
-              muted
-              playsInline
-              width={187}
-              height={140}
-              style={{ width: 187, height: 140, display: "block", borderRadius: 12 }}
-            />
             <h2 style={{ margin: 0 }}>Here you are.</h2>
             <p className="small" style={{ margin: 0, textAlign: "center" }}>Equip tools in your tail slots to unlock their tricks. The world is sticky and not entirely on your side.</p>
           </div>

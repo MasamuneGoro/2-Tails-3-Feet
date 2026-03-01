@@ -1231,8 +1231,8 @@ interface PlayerCharacterEquipmentProps {
 
 // Slot zones as percentages of the container
 const SLOT_ZONES = {
-  tail0: { left: "12%", top: "18%", width: "22%", height: "30%", label: "Left tail"   },
-  tail1: { left: "66%", top: "18%", width: "22%", height: "30%", label: "Right tail"  },
+  tail0: { left: "10%", top: "4%",  width: "22%", height: "35%", label: "Left tail"   },
+  tail1: { left: "68%", top: "4%",  width: "22%", height: "35%", label: "Right tail"  },
   foot0: { left: "22%", top: "66%", width: "18%", height: "22%", label: "Left foot"   },
   foot1: { left: "41%", top: "68%", width: "18%", height: "22%", label: "Centre foot" },
   foot2: { left: "60%", top: "66%", width: "18%", height: "22%", label: "Right foot"  },
@@ -1282,7 +1282,7 @@ export function PlayerCharacterEquipment({
     <div ref={containerRef} style={{ position: "relative", width: "100%", maxWidth: 180, aspectRatio: "1 / 1" }}>
       {/* Creature image */}
       <img
-        src="/creature.jpg"
+        src="/creature_transparent.png"
         alt="Your creature"
         style={{ width: "100%", height: "100%", display: "block", borderRadius: 8 }}
         draggable={false}

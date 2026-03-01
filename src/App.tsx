@@ -2463,7 +2463,14 @@ export default function App() {
               {activeBlot.storableFood && (activeBlot.storableRemaining ?? 0) > 0 ? (
                 <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
                   {hasEquippedTail(player, "eq_sticky_scoop") && !scoopExpanded && (
-                    <p className="small" style={{ opacity: 0.6, margin: 0 }}><b>Sticky Scoop</b> — {FOODS[activeBlot.storableFood].name}</p>
+                    <>
+                      <div style={{ display: "flex", gap: 12 }}>
+                        {Array.from({ length: countEquippedTail(player, "eq_sticky_scoop") }).map((_, i) => (
+                          <img key={i} src="/tools/tailtool_scoop.png" alt="" style={{ width: 100, height: 100, objectFit: "contain" }} />
+                        ))}
+                      </div>
+                      <p className="small" style={{ opacity: 0.6, margin: 0 }}><b>Sticky Scoop</b> — {FOODS[activeBlot.storableFood].name}</p>
+                    </>
                   )}
                   {!scoopExpanded ? (
                     <>

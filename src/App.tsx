@@ -3973,33 +3973,44 @@ export default function App() {
                   <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                     {groupMoves.map(({ moveId, active, greyedReason }) => {
                       const move = MOVES[moveId];
-                      const isFlee = moveId === "flee";
                       const isCombo = move.tools && move.tools.length === 2;
-                      const isHarvest = move.effect.satietyRestore !== undefined;
-                      // Active: distinct coloured borders/backgrounds. Greyed: very dark, clearly disabled.
-                      const borderColor = !active ? "#1e1e1e" : isFlee ? "#555" : isCombo ? "#9c27b0" : isHarvest ? "#2e7d32" : "#3a3a3a";
-                      const bgColor    = !active ? "#0a0a0a" : isFlee ? "#111" : isCombo ? "#1a0a1a" : isHarvest ? "#0a1a0a" : "#161616";
-                      const nameColor  = !active ? "#555"   : isFlee ? "#888" : isCombo ? "#ce93d8" : isHarvest ? "#81c784" : "#eaeaea";
+                      // Per-group accent colours for text
+                      const GROUP_NAME_COLOR: Record<string, string> = {
+                        ground_the_moth:      "#ffd54f",
+                        remove_poisonous_wax: "#80cbc4",
+                        apply_poison:         "#aed581",
+                        deadly_strike:        "#ef9a9a",
+                        annoy_it:             "#ffcc80",
+                        brute_force:          "#bcaaa4",
+                        harvest:              "#81c784",
+                        disengage:            "#888888",
+                      };
+                      const nameColor = !active ? "#444" : isCombo ? "#ce93d8" : (GROUP_NAME_COLOR[move.group] ?? "#eaeaea");
+                      const groupClass = isCombo ? "move-group-combo" : `move-group-${move.group}`;
                       return (
-                        <button
+                        <div
                           key={moveId}
-                          onClick={() => active ? doMove(moveId) : undefined}
-                          disabled={!active}
-                          style={{ background: bgColor, border: `1px solid ${borderColor}`, borderRadius: 10, padding: "10px 14px", cursor: active ? "pointer" : "default", textAlign: "left", fontSize: "0.9rem", boxShadow: active && !isFlee ? (isCombo ? "0 0 8px 1px rgba(156,39,176,0.25)" : isHarvest ? "0 0 8px 1px rgba(46,125,50,0.25)" : "0 0 8px 1px rgba(180,180,180,0.12)") : "none" }}
+                          className={`move-btn-wrap ${active ? "active " + groupClass : "inactive"}`}
                         >
-                          <div style={{ color: nameColor, fontWeight: active ? 400 : 400 }}>{move.label}</div>
-                          <div style={{ fontSize: "0.82rem", marginTop: 3 }}>
-                            {!active && greyedReason
-                              ? <span style={{ color: "#888", opacity: 1 }}>{greyedReason}</span>
-                              : <span style={{ color: nameColor, opacity: 0.5 }}>
-                                  {move.effect.satietyRestore ? `+${move.effect.satietyRestore} satiety` :
-                                   move.effect.staminaCost > 0 ? `−${move.effect.staminaCost} stamina` : "no stamina cost"}
-                                  {move.effect.composureDelta[0] > 0 && ` · −${move.effect.composureDelta[0]}${move.effect.composureDelta[0] !== move.effect.composureDelta[1] ? `–${move.effect.composureDelta[1]}` : ""} composure`}
-                                  {move.effect.integrityDelta < 0 && ` · ${move.effect.integrityDelta} integrity`}
-                                </span>
-                            }
-                          </div>
-                        </button>
+                          <button
+                            onClick={() => active ? doMove(moveId) : undefined}
+                            disabled={!active}
+                            style={{ padding: "10px 14px", cursor: active ? "pointer" : "default", textAlign: "left", fontSize: "0.9rem", borderRadius: 10 }}
+                          >
+                            <div style={{ color: nameColor, fontWeight: 400 }}>{move.label}</div>
+                            <div style={{ fontSize: "0.82rem", marginTop: 3 }}>
+                              {!active && greyedReason
+                                ? <span style={{ color: "#666", opacity: 1 }}>{greyedReason}</span>
+                                : <span style={{ color: nameColor, opacity: 0.5 }}>
+                                    {move.effect.satietyRestore ? `+${move.effect.satietyRestore} satiety` :
+                                     move.effect.staminaCost > 0 ? `−${move.effect.staminaCost} stamina` : "no stamina cost"}
+                                    {move.effect.composureDelta[0] > 0 && ` · −${move.effect.composureDelta[0]}${move.effect.composureDelta[0] !== move.effect.composureDelta[1] ? `–${move.effect.composureDelta[1]}` : ""} composure`}
+                                    {move.effect.integrityDelta < 0 && ` · ${move.effect.integrityDelta} integrity`}
+                                  </span>
+                              }
+                            </div>
+                          </button>
+                        </div>
                       );
                     })}
                   </div>

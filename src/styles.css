@@ -270,3 +270,82 @@ hr {
   0%, 100% { box-shadow: 0 0 0 1px #c8a96e30, 0 0 8px 1px #c8a96e15; }
   50%       { box-shadow: 0 0 0 2px #c8a96e60, 0 0 14px 2px #c8a96e30; }
 }
+
+/* ── Running glow border on combat move buttons ───────────────────────────── */
+/* Uses conic-gradient rotation trick. @property enables smooth angle animation */
+@property --move-angle {
+  syntax: "<angle>";
+  initial-value: 0deg;
+  inherits: false;
+}
+
+@keyframes moveGlowSpin {
+  to { --move-angle: 360deg; }
+}
+
+.move-btn-wrap {
+  position: relative;
+  border-radius: 11px;
+  padding: 1px;
+  /* fallback for browsers without @property */
+  background: #1e1e1e;
+}
+
+.move-btn-wrap.active::before {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  border-radius: 12px;
+  background: conic-gradient(
+    from var(--move-angle),
+    transparent 0%,
+    transparent 30%,
+    var(--move-glow-color) 50%,
+    transparent 70%,
+    transparent 100%
+  );
+  animation: moveGlowSpin 1.6s linear infinite;
+  z-index: 0;
+}
+
+/* Dark backing so only the 1px gap shows the gradient */
+.move-btn-wrap::after {
+  content: "";
+  position: absolute;
+  inset: 1px;
+  border-radius: 10px;
+  background: var(--move-bg-color, #0f0f0f);
+  z-index: 1;
+}
+
+/* Button itself sits above the pseudo-elements */
+.move-btn-wrap button {
+  position: relative;
+  z-index: 2;
+  width: 100%;
+  border: none !important;
+  background: transparent !important;
+}
+
+/* ── Per-group glow colours ───────────────────────────────────────────────── */
+.move-group-ground_the_moth     { --move-glow-color: #ffd54f; --move-bg-color: #0f0e07; }
+.move-group-remove_poisonous_wax{ --move-glow-color: #80cbc4; --move-bg-color: #071010; }
+.move-group-apply_poison        { --move-glow-color: #aed581; --move-bg-color: #080f05; }
+.move-group-deadly_strike       { --move-glow-color: #ef9a9a; --move-bg-color: #0f0707; }
+.move-group-annoy_it            { --move-glow-color: #ffcc80; --move-bg-color: #100c04; }
+.move-group-brute_force         { --move-glow-color: #bcaaa4; --move-bg-color: #0c0a09; }
+.move-group-harvest             { --move-glow-color: #81c784; --move-bg-color: #071009; }
+.move-group-disengage           { --move-glow-color: #888888; --move-bg-color: #0a0a0a; }
+/* Combo override (two-tool moves) */
+.move-group-combo               { --move-glow-color: #ce93d8; --move-bg-color: #0f071a; }
+
+/* Disabled wrapper — static dim border, no animation */
+.move-btn-wrap.inactive {
+  background: #111;
+}
+.move-btn-wrap.inactive::before {
+  display: none;
+}
+.move-btn-wrap.inactive::after {
+  background: #0a0a0a;
+}

@@ -2520,7 +2520,9 @@ export default function App() {
               loop
               muted
               playsInline
-              style={{ width: 140, height: 140, objectFit: "contain", borderRadius: 12 }}
+              width={187}
+              height={140}
+              style={{ width: 187, height: 140, display: "block", borderRadius: 12 }}
             />
             <h2 style={{ margin: 0 }}>Here you are.</h2>
             <p className="small" style={{ margin: 0, textAlign: "center" }}>Equip tools in your tail slots to unlock their tricks. The world is sticky and not entirely on your side.</p>

@@ -2313,6 +2313,23 @@ export default function App() {
                             : "Harvest";
                           return (
                             <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8, marginTop: 4 }}>
+                              {hasTools && (() => {
+                                const methodToImg: Record<string, string> = {
+                                  poke: "/tools/tailtool_twig.png",
+                                  tease: "/tools/tailtool_comb.png",
+                                  smash: "/tools/tailtool_hammer.png",
+                                  drill: "/tools/tailtool_drill.png",
+                                };
+                                const imgs = methods.map(m => methodToImg[m]).filter(Boolean);
+                                if (!imgs.length) return null;
+                                return (
+                                  <div style={{ display: "flex", gap: 12 }}>
+                                    {imgs.map((src, i) => (
+                                      <img key={i} src={src} alt="" style={{ width: 100, height: 100, objectFit: "contain" }} />
+                                    ))}
+                                  </div>
+                                );
+                              })()}
                               {hasTools && (
                                 <p className="small" style={{ opacity: 0.6, margin: 0 }}>
                                   {tools.map((t, i) => <span key={`${t!.id}-${i}`}><b>{t!.name}</b>{i < tools.length - 1 ? " + " : ""}</span>)}
@@ -2856,7 +2873,7 @@ export default function App() {
           const imgs = multiHarvestResults.map(r => methodToImg[r.method]).filter(Boolean);
           if (!imgs.length) return null;
           return (
-            <div style={{ display: "flex", justifyContent: "center", gap: 16, marginBottom: 12 }}>
+            <div style={{ display: "flex", justifyContent: "flex-start", gap: 16, marginBottom: 12 }}>
               {imgs.map((src, i) => (
                 <img key={i} src={src} alt="" style={{ width: 130, height: 130, objectFit: "contain" }} />
               ))}
@@ -2949,7 +2966,7 @@ export default function App() {
       <h2>Craft</h2>
       {hasEquippedTail(player, "eq_tinker_shaft") && (
         <>
-          <div style={{ display: "flex", justifyContent: "center", marginBottom: 8 }}>
+          <div style={{ display: "flex", justifyContent: "flex-start", marginBottom: 8 }}>
             <img src="/tools/tailtool_tinkershaft.png" alt="" style={{ width: 130, height: 130, objectFit: "contain" }} />
           </div>
           <p className="small" style={{ opacity: 0.55, fontStyle: "italic", marginBottom: 14 }}>The moment the Tinker Shaft clicks into place, something shifts. Shapes and sequences surface unbidden — what to gather, how to bind it, what it could become. The knowledge feels borrowed. The urge to use it doesn't.</p>

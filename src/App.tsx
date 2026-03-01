@@ -3,7 +3,7 @@ import type { BlotMarkCategory, BlotMarkId, BlotMarkState, BlotState, CraftPrevi
 import { playSfx, unlockAudio, preloadAll, playBgm, stopBgm, setBgmVolume, getBgmVolume } from "./sound";
 import { startBattle, getAvailableMoves, getMovesForUI, executeMove, resolveBattle, checkSecretion, computeNoveltyTier, noveltyRefundPct, NOVELTY_FLAVOUR, NOVELTY_STAMINA_LABEL, isMothGrounded, type MoveUIState } from "./combat";
 import type { BattleState, BattleResult, CreatureId } from "./types";
-import { CreatureIcon, ItemIcon, PoiImage, PoiIcon, FilamentGateImage, PlayerCharacterEquipment, PlayerSprite } from "./visuals";
+import { CreatureIcon, ItemIcon, PoiImage, PoiIcon, FilamentGateImage, PlayerCharacterEquipment } from "./visuals";
 import { BIOME_LEVEL, CREATURES, EVENTS, FOODS, ITEMS, MOVES, MOVE_GROUPS, POIS, RECIPES, RESOURCES, SITUATION_TEXT, getBattleFlavour, MARKERS, TROPHIES, GEM_TROPHIES, BIOMASS_ITEM, CATEGORY_MARKER, CATEGORY_TROPHY, TROPHY_TO_GEM, CATEGORY_GATE_MARK, GEM_TROPHY_RECIPES, GATE_REQUIRED_GEM_TROPHIES, BIOMASS_VALUES, calcStompStoneYield, canStomp } from "./gameData";
 import {
   canCraft, getFoodName, getItemName, getResourceName, listUnlockedRecipes,
@@ -2514,7 +2514,14 @@ export default function App() {
       ) : (
         <>
           <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12, paddingTop: 8, paddingBottom: 4 }}>
-            <PlayerSprite size={140} />
+            <video
+              src="/creatures/creature_happy.mp4"
+              autoPlay
+              loop
+              muted
+              playsInline
+              style={{ width: 140, height: 140, objectFit: "contain", borderRadius: 12 }}
+            />
             <h2 style={{ margin: 0 }}>Here you are.</h2>
             <p className="small" style={{ margin: 0, textAlign: "center" }}>Equip tools in your tail slots to unlock their tricks. The world is sticky and not entirely on your side.</p>
           </div>

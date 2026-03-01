@@ -2402,7 +2402,10 @@ export default function App() {
               {(activeBlot.sapRemaining ?? 0) > 0 ? (
                 <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8, marginBottom: 12 }}>
                   {chomperEquipped && (
-                    <p className="small" style={{ opacity: 0.6, margin: 0 }}><b>Chomper</b> — eats sap on contact</p>
+                    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
+                      <img src="/tools/tailtool_chomper.png" alt="" style={{ width: 130, height: 130, objectFit: "contain" }} />
+                      <p className="small" style={{ opacity: 0.6, margin: 0 }}><b>Chomper</b> — eats sap on contact</p>
+                    </div>
                   )}
                   <button
                     onClick={doEatSap}
@@ -2842,6 +2845,25 @@ export default function App() {
   const harvestSummaryScreen = multiHarvestResults.length > 0 && (
     <div className="card">
       <FadeIn delay={0}><h2>Haul report</h2></FadeIn>
+      <FadeIn delay={30}>
+        {(() => {
+          const methodToImg: Record<string, string> = {
+            poke: "/tools/tailtool_twig.png",
+            tease: "/tools/tailtool_comb.png",
+            smash: "/tools/tailtool_hammer.png",
+            drill: "/tools/tailtool_drill.png",
+          };
+          const imgs = multiHarvestResults.map(r => methodToImg[r.method]).filter(Boolean);
+          if (!imgs.length) return null;
+          return (
+            <div style={{ display: "flex", justifyContent: "center", gap: 16, marginBottom: 12 }}>
+              {imgs.map((src, i) => (
+                <img key={i} src={src} alt="" style={{ width: 130, height: 130, objectFit: "contain" }} />
+              ))}
+            </div>
+          );
+        })()}
+      </FadeIn>
       <FadeIn delay={60}>
         <p className="small">
           {multiHarvestResults.length === 2 ? "Both tools took a swing." : "One pass done."}{" "}
@@ -2926,7 +2948,12 @@ export default function App() {
     <div className="card">
       <h2>Craft</h2>
       {hasEquippedTail(player, "eq_tinker_shaft") && (
-        <p className="small" style={{ opacity: 0.55, fontStyle: "italic", marginBottom: 14 }}>The moment the Tinker Shaft clicks into place, something shifts. Shapes and sequences surface unbidden — what to gather, how to bind it, what it could become. The knowledge feels borrowed. The urge to use it doesn't.</p>
+        <>
+          <div style={{ display: "flex", justifyContent: "center", marginBottom: 8 }}>
+            <img src="/tools/tailtool_tinkershaft.png" alt="" style={{ width: 130, height: 130, objectFit: "contain" }} />
+          </div>
+          <p className="small" style={{ opacity: 0.55, fontStyle: "italic", marginBottom: 14 }}>The moment the Tinker Shaft clicks into place, something shifts. Shapes and sequences surface unbidden — what to gather, how to bind it, what it could become. The knowledge feels borrowed. The urge to use it doesn't.</p>
+        </>
       )}
       <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
         {unlockedRecipes.length === 0 && (
@@ -3151,6 +3178,11 @@ export default function App() {
     return (
       <div className="card">
         <PreviewTitle main="Belly Down" sub="What Might Happen" />
+        {curlerCount > 0 && (
+          <div style={{ display: "flex", justifyContent: "center", marginBottom: 8 }}>
+            <img src="/tools/tailtool_curler.png" alt="" style={{ width: 130, height: 130, objectFit: "contain" }} />
+          </div>
+        )}
         <p className="small" style={{ textAlign: "center", marginBottom: 14, opacity: 0.7 }}>
           {curlerCount > 0
             ? `The Tail Curler${curlerCount === 2 ? "s tick" : " ticks"} faster while you're horizontal — napping gives the best recovery rate${curlerCount === 2 ? ", and two curlers stack" : ""}. You'll unwind faster lying still.`

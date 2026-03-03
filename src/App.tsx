@@ -3864,6 +3864,7 @@ export default function App() {
 
   // ── Battle screen ─────────────────────────────────────────────────────────
   const [moveCounterExpanded, setMoveCounterExpanded] = useState(false);
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
 
   const battleScreen = battleState && (() => {
     const creature = CREATURES[battleState.creatureId];
@@ -3908,6 +3909,17 @@ export default function App() {
 
     return (
       <div className="card" style={{ position: "relative" }}>
+        {/* Combat UI keyframes for group glow and move glow */}
+        <style>{`
+          @keyframes groupHeaderGlow {
+            0%, 100% { box-shadow: 0 0 8px var(--glow-color, #aaa)22, inset 0 0 4px transparent; }
+            50% { box-shadow: 0 0 20px var(--glow-color, #aaa)55, inset 0 0 8px var(--glow-color, #aaa)18; }
+          }
+          @keyframes moveAvailableGlow {
+            0%, 100% { box-shadow: 0 0 0px transparent; }
+            50% { box-shadow: 0 0 14px var(--move-glow, #aaa)50; }
+          }
+        `}</style>
         {/* Counterattack full-panel flash */}
         {combatEffect === "counterattack" && <div className="effect-counterattack-panel"/>}
         <FadeIn delay={0}>
@@ -3915,6 +3927,44 @@ export default function App() {
             <div>
               <h2 style={{ margin: 0 }}>{creature.name}</h2>
               <div style={{ fontSize: "0.8rem", opacity: 0.5, marginTop: 2 }}>Turn {battleState.turn}</div>
+            </div>
+            {/* Unique move counter — top right, collapsible */}
+            <div style={{ minWidth: 130, maxWidth: 210, flexShrink: 0, alignSelf: "flex-start" }}>
+              <button
+                onClick={() => setMoveCounterExpanded(e => !e)}
+                style={{
+                  width: "100%", background: "#0e0e0e",
+                  border: `1px solid ${counterColor}55`,
+                  borderRadius: 10, padding: "8px 11px",
+                  cursor: "pointer", textAlign: "left",
+                  color: counterColor,
+                  boxShadow: tier > 0 ? `0 0 10px ${counterColor}30` : "none",
+                  transition: "box-shadow 0.3s",
+                }}
+              >
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <span style={{ fontWeight: 600, fontSize: "0.82rem" }}>{counterDiamonds} {uniqueCount} unique</span>
+                  <span style={{ fontSize: "0.68rem", opacity: 0.5 }}>{moveCounterExpanded ? "▲" : "▼"}</span>
+                </div>
+                {moveCounterExpanded && (
+                  <div style={{ marginTop: 8 }}>
+                    {battleState.movesUsed.length === 0 ? (
+                      <div style={{ fontSize: "0.75rem", opacity: 0.4 }}>No moves yet.</div>
+                    ) : (
+                      <ol style={{ margin: "0 0 0 14px", padding: 0, fontSize: "0.73rem", opacity: 0.75, lineHeight: 1.8 }}>
+                        {battleState.movesUsed.map((m, i) => (
+                          <li key={i}>{MOVES[m].label}</li>
+                        ))}
+                      </ol>
+                    )}
+                    {nextTierHint ? (
+                      <div style={{ marginTop: 6, fontSize: "0.7rem", fontStyle: "italic", opacity: 0.5 }}>{nextTierHint}</div>
+                    ) : (
+                      <div style={{ marginTop: 6, fontSize: "0.7rem", fontStyle: "italic", opacity: 0.7, color: "#69f0ae" }}>Max tier reached!</div>
+                    )}
+                  </div>
+                )}
+              </button>
             </div>
           </div>
         </FadeIn>
@@ -4018,91 +4068,114 @@ export default function App() {
           </FadeIn>
         )}
 
-        {/* Unique move counter — clickable, sits right above move groups */}
-        <FadeIn delay={150}>
-          <button
-            onClick={() => setMoveCounterExpanded(e => !e)}
-            style={{ width: "100%", background: "#0e0e0e", border: "1px solid #2a2a2a", borderRadius: 10, padding: "10px 14px", cursor: "pointer", textAlign: "left", marginBottom: 12, color: counterColor }}
-          >
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <span style={{ fontWeight: 600 }}>{counterDiamonds} {uniqueCount} unique move{uniqueCount !== 1 ? "s" : ""}</span>
-              <span style={{ fontSize: "0.75rem", opacity: 0.5 }}>{moveCounterExpanded ? "▲" : "▼"}</span>
-            </div>
-            {moveCounterExpanded && (
-              <div style={{ marginTop: 10 }}>
-                {battleState.movesUsed.length === 0 ? (
-                  <div style={{ fontSize: "0.78rem", opacity: 0.4 }}>No moves yet.</div>
-                ) : (
-                  <ol style={{ margin: "0 0 0 16px", padding: 0, fontSize: "0.78rem", opacity: 0.75, lineHeight: 1.8 }}>
-                    {battleState.movesUsed.map((m, i) => (
-                      <li key={i}>{MOVES[m].label}</li>
-                    ))}
-                  </ol>
-                )}
-                {nextTierHint ? (
-                  <div style={{ marginTop: 8, fontSize: "0.73rem", fontStyle: "italic", opacity: 0.5 }}>{nextTierHint}</div>
-                ) : (
-                  <div style={{ marginTop: 8, fontSize: "0.73rem", fontStyle: "italic", opacity: 0.7, color: "#69f0ae" }}>Congratulations, you've reached the highest tier.</div>
-                )}
-              </div>
-            )}
-          </button>
-        </FadeIn>
 
-        {/* Move groups */}
+        {/* Move groups — collapsible, with glow when active moves available */}
         <FadeIn delay={180}>
           <div style={{ fontSize: "0.95rem", fontWeight: 600, color: "#ccc", marginBottom: 14, letterSpacing: "0.01em" }}>Choose your next move below:</div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
             {MOVE_GROUPS.map(group => {
               const groupMoves = movesByGroup.get(group.id) ?? [];
               if (groupMoves.length === 0) return null;
+              const hasActive = groupMoves.some(m => m.active);
+              const isCollapsed = !collapsedGroups.has(group.id);
+              // collapsedGroups stores OPEN groups — absent = collapsed
+              const toggleGroup = () => setCollapsedGroups(prev => {
+                const next = new Set(prev);
+                if (next.has(group.id)) next.delete(group.id);
+                else next.add(group.id);
+                return next;
+              });
+              const GROUP_NAME_COLOR: Record<string, string> = {
+                ground_the_moth:      "#ffd54f",
+                remove_poisonous_wax: "#80cbc4",
+                apply_poison:         "#aed581",
+                deadly_strike:        "#ef9a9a",
+                annoy_it:             "#ffcc80",
+                brute_force:          "#bcaaa4",
+                harvest:              "#81c784",
+                disengage:            "#888888",
+              };
+              const groupAccent = GROUP_NAME_COLOR[group.id] ?? "#aaa";
+              // Glow only when collapsed AND has active moves
+              const showHeaderGlow = isCollapsed && hasActive;
               return (
                 <div key={group.id}>
-                  <div style={{ fontSize: "0.78rem", opacity: 0.55, letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 7, fontWeight: 600 }}>{group.label}</div>
-                  <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                    {groupMoves.map(({ moveId, active, greyedReason }) => {
-                      const move = MOVES[moveId];
-                      const isCombo = move.tools && move.tools.length === 2;
-                      // Per-group accent colours for text
-                      const GROUP_NAME_COLOR: Record<string, string> = {
-                        ground_the_moth:      "#ffd54f",
-                        remove_poisonous_wax: "#80cbc4",
-                        apply_poison:         "#aed581",
-                        deadly_strike:        "#ef9a9a",
-                        annoy_it:             "#ffcc80",
-                        brute_force:          "#bcaaa4",
-                        harvest:              "#81c784",
-                        disengage:            "#888888",
-                      };
-                      const nameColor = !active ? "#444" : isCombo ? "#ce93d8" : (GROUP_NAME_COLOR[move.group] ?? "#eaeaea");
-                      const groupClass = isCombo ? "move-group-combo" : `move-group-${move.group}`;
-                      return (
-                        <div
-                          key={moveId}
-                          className={`move-btn-wrap ${active ? "active " + groupClass : "inactive"}`}
-                        >
-                          <button
-                            onClick={() => active ? doMove(moveId) : undefined}
-                            disabled={!active}
-                            style={{ padding: "10px 14px", cursor: active ? "pointer" : "default", textAlign: "left", fontSize: "0.9rem", borderRadius: 10 }}
+                  {/* Group header — clickable, glows when has usable moves and collapsed */}
+                  <button
+                    onClick={toggleGroup}
+                    style={{
+                      width: "100%", background: showHeaderGlow ? "#111" : "#0a0a0a",
+                      border: showHeaderGlow ? `1px solid ${groupAccent}55` : "1px solid #1e1e1e",
+                      borderRadius: isCollapsed ? 8 : "8px 8px 0 0",
+                      padding: "9px 13px",
+                      cursor: "pointer", textAlign: "left",
+                      display: "flex", justifyContent: "space-between", alignItems: "center",
+                      animation: showHeaderGlow ? "groupHeaderGlow 2s ease-in-out infinite" : "none",
+                      "--glow-color": groupAccent,
+                      boxShadow: showHeaderGlow ? `0 0 10px ${groupAccent}25, inset 0 0 6px ${groupAccent}10` : "none",
+                      transition: "box-shadow 0.3s, border-color 0.3s",
+                    } as React.CSSProperties}
+                  >
+                    <span style={{
+                      fontSize: "0.78rem", letterSpacing: "0.1em",
+                      textTransform: "uppercase", fontWeight: 600,
+                      color: showHeaderGlow ? groupAccent : "#555",
+                      transition: "color 0.3s",
+                    }}>
+                      {group.label}
+                      {hasActive && isCollapsed && (
+                        <span style={{ marginLeft: 8, fontSize: "0.65rem", opacity: 0.7 }}>●</span>
+                      )}
+                    </span>
+                    <span style={{ fontSize: "0.7rem", opacity: 0.45 }}>{isCollapsed ? "▼" : "▲"}</span>
+                  </button>
+                  {/* Moves — only shown when expanded (group.id in collapsedGroups) */}
+                  {!isCollapsed && (
+                    <div style={{
+                      border: `1px solid #1e1e1e`, borderTop: "none",
+                      borderRadius: "0 0 8px 8px", padding: "6px 0 6px",
+                      background: "#0a0a0a",
+                      display: "flex", flexDirection: "column", gap: 4,
+                    }}>
+                      {groupMoves.map(({ moveId, active, greyedReason }) => {
+                        const move = MOVES[moveId];
+                        const isCombo = move.tools && move.tools.length === 2;
+                        const nameColor = !active ? "#444" : isCombo ? "#ce93d8" : (GROUP_NAME_COLOR[move.group] ?? "#eaeaea");
+                        const groupClass = isCombo ? "move-group-combo" : `move-group-${move.group}`;
+                        return (
+                          <div
+                            key={moveId}
+                            className={`move-btn-wrap ${active ? "active " + groupClass : "inactive"}`}
+                            style={{
+                              margin: "0 6px",
+                              animation: active ? "moveAvailableGlow 2s ease-in-out infinite" : "none",
+                              "--move-glow": nameColor,
+                              borderRadius: 8,
+                            } as React.CSSProperties}
                           >
-                            <div style={{ color: nameColor, fontWeight: 400 }}>{move.label}</div>
-                            <div style={{ fontSize: "0.82rem", marginTop: 3 }}>
-                              {!active && greyedReason
-                                ? <span style={{ color: "#666", opacity: 1 }}>{greyedReason}</span>
-                                : <span style={{ color: nameColor, opacity: 0.5 }}>
-                                    {move.effect.satietyRestore ? `+${move.effect.satietyRestore} satiety` :
-                                     move.effect.staminaCost > 0 ? `−${move.effect.staminaCost} stamina` : "no stamina cost"}
-                                    {move.effect.composureDelta[0] > 0 && ` · −${move.effect.composureDelta[0]}${move.effect.composureDelta[0] !== move.effect.composureDelta[1] ? `–${move.effect.composureDelta[1]}` : ""} composure`}
-                                    {move.effect.integrityDelta < 0 && ` · ${move.effect.integrityDelta} integrity`}
-                                  </span>
-                              }
-                            </div>
-                          </button>
-                        </div>
-                      );
-                    })}
-                  </div>
+                            <button
+                              onClick={() => active ? doMove(moveId) : undefined}
+                              disabled={!active}
+                              style={{ padding: "10px 14px", cursor: active ? "pointer" : "default", textAlign: "left", fontSize: "0.9rem", borderRadius: 8, width: "100%" }}
+                            >
+                              <div style={{ color: nameColor, fontWeight: 400 }}>{move.label}</div>
+                              <div style={{ fontSize: "0.82rem", marginTop: 3 }}>
+                                {!active && greyedReason
+                                  ? <span style={{ color: "#666", opacity: 1 }}>{greyedReason}</span>
+                                  : <span style={{ color: nameColor, opacity: 0.5 }}>
+                                      {move.effect.satietyRestore ? `+${move.effect.satietyRestore} satiety` :
+                                       move.effect.staminaCost > 0 ? `−${move.effect.staminaCost} stamina` : "no stamina cost"}
+                                      {move.effect.composureDelta[0] > 0 && ` · −${move.effect.composureDelta[0]}${move.effect.composureDelta[0] !== move.effect.composureDelta[1] ? `–${move.effect.composureDelta[1]}` : ""} composure`}
+                                      {move.effect.integrityDelta < 0 && ` · ${move.effect.integrityDelta} integrity`}
+                                    </span>
+                                }
+                              </div>
+                            </button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
               );
             })}

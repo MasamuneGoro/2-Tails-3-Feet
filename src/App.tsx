@@ -1872,6 +1872,13 @@ export default function App() {
         }}
       />
 
+      {/* ── Stat bars — satiety + stamina ── */}
+      <div style={{ borderTop: "1px solid #2a2a2a", paddingTop: 10 }}>
+        <StatBar value={player.stats.satiety} max={player.stats.maxSatiety} kind="satiety" netRange={previewOverlay?.satiety} />
+        <StatBar value={player.stats.stamina} max={player.stats.maxStamina} kind="stamina" netRange={previewOverlay?.stamina} />
+        <span style={{ fontSize: "0.7rem", opacity: 0.35, marginTop: 4, display: "block" }}>{BIOME_LEVEL.name}</span>
+      </div>
+
       {chomperEquipped && (
         <div style={{ borderTop: "1px solid #2a2a2a", paddingTop: 10 }}>
           <div style={{ fontSize: "0.78rem", opacity: 0.6, marginBottom: 6 }}>Chomper chomp</div>
@@ -4747,7 +4754,6 @@ export default function App() {
       <div style={{ flex: 1, padding: 22, maxWidth: 820 }}>
         <h1 style={{ letterSpacing: "0.08em", marginBottom: 4 }}>2 Tails 3 Feet</h1>
         <div style={{ opacity: 0.55, fontSize: 15, marginBottom: 12, fontStyle: "italic" }}>Hunger ends you. Fatigue stops you. The sticky world clings on.</div>
-        {hud}
         {decayedFoodAlert && (
           <div style={{
             marginBottom: 12, padding: "10px 14px", borderRadius: 10,

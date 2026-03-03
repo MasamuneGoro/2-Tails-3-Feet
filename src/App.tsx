@@ -1836,6 +1836,45 @@ export default function App() {
   }
 
   // ─────────────────────────────────────────────────────────────────────────
+  const previewOverlay = (() => {
+    const sat = player.stats.satiety;
+    const sta = player.stats.stamina;
+
+    if (screen === "PREVIEW_JOURNEY" && journeyPreview) {
+      const pv = journeyPreview;
+      // staminaRecoveryPerPeriodRange is already total recovery (rate × periods computed in engine)
+      return {
+        satiety: [sat - pv.satietyCostRange[1] + pv.satietyRestoredRange[0], sat - pv.satietyCostRange[0] + pv.satietyRestoredRange[1]] as [number, number],
+        stamina: [sta - pv.staminaCostRange[1] + pv.staminaRecoveryPerPeriodRange[0], sta - pv.staminaCostRange[0] + pv.staminaRecoveryPerPeriodRange[1]] as [number, number],
+      };
+    }
+    if (screen === "PREVIEW_HARVEST" && harvestPreview) {
+      const pv = harvestPreview;
+      // staminaRecoveryPerPeriodRange is already total recovery (rate × periods computed in engine)
+      return {
+        satiety: [sat - pv.satietyCostRange[1] + pv.satietyRestoredRange[0], sat - pv.satietyCostRange[0] + pv.satietyRestoredRange[1]] as [number, number],
+        stamina: [sta - pv.staminaCostRange[1] + pv.staminaRecoveryPerPeriodRange[0], sta - pv.staminaCostRange[0] + pv.staminaRecoveryPerPeriodRange[1]] as [number, number],
+      };
+    }
+    if (screen === "PREVIEW_CRAFT" && craftPreview) {
+      const pv = craftPreview;
+      const satNet = sat - pv.satietyCost + pv.satietyRestoredRange[1];
+      const staNet = sta - pv.staminaCost + pv.staminaRecoveryTotal;
+      return {
+        satiety: [satNet, satNet] as [number, number],
+        stamina: [staNet, staNet] as [number, number],
+      };
+    }
+    if (screen === "PREVIEW_RECOVER") {
+      const pv = recoverPreview(player, chomperAutoEnabled);
+      return {
+        satiety: [sat - pv.satietyCostRange[1], sat - pv.satietyCostRange[0]] as [number, number],
+        stamina: [sta + pv.staminaRecoveryRange[0], sta + pv.staminaRecoveryRange[1]] as [number, number],
+      };
+    }
+    return null;
+  })();
+
   // PERSISTENT SIDEBAR — tail slots + chomper toggle + inventory/skills btns
   // ─────────────────────────────────────────────────────────────────────────
 
@@ -2173,45 +2212,6 @@ export default function App() {
   // ─────────────────────────────────────────────────────────────────────────
   // Derive preview overlay values from active screen
   // net = value - cost + recovery; [worst, best] = [value - costMax + recMin, value - costMin + recMax]
-  const previewOverlay = (() => {
-    const sat = player.stats.satiety;
-    const sta = player.stats.stamina;
-
-    if (screen === "PREVIEW_JOURNEY" && journeyPreview) {
-      const pv = journeyPreview;
-      // staminaRecoveryPerPeriodRange is already total recovery (rate × periods computed in engine)
-      return {
-        satiety: [sat - pv.satietyCostRange[1] + pv.satietyRestoredRange[0], sat - pv.satietyCostRange[0] + pv.satietyRestoredRange[1]] as [number, number],
-        stamina: [sta - pv.staminaCostRange[1] + pv.staminaRecoveryPerPeriodRange[0], sta - pv.staminaCostRange[0] + pv.staminaRecoveryPerPeriodRange[1]] as [number, number],
-      };
-    }
-    if (screen === "PREVIEW_HARVEST" && harvestPreview) {
-      const pv = harvestPreview;
-      // staminaRecoveryPerPeriodRange is already total recovery (rate × periods computed in engine)
-      return {
-        satiety: [sat - pv.satietyCostRange[1] + pv.satietyRestoredRange[0], sat - pv.satietyCostRange[0] + pv.satietyRestoredRange[1]] as [number, number],
-        stamina: [sta - pv.staminaCostRange[1] + pv.staminaRecoveryPerPeriodRange[0], sta - pv.staminaCostRange[0] + pv.staminaRecoveryPerPeriodRange[1]] as [number, number],
-      };
-    }
-    if (screen === "PREVIEW_CRAFT" && craftPreview) {
-      const pv = craftPreview;
-      const satNet = sat - pv.satietyCost + pv.satietyRestoredRange[1];
-      const staNet = sta - pv.staminaCost + pv.staminaRecoveryTotal;
-      return {
-        satiety: [satNet, satNet] as [number, number],
-        stamina: [staNet, staNet] as [number, number],
-      };
-    }
-    if (screen === "PREVIEW_RECOVER") {
-      const pv = recoverPreview(player, chomperAutoEnabled);
-      return {
-        satiety: [sat - pv.satietyCostRange[1], sat - pv.satietyCostRange[0]] as [number, number],
-        stamina: [sta + pv.staminaRecoveryRange[0], sta + pv.staminaRecoveryRange[1]] as [number, number],
-      };
-    }
-    return null;
-  })();
-
   const hud = (
     <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 14, padding: "10px 0" }}>
       <StatBar value={player.stats.satiety} max={player.stats.maxSatiety} kind="satiety" netRange={previewOverlay?.satiety} />

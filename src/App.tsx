@@ -20,6 +20,7 @@ function pct(n: number, d: number) { return Math.round((n / d) * 100); }
 // ─── Blot Marks ──────────────────────────────────────────────────────────────
 
 import type { BlotMark } from "./types";
+import { playCombatSound } from "./combatSounds";
 
 const BLOT_MARKS: Record<BlotMarkId, BlotMark> = {
   mark_first_journey:      { id: "mark_first_journey",      category: "Exploration", title: "First Steps Out",          flavour: "You went out and came back. That's how it starts." },
@@ -1682,6 +1683,7 @@ export default function App() {
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
         setCombatEffect(effectKey);
+        playCombatSound(effectKey);
         setTimeout(() => setCombatEffect(null), 700);
       });
     });

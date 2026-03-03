@@ -349,3 +349,378 @@ hr {
 .move-btn-wrap.inactive::after {
   background: #0a0a0a;
 }
+
+/* ═══════════════════════════════════════════════════════
+   COMBAT EFFECT OVERLAYS
+   Positioned absolutely over the moth image container.
+   pointer-events: none so they never block interaction.
+   ═══════════════════════════════════════════════════════ */
+
+.combat-effect-host {
+  position: relative;
+  display: inline-block;
+}
+
+/* Shared overlay base */
+.combat-effect-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+/* ── impact_light — sharp starburst + white flash ── */
+@keyframes impactLightFlash {
+  0%   { opacity: 0; }
+  10%  { opacity: 0.45; }
+  40%  { opacity: 0.2; }
+  100% { opacity: 0; }
+}
+@keyframes impactLightBurst {
+  0%   { opacity: 0; transform: translate(-50%, -50%) scale(0.1) rotate(0deg); }
+  20%  { opacity: 1; transform: translate(-50%, -50%) scale(1.1) rotate(15deg); }
+  60%  { opacity: 0.6; transform: translate(-50%, -50%) scale(1.3) rotate(20deg); }
+  100% { opacity: 0; transform: translate(-50%, -50%) scale(1.5) rotate(25deg); }
+}
+.effect-impact_light .effect-flash {
+  position: absolute; inset: 0;
+  background: rgba(255,255,255,0.18);
+  animation: impactLightFlash 0.5s ease-out forwards;
+}
+.effect-impact_light .effect-burst {
+  position: absolute;
+  top: 50%; left: 50%;
+  width: 70%; height: 70%;
+  background: radial-gradient(circle, rgba(255,240,180,0.9) 0%, rgba(255,200,80,0.5) 40%, transparent 70%);
+  clip-path: polygon(50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%);
+  animation: impactLightBurst 0.5s ease-out forwards;
+}
+
+/* ── impact_heavy — heavier flash + screen shake ── */
+@keyframes impactHeavyFlash {
+  0%   { opacity: 0; }
+  8%   { opacity: 0.65; }
+  35%  { opacity: 0.35; }
+  100% { opacity: 0; }
+}
+@keyframes impactHeavyBurst {
+  0%   { opacity: 0; transform: translate(-50%, -50%) scale(0.05) rotate(0deg); }
+  15%  { opacity: 1; transform: translate(-50%, -50%) scale(1.2) rotate(10deg); }
+  50%  { opacity: 0.8; transform: translate(-50%, -50%) scale(1.6) rotate(18deg); }
+  100% { opacity: 0; transform: translate(-50%, -50%) scale(2) rotate(25deg); }
+}
+@keyframes combatShake {
+  0%   { transform: translate(0, 0); }
+  15%  { transform: translate(-6px, 3px); }
+  30%  { transform: translate(5px, -4px); }
+  45%  { transform: translate(-4px, 2px); }
+  60%  { transform: translate(3px, -2px); }
+  75%  { transform: translate(-2px, 1px); }
+  100% { transform: translate(0, 0); }
+}
+.effect-impact_heavy .effect-flash {
+  position: absolute; inset: 0;
+  background: rgba(255,100,60,0.28);
+  animation: impactHeavyFlash 0.55s ease-out forwards;
+}
+.effect-impact_heavy .effect-burst {
+  position: absolute;
+  top: 50%; left: 50%;
+  width: 90%; height: 90%;
+  background: radial-gradient(circle, rgba(255,180,60,0.95) 0%, rgba(220,80,30,0.6) 40%, transparent 70%);
+  clip-path: polygon(50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%);
+  animation: impactHeavyBurst 0.55s ease-out forwards;
+}
+.combat-shake {
+  animation: combatShake 0.45s ease-out;
+}
+
+/* ── pierce — spinning ring contracts inward ── */
+@keyframes pierceRing {
+  0%   { opacity: 0.9; transform: translate(-50%, -50%) scale(1.4) rotate(0deg); }
+  60%  { opacity: 0.7; transform: translate(-50%, -50%) scale(0.3) rotate(180deg); }
+  80%  { opacity: 1; transform: translate(-50%, -50%) scale(0.08) rotate(220deg); }
+  100% { opacity: 0; transform: translate(-50%, -50%) scale(0) rotate(240deg); }
+}
+@keyframes pierceDesaturate {
+  0%   { filter: saturate(1); }
+  30%  { filter: saturate(0.1) brightness(1.3); }
+  100% { filter: saturate(1); }
+}
+@keyframes pierceDot {
+  0%   { opacity: 0; transform: translate(-50%, -50%) scale(0); }
+  65%  { opacity: 0; transform: translate(-50%, -50%) scale(0); }
+  75%  { opacity: 1; transform: translate(-50%, -50%) scale(1.4); }
+  100% { opacity: 0; transform: translate(-50%, -50%) scale(0.5); }
+}
+.effect-pierce .effect-ring {
+  position: absolute;
+  top: 50%; left: 50%;
+  width: 80%; height: 80%;
+  border: 4px solid rgba(180,230,255,0.9);
+  border-radius: 50%;
+  box-shadow: 0 0 12px rgba(120,200,255,0.7), inset 0 0 8px rgba(120,200,255,0.4);
+  animation: pierceRing 0.6s ease-in forwards;
+}
+.effect-pierce .effect-desaturate {
+  position: absolute; inset: 0;
+  animation: pierceDesaturate 0.6s ease-out forwards;
+  background: transparent;
+}
+.effect-pierce .effect-dot {
+  position: absolute;
+  top: 50%; left: 50%;
+  width: 18px; height: 18px;
+  background: radial-gradient(circle, #ffffff 0%, rgba(120,200,255,0.8) 50%, transparent 80%);
+  border-radius: 50%;
+  animation: pierceDot 0.6s ease-out forwards;
+}
+
+/* ── stomp — expanding shockwave ring ── */
+@keyframes stompRing {
+  0%   { opacity: 0.9; transform: translate(-50%, -50%) scale(0.1); }
+  60%  { opacity: 0.5; transform: translate(-50%, -50%) scale(1.3); }
+  100% { opacity: 0; transform: translate(-50%, -50%) scale(1.8); }
+}
+@keyframes stompRing2 {
+  0%   { opacity: 0; transform: translate(-50%, -50%) scale(0.1); }
+  20%  { opacity: 0; transform: translate(-50%, -50%) scale(0.1); }
+  70%  { opacity: 0.4; transform: translate(-50%, -50%) scale(1.1); }
+  100% { opacity: 0; transform: translate(-50%, -50%) scale(1.6); }
+}
+@keyframes stompFlash {
+  0%   { opacity: 0; }
+  10%  { opacity: 0.35; }
+  100% { opacity: 0; }
+}
+.effect-stomp .effect-ring {
+  position: absolute;
+  top: 50%; left: 50%;
+  width: 85%; height: 85%;
+  border: 3px solid rgba(255,213,79,0.9);
+  border-radius: 50%;
+  box-shadow: 0 0 14px rgba(255,213,79,0.6);
+  animation: stompRing 0.55s ease-out forwards;
+}
+.effect-stomp .effect-ring2 {
+  position: absolute;
+  top: 50%; left: 50%;
+  width: 85%; height: 85%;
+  border: 2px solid rgba(255,213,79,0.5);
+  border-radius: 50%;
+  animation: stompRing2 0.55s ease-out forwards;
+}
+.effect-stomp .effect-flash {
+  position: absolute; inset: 0;
+  background: rgba(255,213,79,0.15);
+  animation: stompFlash 0.55s ease-out forwards;
+}
+
+/* ── scrape — horizontal lines sweep across ── */
+@keyframes scrapeLine1 {
+  0%   { opacity: 0; transform: scaleX(0); transform-origin: left; }
+  10%  { opacity: 0.8; }
+  40%  { opacity: 0.8; transform: scaleX(1); transform-origin: left; }
+  100% { opacity: 0; transform: scaleX(1); }
+}
+@keyframes scrapeLine2 {
+  0%   { opacity: 0; transform: scaleX(0); transform-origin: left; }
+  15%  { opacity: 0; }
+  25%  { opacity: 0.7; transform: scaleX(0); transform-origin: left; }
+  55%  { opacity: 0.7; transform: scaleX(1); transform-origin: left; }
+  100% { opacity: 0; }
+}
+@keyframes scrapeLine3 {
+  0%   { opacity: 0; transform: scaleX(0); transform-origin: left; }
+  25%  { opacity: 0; }
+  38%  { opacity: 0.5; transform: scaleX(0); transform-origin: left; }
+  65%  { opacity: 0.5; transform: scaleX(1); transform-origin: left; }
+  100% { opacity: 0; }
+}
+.effect-scrape .effect-line1 {
+  position: absolute;
+  top: 35%; left: 0; right: 0; height: 3px;
+  background: linear-gradient(to right, transparent, rgba(255,204,128,0.9), rgba(255,204,128,0.7), transparent);
+  animation: scrapeLine1 0.55s ease-out forwards;
+}
+.effect-scrape .effect-line2 {
+  position: absolute;
+  top: 50%; left: 0; right: 0; height: 2px;
+  background: linear-gradient(to right, transparent, rgba(255,204,128,0.8), transparent);
+  animation: scrapeLine2 0.55s ease-out forwards;
+}
+.effect-scrape .effect-line3 {
+  position: absolute;
+  top: 63%; left: 0; right: 0; height: 2px;
+  background: linear-gradient(to right, transparent, rgba(255,204,128,0.6), transparent);
+  animation: scrapeLine3 0.55s ease-out forwards;
+}
+
+/* ── lace — iridescent shimmer ── */
+@keyframes laceShimmer {
+  0%   { opacity: 0; transform: translateX(-100%); }
+  30%  { opacity: 0.7; }
+  70%  { opacity: 0.7; transform: translateX(100%); }
+  100% { opacity: 0; transform: translateX(100%); }
+}
+@keyframes laceBorder {
+  0%   { opacity: 0; box-shadow: inset 0 0 0 2px transparent; }
+  30%  { opacity: 1; box-shadow: inset 0 0 0 2px rgba(174,213,129,0.6); }
+  70%  { opacity: 1; }
+  100% { opacity: 0; }
+}
+.effect-lace .effect-shimmer {
+  position: absolute; inset: 0;
+  background: linear-gradient(105deg, transparent 20%, rgba(174,213,129,0.35) 40%, rgba(129,199,132,0.2) 50%, rgba(174,213,129,0.35) 60%, transparent 80%);
+  animation: laceShimmer 0.65s ease-in-out forwards;
+}
+.effect-lace .effect-border {
+  position: absolute; inset: 0;
+  border-radius: 8px;
+  animation: laceBorder 0.65s ease-in-out forwards;
+}
+
+/* ── poison — green burst ── */
+@keyframes poisonBurst {
+  0%   { opacity: 0; transform: translate(-50%, -50%) scale(0.1); }
+  20%  { opacity: 1; transform: translate(-50%, -50%) scale(1.05); }
+  60%  { opacity: 0.8; transform: translate(-50%, -50%) scale(1.2); }
+  100% { opacity: 0; transform: translate(-50%, -50%) scale(1.5); }
+}
+@keyframes poisonFlash {
+  0%   { opacity: 0; }
+  12%  { opacity: 0.5; }
+  100% { opacity: 0; }
+}
+@keyframes poisonParticle {
+  0%   { opacity: 1; transform: translate(var(--px), var(--py)) scale(1); }
+  100% { opacity: 0; transform: translate(calc(var(--px) * 2.5), calc(var(--py) * 2.5)) scale(0.2); }
+}
+.effect-poison .effect-flash {
+  position: absolute; inset: 0;
+  background: rgba(100,220,80,0.3);
+  animation: poisonFlash 0.55s ease-out forwards;
+}
+.effect-poison .effect-burst {
+  position: absolute;
+  top: 50%; left: 50%;
+  width: 80%; height: 80%;
+  background: radial-gradient(circle, rgba(150,255,100,0.9) 0%, rgba(80,200,50,0.6) 35%, transparent 65%);
+  clip-path: polygon(50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%);
+  animation: poisonBurst 0.55s ease-out forwards;
+}
+
+/* ── crystal — amber sparkle particles ── */
+@keyframes crystalParticle {
+  0%   { opacity: 1; transform: translate(-50%, -50%) translate(var(--cx), var(--cy)) scale(1); }
+  100% { opacity: 0; transform: translate(-50%, -50%) translate(calc(var(--cx) * 2.2), calc(var(--cy) * 2.2)) scale(0.1) rotate(180deg); }
+}
+@keyframes crystalGlow {
+  0%   { opacity: 0; }
+  15%  { opacity: 0.6; }
+  100% { opacity: 0; }
+}
+.effect-crystal .effect-glow {
+  position: absolute; inset: 0;
+  background: radial-gradient(circle at 50% 50%, rgba(255,213,79,0.4) 0%, transparent 70%);
+  animation: crystalGlow 0.7s ease-out forwards;
+}
+.effect-crystal .effect-spark {
+  position: absolute;
+  top: 50%; left: 50%;
+  width: 8px; height: 8px;
+  background: rgba(255,235,150,0.95);
+  border-radius: 2px;
+  box-shadow: 0 0 6px rgba(255,213,79,0.8);
+  animation: crystalParticle 0.7s ease-out forwards;
+}
+
+/* ── scoop — amber drip sliding down ── */
+@keyframes scoopDrip {
+  0%   { opacity: 0; transform: translateX(-50%) translateY(-20%) scaleY(0.3); }
+  15%  { opacity: 0.9; transform: translateX(-50%) translateY(-10%) scaleY(1); }
+  70%  { opacity: 0.7; transform: translateX(-50%) translateY(60%) scaleY(1.3); }
+  100% { opacity: 0; transform: translateX(-50%) translateY(90%) scaleY(0.8); }
+}
+@keyframes scoopGlow {
+  0%   { opacity: 0; }
+  20%  { opacity: 0.35; }
+  100% { opacity: 0; }
+}
+.effect-scoop .effect-glow {
+  position: absolute; inset: 0;
+  background: radial-gradient(ellipse at 50% 30%, rgba(200,169,110,0.4) 0%, transparent 65%);
+  animation: scoopGlow 0.7s ease-out forwards;
+}
+.effect-scoop .effect-drip {
+  position: absolute;
+  top: 10%; left: 50%;
+  width: 28%; height: 55%;
+  background: radial-gradient(ellipse at 50% 30%, rgba(200,160,60,0.85) 0%, rgba(160,110,20,0.7) 50%, transparent 80%);
+  border-radius: 50% 50% 60% 60%;
+  animation: scoopDrip 0.7s ease-in forwards;
+}
+
+/* ── chomp — teeth/jaw silhouette ── */
+@keyframes chompTop {
+  0%   { opacity: 0; transform: translateX(-50%) translateY(-120%); }
+  15%  { opacity: 1; transform: translateX(-50%) translateY(-30%); }
+  35%  { transform: translateX(-50%) translateY(-30%); }
+  55%  { transform: translateX(-50%) translateY(-100%); }
+  100% { opacity: 0; transform: translateX(-50%) translateY(-150%); }
+}
+@keyframes chompBottom {
+  0%   { opacity: 0; transform: translateX(-50%) translateY(120%); }
+  15%  { opacity: 1; transform: translateX(-50%) translateY(30%); }
+  35%  { transform: translateX(-50%) translateY(30%); }
+  55%  { transform: translateX(-50%) translateY(100%); }
+  100% { opacity: 0; transform: translateX(-50%) translateY(150%); }
+}
+@keyframes chompFlash {
+  0%   { opacity: 0; }
+  35%  { opacity: 0; }
+  40%  { opacity: 0.5; }
+  100% { opacity: 0; }
+}
+.effect-chomp .effect-teeth-top {
+  position: absolute;
+  top: 15%; left: 50%;
+  width: 55%; height: 30%;
+  /* Jagged teeth using clip-path */
+  background: rgba(220,220,220,0.92);
+  clip-path: polygon(0% 0%, 12% 100%, 25% 30%, 37% 100%, 50% 30%, 62% 100%, 75% 30%, 87% 100%, 100% 0%);
+  animation: chompTop 0.6s ease-in-out forwards;
+  filter: drop-shadow(0 2px 4px rgba(0,0,0,0.6));
+}
+.effect-chomp .effect-teeth-bottom {
+  position: absolute;
+  bottom: 15%; left: 50%;
+  width: 55%; height: 30%;
+  background: rgba(220,220,220,0.92);
+  clip-path: polygon(0% 100%, 12% 0%, 25% 70%, 37% 0%, 50% 70%, 62% 0%, 75% 70%, 87% 0%, 100% 100%);
+  animation: chompBottom 0.6s ease-in-out forwards;
+  filter: drop-shadow(0 -2px 4px rgba(0,0,0,0.6));
+}
+.effect-chomp .effect-flash {
+  position: absolute; inset: 0;
+  background: rgba(255,220,220,0.25);
+  animation: chompFlash 0.6s ease-out forwards;
+}
+
+/* ── counterattack — full red panel flash (applied to whole card) ── */
+@keyframes counterFlash {
+  0%   { opacity: 0; }
+  8%   { opacity: 0.55; }
+  40%  { opacity: 0.3; }
+  100% { opacity: 0; }
+}
+.effect-counterattack-panel {
+  position: absolute;
+  inset: 0;
+  background: rgba(220,30,30,0.45);
+  border-radius: 16px;
+  pointer-events: none;
+  z-index: 10;
+  animation: counterFlash 0.6s ease-out forwards;
+}

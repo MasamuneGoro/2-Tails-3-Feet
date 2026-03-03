@@ -766,6 +766,7 @@ export default function App() {
   const [battleState, setBattleState] = useState<BattleState | null>(null);
   const [battleResult, setBattleResult] = useState<BattleResult | null>(null);
   const [battleLog, setBattleLog] = useState<string[]>([]);  // last move's log lines
+  const [combatEffect, setCombatEffect] = useState<string | null>(null); // active effect key
 
   const [markState, setMarkState] = useState<BlotMarkState>(() => makeInitialMarkState());
   const [marksViewed, setMarksViewed] = useState(false); // true after panel opened this "session"
@@ -1652,17 +1653,55 @@ export default function App() {
   // ── Combat ────────────────────────────────────────────────────────────────
   const [battleFoodContaminated, setBattleFoodContaminated] = useState(false);
 
+  // Map move IDs to CSS effect keys
+  function getMoveEffect(moveId: import("./types").MoveId): string {
+    switch (moveId) {
+      case "jab_wing":          return "impact_light";
+      case "drill_thorax":      return "pierce";
+      case "stomp_it_down":     return "stomp";
+      case "squeeze_glands":    return "scrape";
+      case "apply_wax_twig":    return "lace";
+      case "apply_wax_drill":   return "lace";
+      case "poison_strike":     return "poison";
+      case "poison_drill":      return "poison";
+      case "comb_slap":         return "scrape";
+      case "smash_body":        return "impact_heavy";
+      case "stomp_on_it":       return "stomp";
+      case "tease_out_crystal": return "crystal";
+      case "scoop_out_flesh":   return "scoop";
+      case "chomp_it":          return "chomp";
+      case "double_chomp":      return "chomp";
+      default:                  return "";
+    }
+  }
+
+  function fireCombatEffect(effectKey: string) {
+    if (!effectKey) return;
+    setCombatEffect(null);
+    // Small gap so re-triggering same effect still restarts the animation
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        setCombatEffect(effectKey);
+        setTimeout(() => setCombatEffect(null), 700);
+      });
+    });
+  }
+
   function enterBattle(creatureId: CreatureId) {
     const state = startBattle(creatureId);
     setBattleState(state);
     setBattleResult(null);
     setBattleLog([]);
     setBattleFoodContaminated(false);
+    setCombatEffect(null);
     setScreen("BATTLE");
   }
 
   function doMove(moveId: import("./types").MoveId) {
     if (!battleState) return;
+
+    // Fire visual effect immediately on button press
+    fireCombatEffect(getMoveEffect(moveId));
 
     // ── Flee ──
     if (moveId === "flee") {
@@ -1685,7 +1724,11 @@ export default function App() {
     setBattleLog(log);
 
     const newFoodContaminated = battleFoodContaminated || foodContaminated;
-    if (foodContaminated) setBattleFoodContaminated(true);
+    if (foodContaminated) {
+      setBattleFoodContaminated(true);
+      // Override the smash effect with counterattack flash on the whole panel
+      fireCombatEffect("counterattack");
+    }
 
     // ── Check secretion ──
     const secretion = checkSecretion(nextState);
@@ -3862,7 +3905,9 @@ export default function App() {
     }
 
     return (
-      <div className="card">
+      <div className="card" style={{ position: "relative" }}>
+        {/* Counterattack full-panel flash */}
+        {combatEffect === "counterattack" && <div className="effect-counterattack-panel"/>}
         <FadeIn delay={0}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16 }}>
             <div>
@@ -3875,12 +3920,47 @@ export default function App() {
         {/* Moth illustration */}
         <FadeIn delay={30}>
           <div style={{ display: "flex", justifyContent: "center", marginBottom: 16 }}>
-            <img
-              key={mothImg}
-              src={mothImg}
-              alt=""
-              style={{ width: 220, height: 220, objectFit: "contain", imageRendering: "pixelated" }}
-            />
+            <div
+              className={`combat-effect-host${combatEffect === "impact_heavy" || combatEffect === "stomp" ? " combat-shake" : ""}`}
+              style={{ width: 220, height: 220, position: "relative" }}
+            >
+              <img
+                key={mothImg}
+                src={mothImg}
+                alt=""
+                style={{ width: 220, height: 220, objectFit: "contain", imageRendering: "pixelated", display: "block" }}
+              />
+              {/* Effect overlay — only renders during active effect */}
+              {combatEffect && combatEffect !== "counterattack" && (
+                <div className={`combat-effect-overlay effect-${combatEffect}`}>
+                  {/* impact_light */}
+                  {combatEffect === "impact_light" && <><div className="effect-flash"/><div className="effect-burst"/></>}
+                  {/* impact_heavy */}
+                  {combatEffect === "impact_heavy" && <><div className="effect-flash"/><div className="effect-burst"/></>}
+                  {/* pierce */}
+                  {combatEffect === "pierce" && <><div className="effect-ring"/><div className="effect-desaturate"/><div className="effect-dot"/></>}
+                  {/* stomp */}
+                  {combatEffect === "stomp" && <><div className="effect-flash"/><div className="effect-ring"/><div className="effect-ring2"/></>}
+                  {/* scrape */}
+                  {combatEffect === "scrape" && <><div className="effect-line1"/><div className="effect-line2"/><div className="effect-line3"/></>}
+                  {/* lace */}
+                  {combatEffect === "lace" && <><div className="effect-shimmer"/><div className="effect-border"/></>}
+                  {/* poison */}
+                  {combatEffect === "poison" && <><div className="effect-flash"/><div className="effect-burst"/></>}
+                  {/* crystal — glow + 6 sparks at different angles */}
+                  {combatEffect === "crystal" && <>
+                    <div className="effect-glow"/>
+                    {([[-28,-30],[28,-28],[38,8],[-34,12],[0,-40],[0,35]] as [number,number][]).map(([x,y],i) => (
+                      <div key={i} className="effect-spark" style={{ "--cx": `${x}px`, "--cy": `${y}px`, animationDelay: `${i * 50}ms` } as React.CSSProperties}/>
+                    ))}
+                  </>}
+                  {/* scoop */}
+                  {combatEffect === "scoop" && <><div className="effect-glow"/><div className="effect-drip"/></>}
+                  {/* chomp */}
+                  {combatEffect === "chomp" && <><div className="effect-teeth-top"/><div className="effect-teeth-bottom"/><div className="effect-flash"/></>}
+                </div>
+              )}
+            </div>
           </div>
         </FadeIn>
 

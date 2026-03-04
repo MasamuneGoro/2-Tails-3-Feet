@@ -468,7 +468,7 @@ export const GEM_TROPHIES: Record<GemTrophyItemId, ProgressionItemDef> = {
   gem_trophy_harvesting:  { id: "gem_trophy_harvesting",  kind: "gem_trophy", category: "Harvesting",  name: "Gem-Embedded Harvesting Trophy",  flavor: "The green prism, inlaid with scored chips. Every method, crystallised." },
   gem_trophy_crafting:    { id: "gem_trophy_crafting",    kind: "gem_trophy", category: "Crafting",    name: "Gem-Embedded Crafting Trophy",    flavor: "The grey octahedron, set with clean grey shards. It hums faintly when you hold it still." },
   gem_trophy_survival:    { id: "gem_trophy_survival",    kind: "gem_trophy", category: "Survival",    name: "Gem-Embedded Survival Trophy",    flavor: "The red ovoid, laced with red nodules. Dense. It has been through things." },
-  gem_trophy_combat:      { id: "gem_trophy_combat",      kind: "gem_trophy", category: "Combat",      name: "Gem-Embedded Combat Trophy",      flavor: "The violet shard set deep with seven splinters. It vibrates slightly if you listen." },
+  gem_trophy_combat:      { id: "gem_trophy_combat",      kind: "gem_trophy", category: "Combat",      name: "Gem-Embedded Combat Trophy",      flavor: "The violet shard set deep. It vibrates slightly if you listen." },
   gem_trophy_loot:        { id: "gem_trophy_loot",        kind: "gem_trophy", category: "Loot",        name: "Gem-Embedded Loot Trophy",        flavor: "The yellow tetrahedron, set with two clear flecks. Perfectly transparent." },
 };
 
@@ -534,7 +534,7 @@ export const GEM_TROPHY_RECIPES: Record<GemTrophyItemId, GemTrophyRecipe> = {
   gem_trophy_harvesting:  { id: "rcp_gem_harvesting",  category: "Harvesting",  output: "gem_trophy_harvesting",  trophyInput: "trophy_harvesting",  markerInput: "marker_harvesting",  markerQty: 3, resinQty: 3 },
   gem_trophy_crafting:    { id: "rcp_gem_crafting",    category: "Crafting",    output: "gem_trophy_crafting",    trophyInput: "trophy_crafting",    markerInput: "marker_crafting",    markerQty: 2, resinQty: 2 },
   gem_trophy_survival:    { id: "rcp_gem_survival",    category: "Survival",    output: "gem_trophy_survival",    trophyInput: "trophy_survival",    markerInput: "marker_survival",    markerQty: 2, resinQty: 2 },
-  gem_trophy_combat:      { id: "rcp_gem_combat",      category: "Combat",      output: "gem_trophy_combat",      trophyInput: "trophy_combat",      markerInput: "marker_combat",      markerQty: 7, resinQty: 7 },
+  gem_trophy_combat:      { id: "rcp_gem_combat",      category: "Combat",      output: "gem_trophy_combat",      trophyInput: "trophy_combat",      markerInput: "marker_combat",      markerQty: 2, resinQty: 2 },
   gem_trophy_loot:        { id: "rcp_gem_loot",        category: "Loot",        output: "gem_trophy_loot",        trophyInput: "trophy_loot",        markerInput: "marker_loot",        markerQty: 2, resinQty: 2 },
 };
 

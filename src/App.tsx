@@ -38,7 +38,7 @@ const BLOT_MARKS: Record<BlotMarkId, BlotMark> = {
   mark_eat_on_site:        { id: "mark_eat_on_site",        category: "Survival",    title: "Straight from the Source", flavour: "Why carry it when you can just eat it there?" },
   mark_first_win:          { id: "mark_first_win",          category: "Combat",      title: "It Went Down",             flavour: "You stood your ground and it worked." },
   mark_use_combo:          { id: "mark_use_combo",          category: "Combat",      title: "Double-Handed",            flavour: "Two tools, one move. That takes practice." },
-  mark_high_integrity_win: { id: "mark_high_integrity_win", category: "Combat",      title: "Careful Hands",            flavour: "You took what you needed without breaking everything else." },
+  mark_high_integrity_win: { id: "mark_high_integrity_win", category: "Combat",      title: "Full Arsenal",             flavour: "You tried everything. Turns out, everything worked." },
   mark_first_wing_membrane:{ id: "mark_first_wing_membrane",category: "Loot",        title: "Delicate Thing",           flavour: "Light. Strange. You're not sure what it's for yet." },
   mark_first_crystallised_wax:{ id: "mark_first_crystallised_wax", category: "Loot", title: "Something Crystallised",  flavour: "It's solid. Warm. You'll figure out what it does." },
   mark_full_corpse:        { id: "mark_full_corpse",        category: "Loot",        title: "Clean Harvest",            flavour: "Nothing wasted. Every part counted." },
@@ -60,7 +60,7 @@ const BLOT_MARK_HOW: Record<BlotMarkId, string> = {
   mark_eat_on_site:         "Travel to a Sap Weep location and eat the soft sap directly on site.",
   mark_first_win:           "Win a creature encounter by reducing the creature's composure to zero.",
   mark_use_combo:           "Use a two-tool combo move in battle: Squeeze Glands, Tease Out Crystal, Scoop Out Flesh, or Double Chomp.",
-  mark_high_integrity_win:  "Win a battle with the creature's integrity at 80 or above. Avoid heavy damage moves.",
+  mark_high_integrity_win:  "Win a battle using 7 or more unique moves in a single fight.",
   mark_first_wing_membrane: "Obtain a Wing Membrane drop. Win with integrity 60+ and the wing torn.",
   mark_first_crystallised_wax: "Obtain Crystallised Wax by using Tease Out Crystal mid-battle.",
   mark_full_corpse:         "Win a battle with the creature's integrity at 80 or above to get the peak corpse drops.",
@@ -254,13 +254,13 @@ function computeEarnedMarks(ms: BlotMarkState, player: PlayerState, context: {
   }
 
   if (context.justWon) {
-    const { integrity, movesUsed } = context.justWon;
+    const { integrity, movesUsed, uniqueMoves } = context.justWon;
     const hasCombo = movesUsed.some(m => {
       const mv = MOVES[m]; return mv?.tools && mv.tools.length === 2;
     });
     tryEarn("mark_first_win", true);
     tryEarn("mark_use_combo", hasCombo);
-    tryEarn("mark_high_integrity_win", integrity >= 80);
+    tryEarn("mark_high_integrity_win", uniqueMoves >= 7);
     tryEarn("mark_full_corpse", integrity >= 80);
   }
 
@@ -393,7 +393,7 @@ function getNudgeText(ms: BlotMarkState, player: PlayerState, atPoi: boolean): s
   // Priority 14–20 — combat chain
   if (e.mark_first_win && !e.mark_use_combo) return "In battle, you can combine two tools into a single combo move — try Squeeze Glands or Tease Out Crystal.";
   if (e.mark_use_combo && !e.mark_first_crystallised_wax) return "Tease Out Crystal drops Crystallised Wax. Open the thorax first.";
-  if (e.mark_first_win && !e.mark_high_integrity_win) return "Try winning a battle without heavy damage moves — keep the creature's integrity high.";
+  if (e.mark_first_win && !e.mark_high_integrity_win) return "Try using 7 or more different moves in a single battle — variety is rewarded.";
   if (e.mark_first_win && !e.mark_full_corpse) return "A clean win with high integrity gives the best corpse drops.";
   if (e.mark_first_win && !e.mark_first_wing_membrane) return "Wing Membranes drop from moths at high integrity with the wing torn.";
 
@@ -1736,13 +1736,12 @@ export default function App() {
     // ── Check secretion ──
     const secretion = checkSecretion(nextState);
     if (secretion.fires) {
-      // Moth flees via secretion — wait for effect animation to finish first
+      // Moth flees via secretion — keep battle screen alive until effect finishes
       const finalState = { ...nextState };
       const { result, updatedPlayer } = resolveBattle(finalState, "fled", true, newFoodContaminated, player);
       setPlayer(updatedPlayer);
-      setBattleState(null);
       setBattleResult(result);
-      setTimeout(() => setScreen("SUMMARY_BATTLE"), 700);
+      setTimeout(() => { setBattleState(null); setScreen("SUMMARY_BATTLE"); }, 700);
       return;
     }
 
@@ -1753,7 +1752,6 @@ export default function App() {
         nextState.flags.includes("thorax_open") ? "disarmed" : "collapsed";
       const { result, updatedPlayer } = resolveBattle(nextState, endReason, false, newFoodContaminated, player);
       setPlayer(updatedPlayer);
-      setBattleState(null);
 
       // Wire blot marks
       const ms = cloneMarkState(markState);
@@ -1770,14 +1768,12 @@ export default function App() {
       ms2 = triggerMarks(updatedPlayer, ms2, { justDropped: { ids: allDropIds } });
       setMarkState(ms2);
 
-      // Wait for effect animation to finish before showing summary
+      // Keep battle screen alive until effect finishes, then transition
       if (returnScreen === "SUMMARY_JOURNEY" && journeyResult) {
         setJourneyResult({ ...journeyResult, mothEncountered: false, mothDefeated: true });
-        setBattleResult(result);
-      } else {
-        setBattleResult(result);
       }
-      setTimeout(() => setScreen("SUMMARY_BATTLE"), 700);
+      setBattleResult(result);
+      setTimeout(() => { setBattleState(null); setScreen("SUMMARY_BATTLE"); }, 700);
     } else {
       setBattleState(nextState);
     }

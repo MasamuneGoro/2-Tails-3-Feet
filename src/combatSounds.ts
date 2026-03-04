@@ -175,6 +175,37 @@ function playCounterattack(ac: AudioContext) {
   n.start(t); n.stop(t+0.12);
 }
 
+function playPrecisionJab(ac: AudioContext) {
+  const t = ac.currentTime;
+  // Three-beat bouncy launch: ascending boing boing boing
+  [0, 0.12, 0.24].forEach((delay, i) => {
+    const freq = 180 + i * 60;
+    const o = osc(ac, "sine", freq), og = gn(ac, 0);
+    o.connect(og); og.connect(ac.destination);
+    og.gain.setValueAtTime(0.35 - i * 0.05, t + delay);
+    og.gain.exponentialRampToValueAtTime(0.001, t + delay + 0.09);
+    o.frequency.exponentialRampToValueAtTime(freq * 2.8, t + delay + 0.09);
+    o.start(t + delay); o.stop(t + delay + 0.12);
+    // Spring snap noise per bounce
+    const n = noise(ac, 0.05), hf = hpf(ac, 2000), ng = gn(ac, 0.2 - i * 0.04);
+    n.connect(hf); hf.connect(ng); ng.connect(ac.destination);
+    n.start(t + delay); n.stop(t + delay + 0.05);
+  });
+  // Impact: wet crunch through chitin
+  const impact = t + 0.42;
+  const sub = osc(ac, "sine", 90), subG = gn(ac, 0);
+  sub.connect(subG); subG.connect(ac.destination);
+  subG.gain.setValueAtTime(0.9, impact); subG.gain.exponentialRampToValueAtTime(0.001, impact + 0.3);
+  sub.frequency.exponentialRampToValueAtTime(30, impact + 0.28);
+  sub.start(impact); sub.stop(impact + 0.35);
+  const n2 = noise(ac, 0.08), bf2 = bpf(ac, 2800, 3), ng2 = gn(ac, 0.7);
+  n2.connect(bf2); bf2.connect(ng2); ng2.connect(ac.destination);
+  n2.start(impact); n2.stop(impact + 0.1);
+  const crack = noise(ac, 0.03), hf2 = hpf(ac, 5000), cg = gn(ac, 0.5);
+  crack.connect(hf2); hf2.connect(cg); cg.connect(ac.destination);
+  crack.start(impact); crack.stop(impact + 0.04);
+}
+
 // ─── Public API ───────────────────────────────────────────────────────────────
 
 export function playCombatSound(effect: string): void {
@@ -191,5 +222,6 @@ export function playCombatSound(effect: string): void {
     case "crystal":       playCrystal(ac);       break;
     case "chomp":         playChomp(ac);         break;
     case "counterattack": playCounterattack(ac); break;
+    case "precision_jab": playPrecisionJab(ac);  break;
   }
 }

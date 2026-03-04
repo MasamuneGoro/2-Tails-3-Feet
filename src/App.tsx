@@ -1736,13 +1736,13 @@ export default function App() {
     // ── Check secretion ──
     const secretion = checkSecretion(nextState);
     if (secretion.fires) {
-      // Moth flees via secretion
+      // Moth flees via secretion — wait for effect animation to finish first
       const finalState = { ...nextState };
       const { result, updatedPlayer } = resolveBattle(finalState, "fled", true, newFoodContaminated, player);
       setPlayer(updatedPlayer);
       setBattleState(null);
       setBattleResult(result);
-      setScreen("SUMMARY_BATTLE");
+      setTimeout(() => setScreen("SUMMARY_BATTLE"), 700);
       return;
     }
 
@@ -1770,14 +1770,14 @@ export default function App() {
       ms2 = triggerMarks(updatedPlayer, ms2, { justDropped: { ids: allDropIds } });
       setMarkState(ms2);
 
+      // Wait for effect animation to finish before showing summary
       if (returnScreen === "SUMMARY_JOURNEY" && journeyResult) {
         setJourneyResult({ ...journeyResult, mothEncountered: false, mothDefeated: true });
         setBattleResult(result);
-        setScreen("SUMMARY_BATTLE");
       } else {
         setBattleResult(result);
-        setScreen("SUMMARY_BATTLE");
       }
+      setTimeout(() => setScreen("SUMMARY_BATTLE"), 700);
     } else {
       setBattleState(nextState);
     }
@@ -4259,7 +4259,7 @@ export default function App() {
             <img src={summaryImg} alt="" style={{ width: 160, height: 160, objectFit: "contain", imageRendering: "pixelated" }} />
           </div>
           <h2 style={{ marginBottom: 4 }}>
-            {battleResult.endReason === "fled" ? "You got out." : `${creature.name} — ${endLabels[battleResult.endReason]}`}
+            {battleResult.secretionFled ? "It got away." : battleResult.endReason === "fled" ? "You got out." : `${creature.name} — ${endLabels[battleResult.endReason]}`}
           </h2>
           <div style={{ fontSize: "0.8rem", opacity: 0.5 }}>
             {battleResult.endReason !== "fled" && (

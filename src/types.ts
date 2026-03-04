@@ -71,6 +71,7 @@ export type MoveId =
   | "scoop_out_flesh"
   | "chomp_it"
   | "double_chomp"
+  | "precision_jab"
   | "flee";
 
 export type BattleFlag =

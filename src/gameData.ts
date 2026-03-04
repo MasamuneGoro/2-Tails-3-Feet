@@ -797,6 +797,21 @@ export const MOVES: Record<MoveId, PlayerMove> = {
       proficiencyGrants: ["drill"],
     },
   },
+  precision_jab: {
+    id: "precision_jab",
+    label: "Precision Jab",
+    group: "deadly_strike",
+    tools: ["eq_pointed_twig"],
+    shoes: { bouncy: 3, stompy: 0 },
+    hiddenWhenUnavailable: true,
+    effect: {
+      composureDelta: [100, 100],
+      integrityDelta: -17,
+      staminaCost: 22,
+      setsFlags: ["wing_torn"],
+      proficiencyGrants: ["poke"],
+    },
+  },
 
   // ── Annoy It ──
   comb_slap: {
@@ -984,6 +999,7 @@ export const CREATURES: Record<CreatureId, CreatureDef> = {
       "squeeze_glands",
       "apply_wax_twig", "apply_wax_drill",
       "poison_strike", "poison_drill",
+      "precision_jab",
       "comb_slap",
       "smash_body", "stomp_on_it",
       "tease_out_crystal", "scoop_out_flesh", "chomp_it", "double_chomp",

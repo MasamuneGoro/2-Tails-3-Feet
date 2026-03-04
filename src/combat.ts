@@ -104,9 +104,17 @@ export function getMovesForUI(state: BattleState, player: PlayerState): MoveUISt
         const missingBouncy = Math.max(0, move.shoes.bouncy - bouncy);
         const missingStompy = Math.max(0, move.shoes.stompy - stompy);
         const totalMissing = missingBouncy + missingStompy;
-        greyedReason = totalMissing > 0
-          ? `${totalMissing} shoe${totalMissing > 1 ? "s" : ""} required for combo`
-          : "Shoe combo required";
+        if (totalMissing > 0) {
+          if (missingBouncy > 0 && missingStompy === 0) {
+            greyedReason = `Needs ${move.shoes.bouncy} Bouncy Shoe${move.shoes.bouncy > 1 ? "s" : ""} (have ${bouncy})`;
+          } else if (missingStompy > 0 && missingBouncy === 0) {
+            greyedReason = `Needs ${move.shoes.stompy} Stompy Shoe${move.shoes.stompy > 1 ? "s" : ""} (have ${stompy})`;
+          } else {
+            greyedReason = `${totalMissing} shoe${totalMissing > 1 ? "s" : ""} required`;
+          }
+        } else {
+          greyedReason = "Shoe combo required";
+        }
       } else if (move.tools && move.tools.length > 0) {
         const needed = [...move.tools] as string[];
         const avail = [...equipped];

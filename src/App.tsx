@@ -1672,6 +1672,7 @@ export default function App() {
       case "scoop_out_flesh":   return "scoop";
       case "chomp_it":          return "chomp";
       case "double_chomp":      return "chomp";
+      case "precision_jab":     return "precision_jab";
       default:                  return "";
     }
   }
@@ -3982,7 +3983,7 @@ export default function App() {
         <FadeIn delay={30}>
           <div style={{ display: "flex", justifyContent: "center", marginBottom: 16 }}>
             <div
-              className={`combat-effect-host${combatEffect === "impact_heavy" || combatEffect === "stomp" ? " combat-shake" : ""}`}
+              className={`combat-effect-host${combatEffect === "impact_heavy" || combatEffect === "stomp" || combatEffect === "precision_jab" ? " combat-shake" : ""}`}
               style={{ width: 220, height: 220, position: "relative" }}
             >
               <img
@@ -4019,6 +4020,7 @@ export default function App() {
                   {combatEffect === "scoop" && <><div className="effect-glow"/><div className="effect-drip"/></>}
                   {/* chomp */}
                   {combatEffect === "chomp" && <><div className="effect-teeth-top"/><div className="effect-teeth-bottom"/><div className="effect-flash"/></>}
+                  {combatEffect === "precision_jab" && <><div className="effect-flash"/><div className="effect-precision-arc"/><div className="effect-precision-dot"/><div className="effect-burst"/></>}
                 </div>
               )}
             </div>

@@ -2371,6 +2371,7 @@ export default function App() {
                                   tease: "/tools/tailtool_comb.png",
                                   smash: "/tools/tailtool_hammer.png",
                                   drill: "/tools/tailtool_drill.png",
+                                  scoop: "/tools/tailtool_scoop.png",
                                 };
                                 const imgs = methods.map(m => methodToImg[m]).filter(Boolean);
                                 if (!imgs.length) return null;
@@ -2928,6 +2929,7 @@ export default function App() {
             tease: "/tools/tailtool_comb.png",
             smash: "/tools/tailtool_hammer.png",
             drill: "/tools/tailtool_drill.png",
+            scoop: "/tools/tailtool_scoop.png",
           };
           const imgs = multiHarvestResults.map(r => methodToImg[r.method]).filter(Boolean);
           if (!imgs.length) return null;

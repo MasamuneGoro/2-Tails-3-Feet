@@ -4706,7 +4706,7 @@ export default function App() {
       </div>
       <div style={{ background: "#0e1218", border: "1px solid #2a3a4a", borderRadius: 12, padding: "16px 20px", marginBottom: 32 }}>
         <p style={{ opacity: 0.8, fontWeight: 600, marginBottom: 4 }}>Contact the creator to claim your reward.</p>
-        <p style={{ opacity: 0.4, fontSize: "0.85rem", fontStyle: "italic" }}>[contact detail placeholder]</p>
+        <p style={{ opacity: 0.4, fontSize: "0.85rem", fontStyle: "italic" }}>Send a screenshot to the creator to claim your prize.</p>
       </div>
       <button
         onClick={resetAndClearSave}
